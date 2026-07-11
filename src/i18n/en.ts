@@ -362,6 +362,16 @@ export const en = {
   "vat.approveFailed": "Could not approve VAT return.",
   "vat.exported": "VAT return exported.",
   "vat.exportFailed": "Could not export VAT return.",
+  "vat.selectPeriod": "Select a VAT period before creating a draft.",
+  "vat.periodMismatch": "Draft period does not match the selected period.",
+  "vat.exportCancelled": "Export cancelled.",
+  "vat.periodKey": "Period key",
+  "vat.turnoverYear": "Turnover (year)",
+  "vat.vatReserve": "VAT reserve",
+  "vat.spendableCash": "Spendable cash",
+  "vat.reportingStatus": "Reporting: {period} · Status: {status}",
+  "documents.expenseAccount": "Expense account",
+  "errors.internal": "Something went wrong. Try again or restart the app.",
 } as const
 
 export type MessageKey = keyof typeof en

@@ -37,4 +37,4 @@ Out of scope:
 
 ## Security model
 
-See [`docs/security-privacy.md`](docs/security-privacy.md) and [`docs/oss-readiness/02-legal-disclaimers-bilingual.md`](docs/oss-readiness/02-legal-disclaimers-bilingual.md).
+See [`docs/security-privacy.md`](docs/security-privacy.md) and [`docs/legal/en.md`](docs/legal/en.md).

@@ -212,6 +212,34 @@ export async function vatProfileSaveCurrent(input: VatProfileSaveInput) {
   return response.data
 }
 
+export type ComplianceProfileCheckInput = {
+  taxStatus: string
+  vatStatus: string
+  expectedSalaryIncomeMinor: number | null
+  expectedBusinessProfitMinor: number | null
+  ruleYear: number | null
+}
+
+export type ComplianceProfileCheckResult = {
+  scenarioIds: string[]
+  passed: boolean
+  outcomes: Record<string, unknown>
+  ruleYear: number
+}
+
+export async function complianceProfileCheck(input: ComplianceProfileCheckInput) {
+  const response = await invoke<CommandResponse<ComplianceProfileCheckResult>>(
+    "compliance_profile_check",
+    { input },
+  )
+  return response.data
+}
+
+export async function stagedTransactionsCount(status: string | null = "staged") {
+  const response = await invoke<CommandResponse<number>>("staged_transactions_count", { status })
+  return response.data
+}
+
 export async function complianceCheckRun(input: ComplianceCheckInput) {
   const response = await invoke<CommandResponse<ComplianceCheckResult>>("compliance_check_run", {
     input,
@@ -459,7 +487,7 @@ export async function documentReveal(input: DocumentGetInput) {
 export function appErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === "object") {
     const appError = error as { code?: string; message?: string }
-    if (appError.code === "storage_error") {
+    if (appError.code === "internal_error" || appError.code === "storage_error") {
       return fallback
     }
     if ("message" in appError && typeof appError.message === "string" && appError.message.length > 0) {

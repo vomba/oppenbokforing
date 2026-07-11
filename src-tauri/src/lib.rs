@@ -31,6 +31,7 @@ pub mod year_end;
 #[cfg(feature = "desktop")]
 use commands::{
     business_profile_get_current, business_profile_save_current, compliance_check_run,
+    compliance_profile_check,
     counterparty_create, counterparty_list, invoice_create_draft, invoice_credit, invoice_issue,
     invoice_list, invoice_open_count, invoice_pdf_status, invoice_update_draft, recent_workspaces_list,
     rule_version_get, tax_profile_get_current, tax_profile_save_current, vat_profile_get_current,
@@ -48,7 +49,7 @@ use commands::{
     accountant_package_export_create, accountant_package_import_validate,
     integration_status_get,
     voucher_list, voucher_count, voucher_get, account_list, fiscal_period_list,
-    staged_transactions_list, document_list,
+    staged_transactions_list, staged_transactions_count, document_list,
 };
 #[cfg(feature = "desktop")]
 use state::AppState;
@@ -74,6 +75,7 @@ pub fn run() {
             vat_profile_get_current,
             vat_profile_save_current,
             compliance_check_run,
+            compliance_profile_check,
             rule_version_get,
             counterparty_list,
             counterparty_create,
@@ -114,6 +116,7 @@ pub fn run() {
             account_list,
             fiscal_period_list,
             staged_transactions_list,
+            staged_transactions_count,
             document_list,
         ])
         .run(tauri::generate_context!())

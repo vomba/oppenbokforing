@@ -54,8 +54,7 @@ jobs:
           TAURI_SMOKE: "1"
           TAURI_BUILD_ARGS: --target universal-apple-darwin
         run: |
-          npm run wire:skills
-          npm run harness:ci
+          npm run ci:public
           npm run test:smoke
 
   publish-macos:
@@ -114,7 +113,6 @@ jobs:
 
             Install notes: `docs/packaging-release.md`
             Signing setup: `docs/apple-signing-setup.md`
-            Security review: `docs/security-review-beta.md`
           releaseDraft: true
           prerelease: true
           args: --target universal-apple-darwin

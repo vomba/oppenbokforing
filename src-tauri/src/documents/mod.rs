@@ -33,7 +33,107 @@ pub struct DocumentImportInput {
 #[serde(rename_all = "camelCase")]
 struct IdempotentDocumentPayload {
     idempotency_key: String,
-    document: Document,
+    content_sha256: String,
+    document: Option<Document>,
+}
+
+#[derive(Debug)]
+enum DocumentImportClaim {
+    Proceed,
+    Cached(Document),
+}
+
+async fn claim_document_import(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    idempotency_key: &str,
+    content_sha256: &str,
+) -> Result<DocumentImportClaim, AppError> {
+    if let Some(existing) = check_idempotency(pool, workspace_id, idempotency_key).await? {
+        if existing.content_sha256 != content_sha256 {
+            return Err(AppError::validation(
+                "Idempotency key was already used for a different document",
+                "idempotencyKey",
+            ));
+        }
+        return Ok(DocumentImportClaim::Cached(existing));
+    }
+
+    let key = normalize_idempotency_key(idempotency_key)?;
+    let payload = IdempotentDocumentPayload {
+        idempotency_key: key.to_string(),
+        content_sha256: content_sha256.to_string(),
+        document: None,
+    };
+    let payload_json =
+        serde_json::to_string(&payload).map_err(|error| AppError::internal(error.to_string()))?;
+
+    match sqlx::query(
+        r#"
+        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
+        VALUES (?1, ?2, ?3, 'running', ?4, ?5)
+        "#,
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind(workspace_id)
+    .bind(JOB_DOCUMENT_IMPORT)
+    .bind(payload_json)
+    .bind(key)
+    .execute(pool)
+    .await
+    {
+        Ok(_) => Ok(DocumentImportClaim::Proceed),
+        Err(error) if crate::error::is_sqlite_unique_violation(&error) => {
+            if let Some(existing) = check_idempotency(pool, workspace_id, idempotency_key).await? {
+                if existing.content_sha256 != content_sha256 {
+                    return Err(AppError::validation(
+                        "Idempotency key was already used for a different document",
+                        "idempotencyKey",
+                    ));
+                }
+                Ok(DocumentImportClaim::Cached(existing))
+            } else {
+                Err(AppError::validation(
+                    "Document import already in progress for this idempotency key",
+                    "idempotencyKey",
+                ))
+            }
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+async fn finalize_document_import(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    idempotency_key: &str,
+    content_sha256: &str,
+    document: &Document,
+) -> Result<(), AppError> {
+    let key = normalize_idempotency_key(idempotency_key)?;
+    let payload = IdempotentDocumentPayload {
+        idempotency_key: key.to_string(),
+        content_sha256: content_sha256.to_string(),
+        document: Some(document.clone()),
+    };
+    let payload_json =
+        serde_json::to_string(&payload).map_err(|error| AppError::internal(error.to_string()))?;
+
+    sqlx::query(
+        r#"
+        UPDATE local_jobs
+        SET status = 'succeeded', payload_json = ?4
+        WHERE workspace_id = ?1 AND job_type = ?2 AND idempotency_key = ?3
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(JOB_DOCUMENT_IMPORT)
+    .bind(key)
+    .bind(payload_json)
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
 
 fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
@@ -84,51 +184,17 @@ async fn check_idempotency(
 
     let parsed: IdempotentDocumentPayload = serde_json::from_str(&payload)
         .map_err(|error| AppError::internal(error.to_string()))?;
-    Ok(Some(parsed.document))
+    Ok(parsed.document)
 }
 
 async fn record_idempotency(
     pool: &SqlitePool,
     workspace_id: &str,
     idempotency_key: &str,
+    content_sha256: &str,
     document: &Document,
-) -> Result<bool, AppError> {
-    let key = normalize_idempotency_key(idempotency_key)?;
-    let payload = IdempotentDocumentPayload {
-        idempotency_key: key.to_string(),
-        document: document.clone(),
-    };
-    let payload_json =
-        serde_json::to_string(&payload).map_err(|error| AppError::internal(error.to_string()))?;
-
-    let mut tx = pool.begin().await?;
-    match sqlx::query(
-        r#"
-        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
-        VALUES (?1, ?2, ?3, 'succeeded', ?4, ?5)
-        "#,
-    )
-    .bind(Uuid::new_v4().to_string())
-    .bind(workspace_id)
-    .bind(JOB_DOCUMENT_IMPORT)
-    .bind(payload_json)
-    .bind(key)
-    .execute(&mut *tx)
-    .await
-    {
-        Ok(_) => {
-            tx.commit().await?;
-            Ok(true)
-        }
-        Err(error) if crate::error::is_sqlite_unique_violation(&error) => {
-            tx.rollback().await?;
-            Ok(false)
-        }
-        Err(error) => {
-            tx.rollback().await?;
-            Err(error.into())
-        }
-    }
+) -> Result<(), AppError> {
+    finalize_document_import(pool, workspace_id, idempotency_key, content_sha256, document).await
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -175,14 +241,9 @@ pub async fn document_import(
     let bytes = std::fs::read(source_path)?;
     let content_sha256 = sha256_hex(&bytes);
 
-    if let Some(existing) = check_idempotency(pool, workspace_id, idempotency_key).await? {
-        if existing.content_sha256 != content_sha256 {
-            return Err(AppError::validation(
-                "Idempotency key was already used for a different document",
-                "idempotencyKey",
-            ));
-        }
-        return Ok(existing);
+    match claim_document_import(pool, workspace_id, idempotency_key, &content_sha256).await? {
+        DocumentImportClaim::Cached(existing) => return Ok(existing),
+        DocumentImportClaim::Proceed => {}
     }
 
     let documents_dir = load_documents_dir(pool, workspace_id).await?;
@@ -241,56 +302,26 @@ pub async fn document_import(
         retention_years: row.get("retention_years"),
     };
 
-    let inserted = record_idempotency(pool, workspace_id, idempotency_key, &document).await?;
-    let document = resolve_document_import_winner(
+    record_idempotency(
         pool,
         workspace_id,
         idempotency_key,
         &content_sha256,
-        document,
-        inserted,
+        &document,
     )
     .await?;
 
-    if inserted {
-        record_event(
-            pool,
-            workspace_id,
-            "document_import",
-            "document",
-            Some(&document.id),
-            &serde_json::to_string(&document).unwrap_or_else(|_| "{}".to_string()),
-        )
-        .await?;
-    }
+    record_event(
+        pool,
+        workspace_id,
+        "document_import",
+        "document",
+        Some(&document.id),
+        &serde_json::to_string(&document).unwrap_or_else(|_| "{}".to_string()),
+    )
+    .await?;
 
     Ok(document)
-}
-
-async fn resolve_document_import_winner(
-    pool: &SqlitePool,
-    workspace_id: &str,
-    idempotency_key: &str,
-    content_sha256: &str,
-    document: Document,
-    inserted: bool,
-) -> Result<Document, AppError> {
-    if inserted {
-        return Ok(document);
-    }
-
-    let winner = check_idempotency(pool, workspace_id, idempotency_key)
-        .await?
-        .ok_or_else(|| {
-            AppError::internal("Idempotency conflict without cached document import")
-        })?;
-    if winner.content_sha256 != content_sha256 {
-        return Err(AppError::validation(
-            "Idempotency key was already used for a different document",
-            "idempotencyKey",
-        ));
-    }
-    Ok(winner)
 }
 
 pub async fn store_document_bytes(

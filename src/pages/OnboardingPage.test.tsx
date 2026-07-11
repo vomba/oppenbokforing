@@ -42,13 +42,15 @@ vi.mock("../lib/commands", () => ({
   businessProfileSaveCurrent: vi.fn().mockResolvedValue({}),
   taxProfileSaveCurrent: vi.fn().mockResolvedValue({}),
   vatProfileSaveCurrent: vi.fn().mockResolvedValue({}),
-  complianceCheckRun: vi.fn().mockResolvedValue({
-    scenarioId: "vat-exempt-below-threshold",
+  complianceProfileCheck: vi.fn().mockResolvedValue({
+    scenarioIds: ["vat-exempt-below-threshold"],
     passed: true,
     outcomes: {
-      mustChargeVat: false,
-      mustRegisterForVat: false,
-      invoiceMustStateVatExemption: true,
+      "vat-exempt-below-threshold": {
+        mustChargeVat: false,
+        mustRegisterForVat: false,
+        invoiceMustStateVatExemption: true,
+      },
     },
     ruleYear: 2026,
   }),
@@ -90,7 +92,7 @@ describe("OnboardingPage", () => {
     await user.click(screen.getByRole("button", { name: "Fortsätt" }))
 
     await waitFor(() => {
-      expect(commands.complianceCheckRun).toHaveBeenCalled()
+      expect(commands.complianceProfileCheck).toHaveBeenCalled()
     })
     expect(screen.getByRole("heading", { name: "Granska och spara" })).toBeInTheDocument()
   })

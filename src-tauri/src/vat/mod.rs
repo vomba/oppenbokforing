@@ -1240,9 +1240,7 @@ pub async fn vat_threshold_status(
     workspace_id: &str,
     rule_year: i32,
 ) -> Result<VatThresholdStatus, AppError> {
-    let threshold = get_rule_i64(pool, "vat", "annual_turnover_threshold_minor")
-        .await?
-        .unwrap_or(12_000_000);
+    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor").await?;
     let warning_ratio = get_rule_i64(pool, "vat", "threshold_warning_ratio")
         .await?
         .unwrap_or(75);

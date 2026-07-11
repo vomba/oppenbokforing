@@ -16,13 +16,13 @@ if [[ "${TAURI_SMOKE:-0}" == "1" ]]; then
   if [[ -n "${TAURI_BUILD_ARGS:-}" ]]; then
     echo "Tauri build args: ${TAURI_BUILD_ARGS}"
     # shellcheck disable=SC2086
-    npm run tauri:build -- ${TAURI_BUILD_ARGS}
+    npx tauri build ${TAURI_BUILD_ARGS}
   else
     npm run tauri:build
   fi
 
-  APP_BUNDLE="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)"
-  DMG_BUNDLE="$(find src-tauri/target/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)"
+  APP_BUNDLE="$(find src-tauri/target -path '*/release/bundle/macos/*.app' -print -quit)"
+  DMG_BUNDLE="$(find src-tauri/target -path '*/release/bundle/dmg/*.dmg' -print -quit)"
 
   if [[ -z "${APP_BUNDLE}" ]]; then
     echo "ERROR: expected .app bundle under src-tauri/target/release/bundle/macos" >&2

@@ -13,7 +13,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build -- --bin oppenbokforing-desktop",
+    "tauri:build": "tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:fixtures": "vitest run src/lib/fixtures.test.ts",

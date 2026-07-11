@@ -3,6 +3,7 @@
   "productName": "ÖppenBokföring",
   "version": "0.1.0",
   "identifier": "se.oppenbokforing.desktop",
+  "mainBinaryName": "oppenbokforing-desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",

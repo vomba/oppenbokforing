@@ -39,6 +39,10 @@ jobs:
       - name: Generate dev icons
         run: npm run icons:dev
 
+      - name: Check desktop feature compiles
+        if: matrix.os == 'macos-latest'
+        run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop
+
       - name: Run public CI gate
         run: npm run ci:public
 

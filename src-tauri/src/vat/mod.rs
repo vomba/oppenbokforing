@@ -10,7 +10,7 @@ use crate::{
     error::AppError,
     ledger::net_revenue_minor_for_fiscal_year,
     profiles::get_vat_profile,
-    rules::{get_active_rule_version, get_rule_i64},
+    rules::{get_active_rule_version, get_rule_i64, require_rule_i64},
     workspace::{ensure_fiscal_year_open_tx, fiscal_year_id_for_year},
 };
 
@@ -1240,9 +1240,7 @@ pub async fn vat_threshold_status(
     workspace_id: &str,
     rule_year: i32,
 ) -> Result<VatThresholdStatus, AppError> {
-    let threshold = get_rule_i64(pool, "vat", "annual_turnover_threshold_minor")
-        .await?
-        .unwrap_or(12_000_000);
+    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor").await?;
     let warning_ratio = get_rule_i64(pool, "vat", "threshold_warning_ratio")
         .await?
         .unwrap_or(75);

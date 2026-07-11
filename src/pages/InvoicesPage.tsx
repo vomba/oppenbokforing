@@ -20,6 +20,7 @@ import {
   type Counterparty,
   type InvoiceSummary,
 } from "../lib/commands"
+import { parseSekToMinorUnits } from "../lib/money"
 import { invoiceDisplayStatus, invoiceStatusLabel } from "../lib/invoiceStatus"
 
 function formatMinor(minor: number) {
@@ -94,8 +95,8 @@ export function InvoicesPage() {
 
   async function handleCreateDraft() {
     if (busy || !selectedCustomerId) return
-    const unitPriceMinor = Math.round(Number(amountSek) * 100)
-    if (!Number.isFinite(unitPriceMinor) || unitPriceMinor <= 0) {
+    const unitPriceMinor = parseSekToMinorUnits(amountSek)
+    if (unitPriceMinor === null || unitPriceMinor <= 0) {
       setStatus(t(locale, "invoices.invalidAmount"))
       return
     }

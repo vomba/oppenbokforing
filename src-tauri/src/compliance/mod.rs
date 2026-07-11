@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     error::AppError,
-    rules::get_rule_i64,
+    rules::{get_rule_i64, require_rule_i64},
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,6 +33,80 @@ pub struct ComplianceCheckResult {
     pub passed: bool,
     pub outcomes: serde_json::Value,
     pub rule_year: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ComplianceProfileCheckInput {
+    pub tax_status: String,
+    pub vat_status: String,
+    pub expected_salary_income_minor: Option<i64>,
+    pub expected_business_profit_minor: Option<i64>,
+    pub rule_year: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ComplianceProfileCheckResult {
+    pub scenario_ids: Vec<String>,
+    pub passed: bool,
+    pub outcomes: serde_json::Value,
+    pub rule_year: i32,
+}
+
+/// Resolve golden scenario IDs from workspace tax/VAT posture (rules live in Rust, not UI).
+pub fn scenario_ids_for_profile(tax_status: &str, vat_status: &str) -> Vec<&'static str> {
+    let mut ids: Vec<&'static str> = Vec::new();
+    if tax_status == "fa_skatt" {
+        ids.push("fa-skatt-salary-and-business");
+    }
+    if vat_status == "exempt_low_turnover" {
+        ids.push("vat-exempt-below-threshold");
+    }
+    if ids.is_empty() {
+        if tax_status == "f_skatt" || tax_status == "fa_skatt" {
+            ids.push("fa-skatt-salary-and-business");
+        } else {
+            ids.push("vat-exempt-below-threshold");
+        }
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
+pub async fn run_profile_compliance_checks(
+    pool: &SqlitePool,
+    input: &ComplianceProfileCheckInput,
+) -> Result<ComplianceProfileCheckResult, AppError> {
+    let rule_year = input.rule_year.unwrap_or(2026);
+    let profile = ScenarioProfile {
+        tax_status: Some(input.tax_status.clone()),
+        vat_status: Some(input.vat_status.clone()),
+        expected_salary_income_minor: input.expected_salary_income_minor,
+        expected_business_profit_minor: input.expected_business_profit_minor,
+        rule_year: Some(rule_year),
+    };
+
+    let scenario_ids: Vec<String> = scenario_ids_for_profile(&input.tax_status, &input.vat_status)
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
+    let mut merged_outcomes = serde_json::Map::new();
+    let mut all_passed = true;
+    for scenario_id in &scenario_ids {
+        let result = evaluate_scenario(pool, scenario_id, &profile, &[]).await?;
+        all_passed &= result.passed;
+        merged_outcomes.insert(scenario_id.clone(), result.outcomes);
+    }
+
+    Ok(ComplianceProfileCheckResult {
+        scenario_ids,
+        passed: all_passed,
+        outcomes: serde_json::Value::Object(merged_outcomes),
+        rule_year,
+    })
 }
 
 pub async fn evaluate_scenario(
@@ -100,9 +174,7 @@ async fn evaluate_vat_exempt_below(
     profile: &ScenarioProfile,
     transactions: &[ScenarioTransaction],
 ) -> Result<serde_json::Value, AppError> {
-    let threshold = get_rule_i64(pool, "vat", "annual_turnover_threshold_minor")
-        .await?
-        .unwrap_or(12_000_000);
+    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor").await?;
     let warning_ratio = get_rule_i64(pool, "vat", "threshold_warning_ratio")
         .await?
         .unwrap_or(80);
@@ -129,9 +201,7 @@ async fn evaluate_vat_exempt_breach(
     profile: &ScenarioProfile,
     transactions: &[ScenarioTransaction],
 ) -> Result<serde_json::Value, AppError> {
-    let threshold = get_rule_i64(pool, "vat", "annual_turnover_threshold_minor")
-        .await?
-        .unwrap_or(12_000_000);
+    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor").await?;
     let turnover = sum_turnover(transactions);
     let mut breach_index: Option<usize> = None;
     let mut running = 0i64;
@@ -167,6 +237,21 @@ mod tests {
     use super::*;
     use crate::db::connect_workspace;
     use tempfile::tempdir;
+
+    #[test]
+    fn scenario_ids_for_fa_skatt_and_exempt() {
+        let ids = scenario_ids_for_profile("fa_skatt", "exempt_low_turnover");
+        assert_eq!(
+            ids,
+            vec!["fa-skatt-salary-and-business", "vat-exempt-below-threshold"]
+        );
+    }
+
+    #[test]
+    fn scenario_ids_for_registered_f_skatt() {
+        let ids = scenario_ids_for_profile("f_skatt", "registered");
+        assert_eq!(ids, vec!["fa-skatt-salary-and-business"]);
+    }
 
     #[tokio::test]
     async fn fa_skatt_fixture_passes() {

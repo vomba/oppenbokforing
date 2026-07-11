@@ -412,6 +412,25 @@ fn staged_list_limit(limit: Option<i64>) -> i64 {
     limit.unwrap_or(100).clamp(1, 500)
 }
 
+pub async fn staged_transactions_count(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    status: Option<&str>,
+) -> Result<i64, AppError> {
+    let count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*) FROM staged_transactions
+        WHERE workspace_id = ?1
+          AND (?2 IS NULL OR status = ?2)
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(status)
+    .fetch_one(pool)
+    .await?;
+    Ok(count)
+}
+
 pub async fn staged_transactions_list(
     pool: &SqlitePool,
     workspace_id: &str,

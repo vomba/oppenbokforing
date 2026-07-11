@@ -14,7 +14,10 @@ use crate::{
         CommandResponse, ComplianceCheckInput, WorkspaceCreateInput, WorkspaceOpenInput,
         WorkspaceSummary,
     },
-    compliance::{evaluate_scenario, ScenarioProfile, ScenarioTransaction},
+    compliance::{
+        evaluate_scenario, run_profile_compliance_checks, ComplianceProfileCheckInput,
+        ComplianceProfileCheckResult, ScenarioProfile, ScenarioTransaction,
+    },
     counterparties::{self, Counterparty, CounterpartyCreateInput},
     db::{connect_workspace, open_existing_workspace},
     documents::{Document, DocumentGetInput, DocumentImportInput, DocumentListInput},
@@ -257,7 +260,7 @@ pub async fn workspace_backup_create(
     input: BackupCreateInput,
 ) -> CommandResult<BackupSummary> {
     let workspace = require_workspace(&state).await?;
-    if let Some(summary) = backup::check_idempotency(
+    match backup::claim_backup_create(
         &workspace.pool,
         &workspace.id,
         &input.idempotency_key,
@@ -265,15 +268,18 @@ pub async fn workspace_backup_create(
     )
     .await?
     {
-        if let Some(requested_path) = input.backup_file_path.as_deref() {
-            if !backup::idempotent_backup_matches_request(&summary, Some(requested_path)) {
-                return Err(AppError::validation(
-                    "Idempotency key was already used for a different backup destination",
-                    "idempotencyKey",
-                ));
+        backup::BackupCreateClaim::Cached(summary) => {
+            if let Some(requested_path) = input.backup_file_path.as_deref() {
+                if !backup::idempotent_backup_matches_request(&summary, Some(requested_path)) {
+                    return Err(AppError::validation(
+                        "Idempotency key was already used for a different backup destination",
+                        "idempotencyKey",
+                    ));
+                }
             }
+            return Ok(CommandResponse { data: summary });
         }
-        return Ok(CommandResponse { data: summary });
+        backup::BackupCreateClaim::Proceed => {}
     }
 
     let destination = if input.backup_file_path.is_some() {
@@ -299,7 +305,7 @@ pub async fn workspace_backup_create(
     )
     .await?;
 
-    backup::record_idempotent_job(
+    backup::finalize_backup_create(
         &workspace.pool,
         &workspace.id,
         &input.idempotency_key,
@@ -414,6 +420,27 @@ pub async fn compliance_check_run(
         "compliance_check_run",
         "scenario",
         Some(&input.scenario_id),
+        &serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string()),
+    )
+    .await?;
+
+    Ok(CommandResponse { data: result })
+}
+
+#[tauri::command]
+pub async fn compliance_profile_check(
+    state: State<'_, AppState>,
+    input: ComplianceProfileCheckInput,
+) -> CommandResult<ComplianceProfileCheckResult> {
+    let workspace = require_workspace(&state).await?;
+    let result = run_profile_compliance_checks(&workspace.pool, &input).await?;
+
+    record_event(
+        &workspace.pool,
+        &workspace.id,
+        "compliance_profile_check",
+        "scenario",
+        None,
         &serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string()),
     )
     .await?;
@@ -824,6 +851,21 @@ pub async fn staged_transactions_list(
     let workspace = require_workspace(&state).await?;
     let result = imports::staged_transactions_list(&workspace.pool, &workspace.id, &input).await?;
     Ok(CommandResponse { data: result })
+}
+
+#[tauri::command]
+pub async fn staged_transactions_count(
+    state: State<'_, AppState>,
+    status: Option<String>,
+) -> CommandResult<i64> {
+    let workspace = require_workspace(&state).await?;
+    let count = imports::staged_transactions_count(
+        &workspace.pool,
+        &workspace.id,
+        status.as_deref(),
+    )
+    .await?;
+    Ok(CommandResponse { data: count })
 }
 
 #[tauri::command]

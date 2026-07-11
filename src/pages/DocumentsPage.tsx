@@ -9,6 +9,7 @@ import { t } from "../i18n"
 import { helpTopics } from "../lib/helpTopics"
 import {
   appErrorMessage,
+  accountList,
   csvImportCreate,
   documentImport,
   documentList,
@@ -16,10 +17,12 @@ import {
   invoiceList,
   reconciliationMatchCreate,
   stagedTransactionsList,
+  type AccountSummary,
   type Document,
   type InvoiceSummary,
   type StagedTransactionSummary,
 } from "../lib/commands"
+import { parseSekToMinorUnits } from "../lib/money"
 import { reconcileListSelection } from "../lib/workbenchSelection"
 
 function formatSek(minor: number) {
@@ -41,6 +44,8 @@ export function DocumentsPage() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("")
   const [expenseAmountSek, setExpenseAmountSek] = useState("500")
   const [expenseVatRate, setExpenseVatRate] = useState("0.25")
+  const [expenseAccountNumber, setExpenseAccountNumber] = useState("5610")
+  const [expenseAccounts, setExpenseAccounts] = useState<AccountSummary[]>([])
   const [selectedDocumentId, setSelectedDocumentId] = useState("")
   const [noDocumentReason, setNoDocumentReason] = useState("")
   const docKeysRef = useRef<Record<string, string>>({})
@@ -68,6 +73,11 @@ export function DocumentsPage() {
   useEffect(() => {
     if (!workspace) return
     refreshInbox().catch(() => setStatus(t(locale, "documents.loadFailed")))
+    accountList()
+      .then((accounts) =>
+        setExpenseAccounts(accounts.filter((account) => account.accountType === "expense")),
+      )
+      .catch(() => setExpenseAccounts([]))
   }, [workspace, locale])
 
   useEffect(() => {
@@ -161,8 +171,8 @@ export function DocumentsPage() {
 
   async function handlePostExpense() {
     if (busy || !selectedStagedId) return
-    const amountMinorExVat = Math.round(Number(expenseAmountSek) * 100)
-    if (!Number.isFinite(amountMinorExVat) || amountMinorExVat <= 0) {
+    const amountMinorExVat = parseSekToMinorUnits(expenseAmountSek)
+    if (amountMinorExVat === null || amountMinorExVat <= 0) {
       setStatus(t(locale, "documents.invalidAmount"))
       return
     }
@@ -178,7 +188,7 @@ export function DocumentsPage() {
       const result = await expensePost({
         amountMinorExVat,
         vatRate: Number(expenseVatRate),
-        expenseAccountNumber: "5610",
+        expenseAccountNumber,
         paymentAccountNumber: "1930",
         documentId: selectedDocumentId || null,
         noDocumentReason: noDocumentReason.trim() || null,
@@ -309,6 +319,20 @@ export function DocumentsPage() {
               <hr />
 
               <h4>{t(locale, "documents.postExpense")}</h4>
+              <label>
+                {t(locale, "documents.expenseAccount")}
+                <select
+                  value={expenseAccountNumber}
+                  onChange={(event) => setExpenseAccountNumber(event.target.value)}
+                  disabled={busy || expenseAccounts.length === 0}
+                >
+                  {expenseAccounts.map((account) => (
+                    <option key={account.id} value={account.number}>
+                      {account.number} · {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 {t(locale, "documents.amountExVat")}
                 <input

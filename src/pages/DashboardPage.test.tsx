@@ -34,8 +34,8 @@ vi.mock("../components/AppSidebar", () => ({
 vi.mock("../lib/commands", () => ({
   appErrorMessage: (_error: unknown, fallback: string) => fallback,
   cashflowOverviewGet: vi.fn().mockResolvedValue({ spendableCashMinor: 250000 }),
-  complianceCheckRun: vi.fn().mockResolvedValue({
-    scenarioId: "vat-exempt-below-threshold",
+  complianceProfileCheck: vi.fn().mockResolvedValue({
+    scenarioIds: ["vat-exempt-below-threshold"],
     passed: true,
     outcomes: {},
     ruleYear: 2026,
@@ -45,7 +45,7 @@ vi.mock("../lib/commands", () => ({
     taxYear: 2026,
     sourceUrl: "https://example.com/rules",
   }),
-  stagedTransactionsList: vi.fn().mockResolvedValue([{ id: "1" }, { id: "2" }, { id: "3" }]),
+  stagedTransactionsCount: vi.fn().mockResolvedValue(3),
   taxProfileGetCurrent: vi.fn().mockResolvedValue({ taxStatus: "f_skatt" }),
   vatProfileGetCurrent: vi.fn().mockResolvedValue({ vatStatus: "exempt_low_turnover" }),
   vatThresholdStatusGet: vi.fn().mockResolvedValue({ warning: "none" }),

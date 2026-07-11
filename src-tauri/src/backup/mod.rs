@@ -106,6 +106,12 @@ fn copy_dir_all(source: &Path, destination: &Path) -> Result<(), AppError> {
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            return Err(AppError::validation(
+                "Backup restore rejected symlink entry",
+                "backupPath",
+            ));
+        }
         let target = destination.join(entry.file_name());
         if file_type.is_dir() {
             copy_dir_all(&entry.path(), &target)?;
@@ -362,9 +368,7 @@ pub async fn restore_backup_package(
     }
 
     let temp_dir = tempfile::tempdir().map_err(|error| AppError::storage(error.to_string()))?;
-    let backup_root = if backup_path.is_dir() {
-        backup_path.clone()
-    } else if crypto::is_encrypted_backup_file(&backup_path) {
+    let backup_root = if crypto::is_encrypted_backup_file(&backup_path) {
         let metadata = fs::metadata(&backup_path)?;
         if metadata.len() > crypto::MAX_ENCRYPTED_BACKUP_BYTES {
             return Err(AppError::validation(
@@ -376,6 +380,11 @@ pub async fn restore_backup_package(
         let tar_bytes = crypto::decrypt_bytes(&input.passphrase, &encrypted)?;
         crypto::extract_tar_archive(&tar_bytes, temp_dir.path())?;
         temp_dir.path().to_path_buf()
+    } else if backup_path.is_dir() {
+        return Err(AppError::validation(
+            "Directory backups are not supported for restore; use an encrypted .skatbackup file",
+            "backupPath",
+        ));
     } else {
         return Err(AppError::validation("Unsupported backup format", "backupPath"));
     };
@@ -580,7 +589,107 @@ pub async fn check_idempotency(
 
     let parsed: IdempotentBackupPayload = serde_json::from_str(&payload)
         .map_err(|error| AppError::internal(error.to_string()))?;
+    if parsed.summary.backup_path.is_empty() {
+        return Ok(None);
+    }
     Ok(Some(parsed.summary))
+}
+
+#[derive(Debug)]
+pub enum BackupCreateClaim {
+    Proceed,
+    Cached(BackupSummary),
+}
+
+pub async fn claim_backup_create(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    idempotency_key: &str,
+    job_type: &str,
+) -> Result<BackupCreateClaim, AppError> {
+    if let Some(summary) = check_idempotency(pool, workspace_id, idempotency_key, job_type).await? {
+        return Ok(BackupCreateClaim::Cached(summary));
+    }
+
+    let key = idempotency_key.trim();
+    let pending = IdempotentBackupPayload {
+        idempotency_key: key.to_string(),
+        summary: BackupSummary {
+            backup_path: String::new(),
+            manifest: BackupManifest {
+                version: 0,
+                workspace_id: workspace_id.to_string(),
+                workspace_name: String::new(),
+                created_at: String::new(),
+                entries: vec![],
+                manifest_sha256: String::new(),
+            },
+        },
+    };
+    let payload_json = serde_json::to_string(&pending)
+        .map_err(|error| AppError::internal(error.to_string()))?;
+
+    let id = Uuid::new_v4().to_string();
+    match sqlx::query(
+        r#"
+        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
+        VALUES (?1, ?2, ?3, 'running', ?4, ?5)
+        "#,
+    )
+    .bind(&id)
+    .bind(workspace_id)
+    .bind(job_type)
+    .bind(&payload_json)
+    .bind(key)
+    .execute(pool)
+    .await
+    {
+        Ok(_) => Ok(BackupCreateClaim::Proceed),
+        Err(error) if crate::error::is_sqlite_unique_violation(&error) => {
+            if let Some(summary) =
+                check_idempotency(pool, workspace_id, idempotency_key, job_type).await?
+            {
+                Ok(BackupCreateClaim::Cached(summary))
+            } else {
+                Err(AppError::validation(
+                    "Backup already in progress for this idempotency key",
+                    "idempotencyKey",
+                ))
+            }
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+pub async fn finalize_backup_create(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    idempotency_key: &str,
+    job_type: &str,
+    summary: &BackupSummary,
+) -> Result<(), AppError> {
+    let payload = IdempotentBackupPayload {
+        idempotency_key: idempotency_key.trim().to_string(),
+        summary: summary.clone(),
+    };
+    let payload_json = serde_json::to_string(&payload)
+        .map_err(|error| AppError::internal(error.to_string()))?;
+
+    sqlx::query(
+        r#"
+        UPDATE local_jobs
+        SET status = 'succeeded', payload_json = ?4
+        WHERE workspace_id = ?1 AND job_type = ?2 AND idempotency_key = ?3
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(job_type)
+    .bind(idempotency_key.trim())
+    .bind(payload_json)
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
 
 pub async fn record_idempotent_job(

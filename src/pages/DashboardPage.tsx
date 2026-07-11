@@ -7,10 +7,10 @@ import { t } from "../i18n"
 import {
   appErrorMessage,
   cashflowOverviewGet,
-  complianceCheckRun,
+  complianceProfileCheck,
   invoiceOpenCount,
   ruleVersionGet,
-  stagedTransactionsList,
+  stagedTransactionsCount,
   taxProfileGetCurrent,
   vatProfileGetCurrent,
   vatThresholdStatusGet,
@@ -20,7 +20,7 @@ import {
   workspaceSettingsGet,
   yearEndReadinessGet,
   type CashflowOverview,
-  type ComplianceCheckResult,
+  type ComplianceProfileCheckResult,
   type RuleVersionSummary,
   type VatThresholdStatus,
   type YearEndReadiness,
@@ -30,7 +30,6 @@ import { checklistItemDetail } from "../lib/dashboardChecklistDetail"
 import { dashboardTourSteps } from "../lib/dashboardTour"
 import { pickSaveBackupFile } from "../lib/dialogs"
 import { formatSekMinor } from "../lib/money"
-import { complianceScenarioForProfile } from "../lib/profile"
 import { GuidedTour } from "../components/GuidedTour"
 
 export function DashboardPage() {
@@ -39,7 +38,7 @@ export function DashboardPage() {
   const location = useLocation()
   const fiscalYear = new Date().getFullYear()
   const [ruleVersion, setRuleVersion] = useState<RuleVersionSummary | null>(null)
-  const [compliance, setCompliance] = useState<ComplianceCheckResult | null>(null)
+  const [compliance, setCompliance] = useState<ComplianceProfileCheckResult | null>(null)
   const [openInvoices, setOpenInvoices] = useState(0)
   const [stagedCount, setStagedCount] = useState(0)
   const [cashflow, setCashflow] = useState<CashflowOverview | null>(null)
@@ -77,13 +76,15 @@ export function DashboardPage() {
       taxProfileGetCurrent().catch(() => null),
       vatProfileGetCurrent().catch(() => null),
     ])
-      .then(([taxProfile, vatProfile]) => {
-        const scenarioId = complianceScenarioForProfile({
-          taxStatus: taxProfile?.taxStatus,
-          vatStatus: vatProfile?.vatStatus,
-        })
-        return complianceCheckRun({ scenarioId })
-      })
+      .then(([taxProfile, vatProfile]) =>
+        complianceProfileCheck({
+          taxStatus: taxProfile?.taxStatus ?? "f_skatt",
+          vatStatus: vatProfile?.vatStatus ?? "exempt_low_turnover",
+          expectedSalaryIncomeMinor: taxProfile?.expectedSalaryIncomeMinor ?? null,
+          expectedBusinessProfitMinor: taxProfile?.expectedBusinessProfitMinor ?? null,
+          ruleYear: taxProfile?.activeRuleYear ?? null,
+        }),
+      )
       .then(setCompliance)
       .catch(() => setCompliance(null))
 
@@ -91,8 +92,8 @@ export function DashboardPage() {
       .then(setOpenInvoices)
       .catch(() => setOpenInvoices(0))
 
-    stagedTransactionsList({ status: "staged", limit: 200, beforeId: null })
-      .then((rows) => setStagedCount(rows.length))
+    stagedTransactionsCount("staged")
+      .then(setStagedCount)
       .catch(() => setStagedCount(0))
 
     cashflowOverviewGet()

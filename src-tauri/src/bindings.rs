@@ -10,7 +10,9 @@ use crate::{
         BackupCreateInput, BackupManifest, BackupManifestEntry, BackupRestoreInput,
         BackupRestoreSummary, BackupSummary,
     },
-    compliance::ComplianceCheckResult,
+    compliance::{
+        ComplianceCheckResult, ComplianceProfileCheckInput, ComplianceProfileCheckResult,
+    },
     counterparties::{Counterparty, CounterpartyCreateInput},
     documents::{Document, DocumentGetInput, DocumentImportInput, DocumentListInput},
     error::{AppError, FieldError},
@@ -87,6 +89,8 @@ pub fn export_types() -> String {
     types.register::<WorkspaceOpenInput>();
     types.register::<ComplianceCheckInput>();
     types.register::<ComplianceCheckResult>();
+    types.register::<ComplianceProfileCheckInput>();
+    types.register::<ComplianceProfileCheckResult>();
     types.register::<RuleVersionSummary>();
     types.register::<BusinessProfile>();
     types.register::<BusinessProfileSaveInput>();
@@ -167,6 +171,7 @@ pub fn export_types() -> String {
     types.register::<CommandResponse<WorkspaceSummary>>();
     types.register::<CommandResponse<bool>>();
     types.register::<CommandResponse<ComplianceCheckResult>>();
+    types.register::<CommandResponse<ComplianceProfileCheckResult>>();
     types.register::<CommandResponse<RuleVersionSummary>>();
     types.register::<CommandResponse<BusinessProfile>>();
     types.register::<CommandResponse<TaxProfile>>();

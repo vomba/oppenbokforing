@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { useLocale } from "../context/LocaleContext"
-import { t } from "../i18n"
+import { t, tVars } from "../i18n"
 import { helpTopics } from "../lib/helpTopics"
 import {
   appErrorMessage,
@@ -104,10 +104,16 @@ export function VatPage() {
       .catch(() => setDefaultExportDirectory(null))
   }, [workspace, location.key, locale])
 
+  useEffect(() => {
+    setVatReturn(null)
+    draftKeyRef.current = {}
+    approveKeyRef.current = {}
+  }, [periodKey])
+
   async function handleDraftCreate() {
     if (busy) return
     if (!periodKey.trim()) {
-      setStatus("Select a VAT period before creating a draft.")
+      setStatus(t(locale, "vat.selectPeriod"))
       return
     }
     if (!vatRegistered) {
@@ -133,6 +139,10 @@ export function VatPage() {
 
   async function handleApprove() {
     if (busy || !vatReturn || vatReturn.status === "approved") return
+    if (vatReturn.periodKey !== periodKey.trim()) {
+      setStatus(t(locale, "vat.periodMismatch"))
+      return
+    }
     setBusy(true)
     const idempotencyKey = approveKeyRef.current[vatReturn.id] ??= crypto.randomUUID()
     try {
@@ -159,7 +169,7 @@ export function VatPage() {
         defaultExportDirectory,
       )
       if (!exportDirectory) {
-        setStatus("Export cancelled.")
+        setStatus(t(locale, "vat.exportCancelled"))
         return
       }
       const exported = await vatReturnExport({ vatReturnId: vatReturn.id, exportDirectory })
@@ -198,7 +208,7 @@ export function VatPage() {
             <strong>{cashflow?.vatPeriodKey ?? "—"}</strong>
           </article>
           <article className="metric metric-neutral">
-            <span>Turnover (year)</span>
+            <span>{t(locale, "vat.turnoverYear")}</span>
             <strong>{threshold ? formatSek(threshold.annualTurnoverMinor) : "—"}</strong>
           </article>
           <article
@@ -214,11 +224,11 @@ export function VatPage() {
             </strong>
           </article>
           <article className="metric metric-neutral">
-            <span>VAT reserve</span>
+            <span>{t(locale, "vat.vatReserve")}</span>
             <strong>{cashflow ? formatSek(cashflow.vatReserveMinor) : "—"}</strong>
           </article>
           <article className="metric metric-neutral">
-            <span>Spendable cash</span>
+            <span>{t(locale, "vat.spendableCash")}</span>
             <strong>{cashflow ? formatSek(cashflow.spendableCashMinor) : "—"}</strong>
           </article>
         </section>
@@ -230,7 +240,7 @@ export function VatPage() {
               <h3>{t(locale, "vat.period")}</h3>
             </header>
             <label>
-              Period key
+              {t(locale, "vat.periodKey")}
               <select
                 value={periodKey}
                 onChange={(e) => setPeriodKey(e.target.value)}
@@ -245,7 +255,10 @@ export function VatPage() {
             </label>
             {vatProfile ? (
               <p className="status-line">
-                Reporting: {vatProfile.reportingPeriod} · Status: {vatProfile.vatStatus}
+                {tVars(locale, "vat.reportingStatus", {
+                  period: vatProfile.reportingPeriod,
+                  status: vatProfile.vatStatus,
+                })}
               </p>
             ) : null}
             <div className="workspace-create">

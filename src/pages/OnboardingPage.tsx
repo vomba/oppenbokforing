@@ -4,20 +4,19 @@ import { HelpTip } from "../components/HelpTip"
 import { useLocale } from "../context/LocaleContext"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { t } from "../i18n"
-import { complianceFailureMessages } from "../lib/compliancePresentation"
+import { profileComplianceFailureMessages } from "../lib/compliancePresentation"
 import {
   appErrorMessage,
   businessProfileSaveCurrent,
-  complianceCheckRun,
+  complianceProfileCheck,
   ruleVersionGet,
   taxProfileSaveCurrent,
   vatProfileSaveCurrent,
-  type ComplianceCheckResult,
+  type ComplianceProfileCheckResult,
   type RuleVersionSummary,
 } from "../lib/commands"
 import { humanAppError } from "../lib/errorPresentation"
 import { parseSekToMinorUnits } from "../lib/money"
-import { complianceScenarioForProfile } from "../lib/profile"
 import {
   ONBOARDING_STEPS,
   canAdvanceOnboardingStep,
@@ -45,7 +44,7 @@ export function OnboardingPage() {
     accountingMethod: "invoice_method",
   })
   const [ruleVersion, setRuleVersion] = useState<RuleVersionSummary | null>(null)
-  const [compliance, setCompliance] = useState<ComplianceCheckResult | null>(null)
+  const [compliance, setCompliance] = useState<ComplianceProfileCheckResult | null>(null)
   const [status, setStatus] = useState("")
   const [busy, setBusy] = useState(false)
   const reviewPreviewKey = useRef<string | null>(null)
@@ -62,12 +61,7 @@ export function OnboardingPage() {
 
   const canAdvance = canAdvanceOnboardingStep(step, draft, sekValid)
   const complianceMessages =
-    compliance && !compliance.passed
-      ? complianceFailureMessages(
-          compliance.scenarioId,
-          compliance.outcomes as Record<string, unknown>,
-        )
-      : []
+    compliance && !compliance.passed ? profileComplianceFailureMessages(compliance) : []
 
   useEffect(() => {
     if (!workspace) {
@@ -89,25 +83,33 @@ export function OnboardingPage() {
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
-  async function runComplianceChecks() {
-    const scenarioId = complianceScenarioForProfile({
+  async function previewCompliance() {
+    const businessProfit = parseSekToMinorUnits(draft.businessProfitSek)
+    const salaryIncome = parseSekToMinorUnits(draft.salarySek)
+    if (businessProfit === null || salaryIncome === null) {
+      return null
+    }
+
+    const result = await complianceProfileCheck({
       taxStatus: draft.taxStatus,
       vatStatus: draft.vatStatus,
+      expectedBusinessProfitMinor: businessProfit,
+      expectedSalaryIncomeMinor: salaryIncome,
+      ruleYear: activeRuleYear,
     })
-    const result = await complianceCheckRun({ scenarioId })
     setCompliance(result)
     return result
   }
 
   const persistProfiles = useCallback(async () => {
     if (!workspace) {
-      return null
+      return
     }
 
     const businessProfit = parseSekToMinorUnits(draft.businessProfitSek)
     const salaryIncome = parseSekToMinorUnits(draft.salarySek)
     if (businessProfit === null || salaryIncome === null) {
-      return null
+      throw new Error("invalid amounts")
     }
 
     await businessProfileSaveCurrent({
@@ -128,8 +130,6 @@ export function OnboardingPage() {
       accountingMethod: draft.accountingMethod,
       voluntaryRegistrationDate: null,
     })
-
-    return runComplianceChecks()
   }, [workspace, draft, activeRuleYear])
 
   useEffect(() => {
@@ -145,12 +145,7 @@ export function OnboardingPage() {
 
     let active = true
     setBusy(true)
-    void persistProfiles()
-      .then((result) => {
-        if (active && result) {
-          setCompliance(result)
-        }
-      })
+    void previewCompliance()
       .catch(() => {
         if (active) {
           setCompliance(null)
@@ -165,7 +160,7 @@ export function OnboardingPage() {
     return () => {
       active = false
     }
-  }, [step, workspace, draft, sekValid, activeRuleYear, persistProfiles])
+  }, [step, workspace, draft, sekValid, activeRuleYear])
 
   async function handleSave() {
     if (!workspace || busy) return
@@ -177,7 +172,8 @@ export function OnboardingPage() {
     setBusy(true)
     setStatus(t(locale, "onboarding.status.saving"))
     try {
-      const result = await persistProfiles()
+      await persistProfiles()
+      const result = await previewCompliance()
       if (!result) {
         setStatus(t(locale, "onboarding.status.invalidAmounts"))
         return

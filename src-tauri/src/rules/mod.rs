@@ -36,6 +36,17 @@ pub async fn get_active_rule_version(pool: &SqlitePool) -> Result<Option<RuleVer
     }))
 }
 
+pub async fn require_rule_i64(pool: &SqlitePool, family: &str, key: &str) -> Result<i64, AppError> {
+    get_rule_i64(pool, family, key)
+        .await?
+        .ok_or_else(|| {
+            AppError::validation(
+                "Active tax rule configuration is missing or invalid",
+                "ruleVersion",
+            )
+        })
+}
+
 pub async fn get_rule_i64(pool: &SqlitePool, family: &str, key: &str) -> Result<Option<i64>, AppError> {
     let row = sqlx::query(
         r#"

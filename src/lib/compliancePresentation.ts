@@ -27,6 +27,19 @@ export function isCompliancePassing(scenarioId: string, outcomes: Outcomes): boo
   }
 }
 
+export function profileComplianceFailureMessages(
+  result: { scenarioIds: string[]; outcomes: Record<string, unknown> },
+): MessageKey[] {
+  const messages: MessageKey[] = []
+  const outcomesByScenario = result.outcomes as Record<string, Record<string, unknown>>
+  for (const scenarioId of result.scenarioIds) {
+    messages.push(
+      ...complianceFailureMessages(scenarioId, outcomesByScenario[scenarioId] ?? {}),
+    )
+  }
+  return [...new Set(messages)]
+}
+
 export function complianceFailureMessages(scenarioId: string, outcomes: Outcomes): MessageKey[] {
   if (outcomes.error === "scenario_not_implemented") {
     return ["onboarding.compliance.unsupportedScenario"]

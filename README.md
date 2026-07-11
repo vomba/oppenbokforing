@@ -30,8 +30,8 @@ Behaviour is defined by executable **golden scenarios** in [`fixtures/golden-sce
 
 | Horizon | Focus |
 |---------|--------|
-| **Now (beta)** | Public OSS launch; unsigned macOS builds via `tauri build`; community testing and issue triage |
-| **Next** | Public beta tag (`v0.1.0-beta.2`); optional Apple notarization for smoother Gatekeeper installs |
+| **Now (beta)** | `v0.1.0-beta.2` — public OSS + review fixes; unsigned macOS builds via release workflow or `tauri build` |
+| **Next** | Optional Apple notarization for smoother Gatekeeper installs; community beta feedback |
 | **Soon** | Brand wordmark and app icons; contributor onboarding polish |
 | **Planned** | Bank sync (open banking) after manual entry and CSV import are solid; Windows/Linux packaging |
 | **Not planned (v1)** | Direct Skatteverket filing; cloud sync; hosted OCR |

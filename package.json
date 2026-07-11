@@ -25,8 +25,8 @@
     "test:smoke": "bash scripts/packaged-smoke-test.sh",
     "icons:dev": "bash scripts/generate-dev-icons.sh",
     "setup": "npm ci && npm run icons:dev && npm run bindings:export",
-    "bindings:export": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --bin export_bindings",
-    "bindings:check": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --bin export_bindings && git diff --exit-code -- src/lib/bindings.ts"
+    "bindings:export": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --features bindgen-tool --bin export_bindings",
+    "bindings:check": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --features bindgen-tool --bin export_bindings && git diff --exit-code -- src/lib/bindings.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

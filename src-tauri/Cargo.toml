@@ -18,6 +18,7 @@ desktop = [
   "dep:tauri-plugin-fs",
   "dep:tauri-build",
 ]
+bindgen-tool = []
 open-banking = []
 bankid = []
 updater = [
@@ -54,3 +55,8 @@ tempfile = "3"
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[[bin]]
+name = "export_bindings"
+path = "build-tools/export_bindings.rs"
+required-features = ["bindgen-tool"]

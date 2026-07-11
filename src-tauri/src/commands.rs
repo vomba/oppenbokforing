@@ -56,6 +56,8 @@ use crate::{
     audit::record_event,
 };
 
+type CommandResult<T> = Result<CommandResponse<T>, AppError>;
+
 async fn best_effort_process_invoice_pdf_jobs(
     pool: &sqlx::SqlitePool,
     workspace_id: &str,

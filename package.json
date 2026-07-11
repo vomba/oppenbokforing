@@ -21,7 +21,7 @@
     "test:golden": "cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test golden_scenarios",
     "test:m8": "vitest run src/test/m8_simple_ux.test.ts && cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test m8_milestone",
     "test:all": "npm test && npm run test:rust",
-    "ci:public": "npm run test:fixtures && npm run test:golden && npm run test:m8 && npm run test:all && npm run build && npm run bindings:check",
+    "ci:public": "npm run test:fixtures && npm run test:golden && npm run test:m8 && npm run test:all && cargo check --manifest-path src-tauri/Cargo.toml --features desktop && npm run build && npm run bindings:check",
     "test:smoke": "bash scripts/packaged-smoke-test.sh",
     "icons:dev": "bash scripts/generate-dev-icons.sh",
     "setup": "npm ci && npm run icons:dev && npm run bindings:export",

@@ -42,6 +42,10 @@ export type ComplianceCheckInput = { scenarioId: string }
 
 export type ComplianceCheckResult = { scenarioId: string; passed: boolean; outcomes: JsonValue; ruleYear: number }
 
+export type ComplianceProfileCheckInput = { taxStatus: string; vatStatus: string; expectedSalaryIncomeMinor: number | null; expectedBusinessProfitMinor: number | null; ruleYear: number | null }
+
+export type ComplianceProfileCheckResult = { scenarioIds: string[]; passed: boolean; outcomes: JsonValue; ruleYear: number }
+
 export type Counterparty = { id: string; kind: string; name: string; email: string | null; orgNumber: string | null }
 
 export type CounterpartyCreateInput = { kind: string; name: string; email: string | null; orgNumber: string | null }
@@ -52,9 +56,9 @@ export type CsvImportSummary = { id: string; stagedCount: number; firstStagedTra
 
 export type Document = { id: string; objectPath: string; contentSha256: string; mimeType: string; originalFilename: string; retentionYears: number }
 
-export type DocumentImportInput = { sourcePath: string; filename: string; mimeType: string; idempotencyKey: string }
-
 export type DocumentGetInput = { documentId: string }
+
+export type DocumentImportInput = { sourcePath: string; filename: string; mimeType: string; idempotencyKey: string }
 
 export type DocumentListInput = { unattachedOnly: boolean | null; limit: number | null; beforeId: string | null }
 

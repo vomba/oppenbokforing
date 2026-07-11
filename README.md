@@ -1,8 +1,42 @@
 # ÖppenBokföring
 
-Local-first open-source bookkeeping for Swedish **enskild firma** (sole traders). Prepare invoices, ledger entries, VAT worksheets, and year-end exports on your machine.
+Local-first open-source bookkeeping for Swedish **enskild firma** (sole traders). Prepare invoices, ledger entries, VAT worksheets, and year-end exports on your machine — nothing is filed or paid automatically.
 
-**License:** [AGPL-3.0-or-later](LICENSE) · **Maintainer:** [vomba/oppenbokforing](https://github.com/vomba/oppenbokforing)
+**License:** [AGPL-3.0-or-later](LICENSE) · **Repository:** [vomba/oppenbokforing](https://github.com/vomba/oppenbokforing)
+
+## What it does today
+
+ÖppenBokföring is a **desktop app** (Tauri + React + Rust) that keeps your books and tax prep data **on your computer**. It is built for solo freelancers in Sweden, including those with salary income who need **FA-skatt**.
+
+| Area | Capabilities |
+|------|----------------|
+| **Onboarding** | Guided setup for business profile, tax status (F-skatt / FA-skatt), VAT posture, and compliance checklist |
+| **Invoicing** | Issue invoices with correct VAT, VAT-exempt, or F-tax wording; credit notes and reversals |
+| **Ledger** | Double-entry bookkeeping with immutable posted vouchers and traceable journal lines |
+| **Documents** | Content-addressed receipt and invoice PDF archive under your workspace |
+| **Imports** | CSV bank import with invoice payment matching and reconciliation |
+| **Expenses** | Manual expenses with input VAT where applicable; owner withdrawals kept separate from costs |
+| **VAT** | Momsdeklaration worksheets for registered, exempt, and voluntary-registration cases; period lock after approval |
+| **Cash planning** | Reserved VAT and tax estimates; FA-skatt salary kept out of the business ledger |
+| **Year-end** | K1-style simplified annual accounts and NE-bilaga preparation (prepare-only) |
+| **Export** | SIE type 4 ledger export, accountant packages, encrypted `.skatbackup` backups |
+| **UX** | Swedish-first UI, simple mode, dashboard checklist, guided tour, contextual help |
+
+**Prepare-only by design** — the app produces filing-ready figures and exports. It does **not** submit returns to Skatteverket or initiate payments. See [ADR-0004](docs/adr/0004-prepare-only-tax-workflows.md).
+
+Behaviour is defined by executable **golden scenarios** in [`fixtures/golden-scenarios/`](fixtures/golden-scenarios/README.md) — change a rule, update a fixture, make tests pass.
+
+## Roadmap
+
+| Horizon | Focus |
+|---------|--------|
+| **Now (beta)** | Public OSS launch; unsigned macOS builds via `tauri build`; community testing and issue triage |
+| **Next** | Public beta tag (`v0.1.0-beta.2`); optional Apple notarization for smoother Gatekeeper installs |
+| **Soon** | Brand wordmark and app icons; contributor onboarding polish |
+| **Planned** | Bank sync (open banking) after manual entry and CSV import are solid; Windows/Linux packaging |
+| **Not planned (v1)** | Direct Skatteverket filing; cloud sync; hosted OCR |
+
+Track work on [GitHub Issues](https://github.com/vomba/oppenbokforing/issues). Architecture and module maps: [`docs/CODEMAPS/`](docs/CODEMAPS/README.md).
 
 ## Legal notice (English)
 
@@ -27,6 +61,8 @@ Full legal text: [`docs/legal/`](docs/legal/README.md) · Trademark: [`docs/TRAD
 ## Quick start
 
 ```sh
+git clone https://github.com/vomba/oppenbokforing.git
+cd oppenbokforing
 npm ci
 npm run icons:dev
 npm run tauri:dev
@@ -45,15 +81,20 @@ npm run tauri:build        # unsigned desktop bundle
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow.
 
-## Domain rules
+## Documentation
 
-Regulatory behaviour is defined by **golden scenarios** in [`fixtures/golden-scenarios/`](fixtures/golden-scenarios/README.md). Change a rule → add or update a fixture → make tests pass.
-
-Architecture: [`docs/CODEMAPS/README.md`](docs/CODEMAPS/README.md) · ADRs: [`docs/adr/`](docs/adr/) · Schema: [`docs/schema.md`](docs/schema.md)
+| Topic | Location |
+|-------|----------|
+| Architecture & modules | [`docs/CODEMAPS/`](docs/CODEMAPS/README.md) |
+| ADRs | [`docs/adr/`](docs/adr/) |
+| Database schema | [`docs/schema.md`](docs/schema.md) |
+| UI flows | [`docs/ui-flows.md`](docs/ui-flows.md) |
+| Privacy model | [`docs/security-privacy.md`](docs/security-privacy.md) |
+| macOS packaging | [`docs/packaging-release.md`](docs/packaging-release.md) |
 
 ## Security
 
-Report vulnerabilities per [SECURITY.md](SECURITY.md). Privacy model: [`docs/security-privacy.md`](docs/security-privacy.md).
+Report vulnerabilities per [SECURITY.md](SECURITY.md).
 
 ## Releases
 

@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 use specta::Type;
 use sqlx::{Row, SqlitePool};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use uuid::Uuid;
 
 use crate::{audit::record_event, error::AppError, workspace::{ensure_path_within_root, safe_join_under}};
@@ -84,23 +85,37 @@ async fn claim_document_import(
     {
         Ok(_) => Ok(DocumentImportClaim::Proceed),
         Err(error) if crate::error::is_sqlite_unique_violation(&error) => {
-            if let Some(existing) = check_idempotency(pool, workspace_id, idempotency_key).await? {
-                if existing.content_sha256 != content_sha256 {
-                    return Err(AppError::validation(
-                        "Idempotency key was already used for a different document",
-                        "idempotencyKey",
-                    ));
-                }
-                Ok(DocumentImportClaim::Cached(existing))
-            } else {
-                Err(AppError::validation(
-                    "Document import already in progress for this idempotency key",
-                    "idempotencyKey",
-                ))
-            }
+            wait_for_document_import_winner(pool, workspace_id, idempotency_key, content_sha256)
+                .await
+                .map(DocumentImportClaim::Cached)
         }
         Err(error) => Err(error.into()),
     }
+}
+
+async fn wait_for_document_import_winner(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    idempotency_key: &str,
+    content_sha256: &str,
+) -> Result<Document, AppError> {
+    for _ in 0..100 {
+        if let Some(existing) = check_idempotency(pool, workspace_id, idempotency_key).await? {
+            if existing.content_sha256 != content_sha256 {
+                return Err(AppError::validation(
+                    "Idempotency key was already used for a different document",
+                    "idempotencyKey",
+                ));
+            }
+            return Ok(existing);
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+
+    Err(AppError::validation(
+        "Document import already in progress for this idempotency key",
+        "idempotencyKey",
+    ))
 }
 
 async fn finalize_document_import(

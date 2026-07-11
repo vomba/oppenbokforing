@@ -10,7 +10,7 @@ use crate::{
     error::AppError,
     ledger::net_revenue_minor_for_fiscal_year,
     profiles::get_vat_profile,
-    rules::{get_active_rule_version, get_rule_i64},
+    rules::{get_active_rule_version, get_rule_i64, require_rule_i64},
     workspace::{ensure_fiscal_year_open_tx, fiscal_year_id_for_year},
 };
 

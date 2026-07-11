@@ -1,0 +1,24 @@
+{
+  "id": "no-activity-zero-vat-return",
+  "title": "No activity year with VAT registration",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "vatReportingPeriod": "yearly",
+    "ruleYear": 2026
+  },
+  "transactions": [],
+  "expected": {
+    "businessIncomeOrExpenses": false,
+    "vatReturnRequired": true,
+    "vatReturnBox49Minor": 0,
+    "neReviewCanSuggestRemoval": true,
+    "deregisterGuidanceShownIfNoFutureActivity": true
+  },
+  "sources": [
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/declaringtaxesbusinesses/incometax/incometaxreturnsforsoletraders.4.676f4884175c97df41913f3.html",
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/declaringtaxesbusinesses/vatdeclarations.4.12815e4f14a62bc048f52be.html"
+  ],
+  "milestone": 4,
+  "rfcSection": "§9 test matrix"
+}

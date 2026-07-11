@@ -1,0 +1,22 @@
+{
+  "id": "vat-registered-zero-period",
+  "title": "VAT-registered user with no VAT activity in period",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "vatReportingPeriod": "quarterly",
+    "ruleYear": 2026
+  },
+  "transactions": [],
+  "expected": {
+    "vatReturnRequired": true,
+    "zeroReturn": true,
+    "box49AmountMinor": 0,
+    "canApproveVatReturn": true
+  },
+  "sources": [
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/declaringtaxesbusinesses/vatdeclarations.4.12815e4f14a62bc048f52be.html"
+  ],
+  "milestone": 4,
+  "rfcSection": "§9 test matrix"
+}

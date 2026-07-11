@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.direnv/
+target/
+src-tauri/target/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# ECC skill symlinks are local — run npm run wire:skills
+.cursor/skills/*
+!.cursor/skills/enskild-firma-spec/
+!.cursor/skills/verify-milestone/
+
+# Eval run logs (generated)
+evals/runs/*
+!evals/runs/.gitkeep
+

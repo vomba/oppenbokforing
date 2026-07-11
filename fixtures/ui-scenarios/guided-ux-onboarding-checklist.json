@@ -1,0 +1,39 @@
+{
+  "id": "guided-ux-onboarding-checklist",
+  "title": "M8 guided UX — onboarding wizard and dashboard checklist",
+  "milestone": 8,
+  "specRef": "docs/ux-simple-mode.md",
+  "rfcSection": "M8 guided UX",
+  "expected": {
+    "onboardingSteps": ["business", "tax", "vat", "review"],
+    "defaultLocale": "sv",
+    "sekParsing": {
+      "input": "48 000,50",
+      "minorUnits": 4800050
+    },
+    "checklistOrderWhenBlocked": [
+      "compliance",
+      "vat-breached",
+      "staged",
+      "open-invoices",
+      "year-end"
+    ],
+    "complianceGoldenScenarios": [
+      "fa-skatt-salary-and-business",
+      "vat-exempt-below-threshold",
+      "vat-exempt-threshold-breach"
+    ],
+    "dashboardTourSteps": [
+      "checklist",
+      "sidebar",
+      "spendable-cash",
+      "backup",
+      "rules"
+    ],
+    "simpleModeDefault": true,
+    "simpleModeHiddenNav": ["ledger"]
+  },
+  "sources": [
+    "https://github.com/vomba/oppenbokforing/blob/main/docs/ux-simple-mode.md"
+  ]
+}

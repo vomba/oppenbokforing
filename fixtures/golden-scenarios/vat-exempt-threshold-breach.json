@@ -1,0 +1,33 @@
+{
+  "id": "vat-exempt-threshold-breach",
+  "title": "VAT-exempt user crosses SEK 120000 threshold",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "exempt_low_turnover",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "invoice_issued",
+      "amountMinorExVat": 11000000,
+      "vatRate": 0
+    },
+    {
+      "type": "invoice_issued",
+      "amountMinorExVat": 1500000,
+      "vatRate": 0
+    }
+  ],
+  "expected": {
+    "annualTurnoverMinor": 12500000,
+    "breachTransactionIndex": 1,
+    "mustRegisterForVat": true,
+    "mustChargeVatFromBreachSale": true,
+    "requiresUserReviewBeforeIssuing": true
+  },
+  "sources": [
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/registeringabusiness/incertaincasesyoudonotneedtoregisteryourbusinessforvat.4.6e1dd38d196873bc1e1cff.html"
+  ],
+  "milestone": 4,
+  "rfcSection": "§9 test matrix"
+}

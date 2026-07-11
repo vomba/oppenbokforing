@@ -1,0 +1,25 @@
+{
+  "id": "owner-withdrawal-not-expense",
+  "title": "Owner withdrawal booked outside business expenses",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "owner_withdrawal",
+      "amountMinor": 1500000
+    }
+  ],
+  "expected": {
+    "countsAsBusinessExpense": false,
+    "reducesOwnerEquity": true,
+    "auditEventRecorded": true
+  },
+  "milestone": 3,
+  "sources": [
+    "https://www.bfn.se/redovisningsregler/vad-galler-for/enskilda-naringsidkare/"
+  ],
+  "rfcSection": "§9 test matrix"
+}

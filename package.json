@@ -1,0 +1,54 @@
+{
+  "name": "oppenbokforing-desktop",
+  "version": "0.1.0",
+  "description": "Local-first open-source bookkeeping for Swedish enskild firma",
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vomba/oppenbokforing.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:fixtures": "vitest run src/lib/fixtures.test.ts",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --no-default-features",
+    "test:golden": "cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test golden_scenarios",
+    "test:m8": "vitest run src/test/m8_simple_ux.test.ts && cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test m8_milestone",
+    "test:all": "npm test && npm run test:rust",
+    "ci:public": "npm run test:fixtures && npm run test:golden && npm run test:m8 && npm run test:all && npm run build && npm run bindings:check",
+    "test:smoke": "bash scripts/packaged-smoke-test.sh",
+    "icons:dev": "bash scripts/generate-dev-icons.sh",
+    "setup": "npm ci && npm run icons:dev && npm run bindings:export",
+    "bindings:export": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --bin export_bindings",
+    "bindings:check": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --bin export_bindings && git diff --exit-code -- src/lib/bindings.ts"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.6.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "workspace-offline-reopen",
+  "title": "Workspace closes and reopens offline",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "exempt_low_turnover",
+    "ruleYear": 2026
+  },
+  "transactions": [],
+  "expected": {
+    "workspacePersisted": true,
+    "reopenWithoutNetwork": true,
+    "ruleVersionPreserved": true
+  },
+  "milestone": 1,
+  "sources": [
+    "https://v2.tauri.app/concept/architecture/"
+  ],
+  "rfcSection": "§7 M1 acceptance"
+}

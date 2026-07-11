@@ -1,0 +1,122 @@
+name: Release macOS beta
+
+# Signed + notarized macOS beta when Apple secrets are configured in GitHub.
+# Without secrets, tauri-action produces unsigned bundles for internal smoke.
+#
+# Required secrets: see docs/apple-signing-setup.md
+#
+# Trigger:
+#   git tag v0.1.0-beta.1 && git push origin v0.1.0-beta.1
+#   — or — workflow_dispatch with an explicit tag_name input.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag (e.g. v0.1.0-beta.1)
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-gates:
+    name: Release gates
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate dev icons
+        run: npm run icons:dev
+
+      - name: Run release gates
+        env:
+          TAURI_SMOKE: "1"
+          TAURI_BUILD_ARGS: --target universal-apple-darwin
+        run: |
+          npm run wire:skills
+          npm run harness:ci
+          npm run test:smoke
+
+  publish-macos:
+    name: Publish macOS universal beta
+    needs: release-gates
+    runs-on: macos-latest
+    env:
+      APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate dev icons
+        run: npm run icons:dev
+
+      - name: Prepare App Store Connect API key
+        if: env.APPLE_API_KEY_BASE64 != ''
+        run: |
+          mkdir -p "$HOME/.private_keys"
+          KEY_PATH="$HOME/.private_keys/AuthKey_${APPLE_API_KEY}.p8"
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          echo "APPLE_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Build and upload macOS bundle
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+        with:
+          tagName: ${{ github.event.inputs.tag_name || github.ref_name }}
+          releaseName: ÖppenBokföring ${{ github.event.inputs.tag_name || github.ref_name }}
+          releaseBody: |
+            macOS universal beta build.
+
+            Install notes: `docs/packaging-release.md`
+            Signing setup: `docs/apple-signing-setup.md`
+            Security review: `docs/security-review-beta.md`
+          releaseDraft: true
+          prerelease: true
+          args: --target universal-apple-darwin
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: 'macos-universal-[bundle]'

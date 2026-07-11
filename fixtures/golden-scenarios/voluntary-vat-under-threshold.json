@@ -1,0 +1,27 @@
+{
+  "id": "voluntary-vat-under-threshold",
+  "title": "Voluntary VAT registration under turnover threshold",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "voluntary_registered",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "invoice_issued",
+      "amountMinorExVat": 2000000,
+      "vatRate": 0.25
+    }
+  ],
+  "expected": {
+    "mustChargeVat": true,
+    "mustRegisterForVat": true,
+    "belowStatutoryThreshold": true,
+    "vatReturnRequired": true
+  },
+  "milestone": 4,
+  "sources": [
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/registeringabusiness/registeryourbusinessforvat.4.6e1dd38d196873bc1e1376.html"
+  ],
+  "rfcSection": "§9 test matrix"
+}

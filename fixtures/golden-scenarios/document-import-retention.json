@@ -1,0 +1,26 @@
+{
+  "id": "document-import-retention",
+  "title": "Evidence document import stores content hash and retention deadline",
+  "profile": {
+    "taxStatus": "planning",
+    "vatStatus": "registered",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "document_import",
+      "filename": "receipt-2026-01-05.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "expected": {
+    "documentStored": true,
+    "contentHashPresent": true,
+    "retentionYears": 7
+  },
+  "milestone": 3,
+  "sources": [
+    "https://www.bfn.se/redovisningsregler/vad-galler-for/enskilda-naringsidkare/"
+  ],
+  "rfcSection": "§9 test matrix"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "manual-expense-input-vat",
+  "title": "Manual expense voucher with deductible input VAT and evidence",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "document_import",
+      "filename": "receipt-coffee.pdf",
+      "mimeType": "application/pdf"
+    },
+    {
+      "type": "expense_posted",
+      "amountMinorExVat": 10000,
+      "vatRate": 0.25,
+      "expenseAccount": "5610",
+      "paymentAccount": "1930"
+    }
+  ],
+  "expected": {
+    "documentStored": true,
+    "voucherPosted": true,
+    "debitExpenseMinor": 10000,
+    "debitInputVatMinor": 2500,
+    "creditBankMinor": 12500,
+    "auditEventRecorded": true
+  },
+  "milestone": 3,
+  "sources": [
+    "https://www.bfn.se/redovisningsregler/vad-galler-for/enskilda-naringsidkare/"
+  ],
+  "rfcSection": "§9 test matrix"
+}

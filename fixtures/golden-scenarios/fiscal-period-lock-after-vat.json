@@ -1,0 +1,26 @@
+{
+  "id": "fiscal-period-lock-after-vat",
+  "title": "Fiscal period locked after VAT return approval",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "vatReportingPeriod": "quarterly",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "vat_return_approved",
+      "fiscalPeriod": "2026-Q1"
+    }
+  ],
+  "expected": {
+    "periodLocked": true,
+    "newPostingsRejected": true,
+    "reversalStillAllowed": false
+  },
+  "milestone": 4,
+  "sources": [
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/declaringtaxesbusinesses/vatdeclarations.4.12815e4f14a62bc048f52be.html"
+  ],
+  "rfcSection": "§9 test matrix"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "csv-import-matched-invoice-payment",
+  "title": "CSV import stages transaction and reconciliation matches invoice payment",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "invoice_issued",
+      "invoiceNumber": "2026-0001",
+      "amountMinorExVat": 1000000,
+      "vatRate": 0.25
+    },
+    {
+      "type": "csv_import",
+      "rows": [
+        {
+          "date": "2026-02-15",
+          "description": "Invoice payment 2026-0001",
+          "amountMinor": 1250000
+        }
+      ]
+    },
+    {
+      "type": "reconciliation_match",
+      "matchKind": "invoice_payment",
+      "invoiceNumber": "2026-0001",
+      "amountMinor": 1250000
+    }
+  ],
+  "expected": {
+    "stagedDoesNotAffectLedger": true,
+    "matchCreatesAuditLink": true,
+    "paymentVoucherPosted": true,
+    "bankAccount": "1930",
+    "receivableAccount": "1510"
+  },
+  "milestone": 3,
+  "sources": [
+    "https://www.bfn.se/redovisningsregler/vad-galler-for/enskilda-naringsidkare/"
+  ],
+  "rfcSection": "§9 test matrix"
+}

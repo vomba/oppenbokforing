@@ -1,0 +1,35 @@
+{
+  "id": "credit-invoice-reversal",
+  "title": "Issued invoice corrected with credit note",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "invoice_issued",
+      "invoiceNumber": "2026-0001",
+      "amountMinorExVat": 1000000,
+      "vatRate": 0.25
+    },
+    {
+      "type": "credit_note_issued",
+      "sourceInvoiceNumber": "2026-0001",
+      "amountMinorExVat": 1000000,
+      "vatRate": 0.25
+    }
+  ],
+  "expected": {
+    "originalInvoiceImmutable": true,
+    "creditNoteRequired": true,
+    "reversalVoucherCreated": true,
+    "netRevenueMinor": 0,
+    "netVatMinor": 0
+  },
+  "sources": [
+    "https://www.bfn.se/redovisningsregler/vad-galler-for/enskilda-naringsidkare/"
+  ],
+  "milestone": 2,
+  "rfcSection": "§9 test matrix"
+}

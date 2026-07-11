@@ -1,0 +1,25 @@
+{
+  "id": "backup-restore-preserves-rules",
+  "title": "Backup and restore preserve rules and profiles",
+  "profile": {
+    "taxStatus": "fa_skatt",
+    "vatStatus": "registered",
+    "expectedSalaryIncomeMinor": 42000000,
+    "ruleYear": 2026
+  },
+  "transactions": [],
+  "expected": {
+    "backupIncludesDatabase": true,
+    "backupIncludesDocuments": true,
+    "backupIncludesRuleVersions": true,
+    "backupEncryptedAtRest": true,
+    "backupRequiresPassphrase": true,
+    "restoreRequiresExplicitConfirmation": true,
+    "profilesPreservedAfterRestore": true
+  },
+  "milestone": 1,
+  "sources": [
+    "https://v2.tauri.app/plugin/file-system/"
+  ],
+  "rfcSection": "§7 M1 acceptance"
+}

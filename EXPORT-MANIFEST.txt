@@ -1,0 +1,7 @@
+Generated: 2026-07-11T10:19:04Z
+Source: private development export (filtered tree)
+Export tool revision: fc88b845bdd9f9a1b565ca689b77fd05bd5eba86
+Included tracked files: 189
+Excluded tracked paths: 53
+Scaffold overlay: public OSS scaffold
+Target repo: vomba/oppenbokforing

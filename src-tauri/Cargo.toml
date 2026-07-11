@@ -1,0 +1,56 @@
+[package]
+name = "oppenbokforing-desktop"
+version = "0.1.0"
+description = "Local-first open-source bookkeeping for Swedish enskild firma"
+authors = ["ÖppenBokföring contributors"]
+edition = "2021"
+default-run = "oppenbokforing-desktop"
+
+[lib]
+name = "oppenbokforing_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = ["desktop"]
+desktop = [
+  "dep:tauri",
+  "dep:tauri-plugin-dialog",
+  "dep:tauri-plugin-fs",
+  "dep:tauri-build",
+]
+open-banking = []
+bankid = []
+updater = [
+  "dep:tauri-plugin-updater",
+]
+
+[build-dependencies]
+specta-typescript = "0.0.9"
+tauri-build = { version = "2", features = [], optional = true }
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+specta = { version = "2.0.0-rc.22", features = ["derive", "export", "serde", "serde_json"] }
+specta-typescript = "0.0.9"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+tauri = { version = "2", features = [], optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
+tauri-plugin-fs = { version = "2", optional = true }
+tauri-plugin-updater = { version = "2", optional = true }
+thiserror = "2"
+tokio = { version = "1", features = ["sync"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+walkdir = "2"
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+tar = "0.4"
+printpdf = "0.7"
+tempfile = "3"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

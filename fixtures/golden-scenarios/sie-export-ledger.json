@@ -1,0 +1,35 @@
+{
+  "id": "sie-export-ledger",
+  "title": "SIE type 4 export from posted ledger vouchers",
+  "milestone": 6,
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "vatReportingPeriod": "quarterly",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "issued_invoice",
+      "amountMinorExVat": 1000000,
+      "vatRate": 0.25,
+      "invoiceNumber": "2026-0001",
+      "fiscalYear": 2026
+    }
+  ],
+  "expected": {
+    "sieType": 4,
+    "format": "PC8",
+    "currency": "SEK",
+    "requiresPostedVouchers": true,
+    "exportStoredLocally": true,
+    "idempotentRetry": true,
+    "accountantPackageIncludesSie": true,
+    "integrationManualFallback": true
+  },
+  "sources": [
+    "https://www.sie.se/",
+    "https://oppenbokforing.local/refs/rfc-overview"
+  ],
+  "rfcSection": "§9 test matrix"
+}

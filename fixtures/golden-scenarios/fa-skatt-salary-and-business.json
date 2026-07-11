@@ -1,0 +1,30 @@
+{
+  "id": "fa-skatt-salary-and-business",
+  "title": "FA-skatt user with salary income and sole-trader income",
+  "profile": {
+    "taxStatus": "fa_skatt",
+    "expectedSalaryIncomeMinor": 48000000,
+    "expectedBusinessProfitMinor": 18000000,
+    "vatStatus": "registered",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    {
+      "type": "invoice_issued",
+      "amountMinorExVat": 3000000,
+      "vatRate": 0.25
+    }
+  ],
+  "expected": {
+    "salaryIncomeInBusinessLedger": false,
+    "businessIncomeInLedger": true,
+    "requiresFaSkattGuidance": true,
+    "invoiceMustMentionFSkatt": true,
+    "taxPlanningUsesSalaryAssumption": true
+  },
+  "sources": [
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/registeringabusiness/approvalforftax.4.676f4884175c97df4192308.html"
+  ],
+  "milestone": 1,
+  "rfcSection": "§7 M1 acceptance"
+}

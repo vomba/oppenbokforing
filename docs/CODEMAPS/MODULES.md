@@ -1,6 +1,6 @@
 # Module Codemap
 
-Rust domain modules and React frontend modules. Command wrappers live in `src/lib/commands.ts`; types are generated in `src/lib/bindings.ts`.
+Rust domain modules and React frontend modules. Command wrappers live in `src/lib/commands.ts`; generated types live in `src/lib/bindings.ts`.
 
 Last updated: 2026-07-11.
 
@@ -10,7 +10,7 @@ Last updated: 2026-07-11.
 
 | Module | Purpose | Key exports |
 |--------|---------|-------------|
-| `commands` | Tauri command handlers; workspace gate | 54 `#[tauri::command]` functions |
+| `commands` | Tauri command handlers; workspace gate | Registered `#[tauri::command]` functions |
 | `bindings` | Specta/TS type export | `CommandResponse<T>`, input types |
 | `error` | Structured `AppError`; SQL redaction + unique-violation flag | `AppError`, `is_sqlite_unique_violation` |
 | `db` | SQLite connect + migrate | `connect_workspace`, `open_existing_workspace` |
@@ -113,6 +113,7 @@ Commands are registered in `src-tauri/src/lib.rs` `generate_handler![…]`.
 |--------|------|
 | `commands.ts` | All `invoke()` wrappers + `appErrorMessage` |
 | `bindings.ts` | Generated TS types (from Specta) |
+| `errorPresentation.ts` | UI presentation for `AppError` values |
 | `dashboardChecklist.ts` | Ordered “next steps” checklist |
 | `dashboardChecklistDetail.ts` | Per-item checklist presentation detail |
 | `dashboardTour.ts` | Tour step definitions |
@@ -137,6 +138,8 @@ commands.rs → domain modules only (never UI)
 domain modules → db, error, rules, audit (no commands)
 renderer → commands.ts only (never sqlx / fs direct writes)
 ```
+
+The UI may use Tauri dialog and scoped filesystem plugins for user-selected paths, but it never writes the workspace SQLite database directly.
 
 ## Tests co-located with modules
 

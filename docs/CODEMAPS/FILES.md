@@ -1,23 +1,24 @@
 # File Codemap
 
-Directory structure and key files for post-M8 `main` (2026-07-11).
+Directory structure and key files for the standalone public repository.
 
 ## Repository root
 
 ```
 oppenbokforing/
-├── AGENTS.md                 # Agent harness + spec hierarchy
-├── README.md                 # Quick start
-├── implementation-rfc.md     # Commands, milestones, test matrix
+├── README.md                 # Public quick start and project overview
+├── CONTRIBUTING.md           # Public contributor workflow
+├── CODE_OF_CONDUCT.md        # Community standards
+├── SECURITY.md               # Vulnerability-reporting policy
 ├── swedish-sole-trader-plan*.md
-├── package.json              # npm scripts (test, eval, tauri)
+├── package.json              # npm scripts (test, build, Tauri)
 ├── flake.nix / .envrc        # Nix dev shell
-├── docs/                     # Architecture, schema, progress, codemaps
-├── evals/                    # Milestone eval definitions + manifest
-├── fixtures/                 # Golden + UI scenario JSON specs
-├── scripts/                  # Eval runner, icons, signing helper
+├── docs/                     # Architecture, schema, legal, and codemaps
+├── fixtures/                 # Golden and UI scenario JSON specs
+├── scripts/                  # Icons, packaged smoke, signing helper
 ├── src/                      # React renderer
-└── src-tauri/                # Rust + Tauri backend
+├── src-tauri/                # Rust and Tauri backend
+└── .github/workflows/        # Public CI and release workflows
 ```
 
 ## `src/` — React renderer
@@ -103,16 +104,17 @@ src-tauri/
 
 | Path | Purpose |
 |------|---------|
-| `docs/CODEMAPS/README.md` | Codemap index and post-M8 orientation |
+| `docs/CODEMAPS/README.md` | Codemap index and contributor orientation |
 | `docs/CODEMAPS/` | Architecture, module, and file navigation maps |
 | `docs/schema.md` | SQLite tables + migrations |
-| `docs/progress.md` | Milestone completion ledger |
+| `docs/rfc-overview.md` | Public implementation scope and milestone overview |
 | `docs/ui-flows.md` | UI state specs |
 | `docs/ux-simple-mode.md` | M8 UX spec |
-| `docs/security-review-beta.md` | Beta security checklist |
+| `docs/security-privacy.md` | Local-data security and privacy model |
 | `docs/packaging-release.md` | Release order (unsigned default) |
 | `docs/apple-signing-setup.md` | Optional signing (deferred) |
 | `docs/adr/` | Architecture decision records |
+| `docs/legal/` | English and Swedish legal notices |
 
 ## `fixtures/` — Executable specs
 
@@ -125,22 +127,11 @@ fixtures/
     └── guided-ux-onboarding-checklist.json
 ```
 
-## `evals/` — Milestone verification
-
-```
-evals/
-├── manifest.json             # Milestones 1–8 command matrix
-├── milestones/milestone-*.md # Human-readable acceptance criteria
-└── runs/                     # Latest eval JSON artifacts
-```
-
 ## `scripts/` — Tooling
 
 | Script | Purpose |
 |--------|---------|
-| `verify-milestone.mjs` | `npm run verify:milestone -- N` |
-| `eval-runner.mjs` | Eval harness |
-| `generate-dev-icons.sh` | Branded dev icons |
+| `generate-dev-icons.sh` | Generate development icons |
 | `setup-apple-secrets.sh` | Optional GitHub signing secrets |
 | `packaged-smoke-test.sh` | `TAURI_SMOKE=1` smoke |
 
@@ -153,4 +144,4 @@ evals/
 | New accounting rule | `tax_rules` seed + `compliance` engine |
 | New golden behavior | `fixtures/golden-scenarios/*.json` + Rust test |
 | New M8 UX behavior | `fixtures/ui-scenarios/*.json` + `test:m8` |
-| Post-M8 stabilization | `docs/progress.md` and issues #12, #16, #20–#22, #27–#29 |
+| Public contribution workflow | `CONTRIBUTING.md` and `docs/rfc-overview.md` |

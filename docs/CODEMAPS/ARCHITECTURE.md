@@ -1,6 +1,6 @@
 # Architecture Codemap
 
-High-level system overview for ÖppenBokföring (M0–M8 complete on `main`).
+High-level system overview for the ÖppenBokföring desktop application.
 
 Last updated: 2026-07-11.
 
@@ -17,17 +17,17 @@ flowchart TB
   end
 
   subgraph tauri [Tauri v2 shell]
-    Invoke[invoke handler — 54 commands]
+    Invoke[Tauri invoke handler]
     Plugins[dialog + scoped fs plugins]
     CmdWrap --> Invoke
     Invoke --> Plugins
   end
 
   subgraph rust [Rust domain layer]
-    Commands[commands.rs — auth + workspace gate]
+    Commands[commands.rs — workspace gate + handlers]
     Domains[invoicing / vat / ledger / documents / …]
     Rules[rules + compliance engine]
-    Jobs[local_jobs — PDF generation]
+    Jobs[local_jobs — invoice PDF generation]
     Commands --> Domains
     Domains --> Rules
     Domains --> Jobs
@@ -58,11 +58,11 @@ flowchart TB
 
 ## Request flow
 
-1. User action in a React page (`src/pages/*`).
-2. Page calls typed wrapper in `src/lib/commands.ts` (`invoke<T>()`).
-3. Tauri routes to `#[tauri::command]` in `src-tauri/src/commands.rs`.
-4. Command loads `WorkspaceContext`, calls domain module (`invoicing`, `vat`, etc.).
-5. Domain module runs SQLx queries, rule evaluation, optional `local_jobs` enqueue.
+1. A user action in a React page (`src/pages/*`) calls a typed wrapper in `src/lib/commands.ts`.
+2. The wrapper calls Tauri `invoke<T>()`.
+3. Tauri routes to a registered `#[tauri::command]` in `src-tauri/src/commands.rs`.
+4. The command checks the open `WorkspaceContext` and calls a domain module (`invoicing`, `vat`, and so on).
+5. The domain module runs SQLx queries, evaluates the active rules where applicable, and may enqueue `local_jobs`.
 6. Success returns `{ data: T }`; failure throws `AppError` (structured, redacted storage errors).
 
 ## Major subsystems
@@ -91,15 +91,16 @@ flowchart TB
 | Layer | Location | Runner |
 |-------|----------|--------|
 | Golden scenarios | `fixtures/golden-scenarios/*.json` | `npm run test:golden` |
-| UI scenarios (M8) | `fixtures/ui-scenarios/*.json` | `npm run test:m8` |
-| Milestone integration | `src-tauri/tests/m*_milestone.rs` | `cargo test` |
+| UI scenario | `fixtures/ui-scenarios/guided-ux-onboarding-checklist.json` | `npm run test:m8` |
+| Rust integration | `src-tauri/tests/*.rs` | `npm run test:rust` |
 | Frontend unit/component | `src/**/*.test.ts(x)` | `npm test` |
-| Milestone evals | `evals/milestones/` | `npm run verify:milestone -- N` |
+| Public CI gate | fixtures, Rust, frontend, build, bindings | `npm run ci:public` |
 
 ## Related docs
 
 - [README.md](./README.md) — codemap index and current scope
 - [MODULES.md](./MODULES.md) — module APIs and dependencies
 - [FILES.md](./FILES.md) — directory map
-- `docs/adr/` — binding architecture decisions
-- `docs/schema.md` — SQLite tables and migrations
+- [`docs/adr/`](../adr/) — binding architecture decisions
+- [`docs/schema.md`](../schema.md) — SQLite tables and migrations
+- [`CONTRIBUTING.md`](../../CONTRIBUTING.md) — public contributor workflow

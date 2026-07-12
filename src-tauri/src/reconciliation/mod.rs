@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     audit::record_event_tx,
-    error::AppError,
+    error::{AppError, redacted_internal_from},
     workspace::{ensure_fiscal_year_open_tx, year_from_date},
 };
 
@@ -83,7 +83,7 @@ async fn check_idempotency(
         return Ok(None);
     };
     let parsed: IdempotentMatchPayload =
-        serde_json::from_str(&payload).map_err(|error| AppError::internal(error.to_string()))?;
+        serde_json::from_str(&payload).map_err(redacted_internal_from)?;
     Ok(Some(parsed))
 }
 
@@ -103,7 +103,7 @@ async fn record_idempotency_tx(
         result: result.clone(),
     };
     let payload_json =
-        serde_json::to_string(&payload).map_err(|error| AppError::internal(error.to_string()))?;
+        serde_json::to_string(&payload).map_err(redacted_internal_from)?;
     sqlx::query(
         r#"
         INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
@@ -264,7 +264,7 @@ async fn verify_balanced_tx(
     Ok(())
 }
 
-async fn assert_document_in_workspace_tx(
+async fn assert_pdf_document_in_workspace_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     workspace_id: &str,
     document_id: &str,
@@ -276,7 +276,7 @@ async fn assert_document_in_workspace_tx(
 
     let row = sqlx::query(
         r#"
-        SELECT id, original_filename
+        SELECT id, original_filename, mime_type
         FROM documents
         WHERE workspace_id = ?1 AND id = ?2
         LIMIT 1
@@ -287,6 +287,14 @@ async fn assert_document_in_workspace_tx(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| AppError::validation("Document not found in workspace", "documentId"))?;
+
+    let mime_type: String = row.get("mime_type");
+    if mime_type.trim() != "application/pdf" {
+        return Err(AppError::validation(
+            "Bank statement evidence must be a PDF document",
+            "documentId",
+        ));
+    }
 
     Ok(row.get("original_filename"))
 }
@@ -598,7 +606,7 @@ async fn check_invoice_payment_idempotency(
         return Ok(None);
     };
     let parsed: IdempotentInvoicePaymentPayload =
-        serde_json::from_str(&payload).map_err(|error| AppError::internal(error.to_string()))?;
+        serde_json::from_str(&payload).map_err(redacted_internal_from)?;
     Ok(Some(parsed))
 }
 
@@ -635,7 +643,7 @@ async fn record_invoice_payment_idempotency_tx(
         result: result.clone(),
     };
     let payload_json =
-        serde_json::to_string(&payload).map_err(|error| AppError::internal(error.to_string()))?;
+        serde_json::to_string(&payload).map_err(redacted_internal_from)?;
     sqlx::query(
         r#"
         INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
@@ -672,7 +680,7 @@ pub async fn invoice_payment_record(
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
     let document_filename =
-        assert_document_in_workspace_tx(&mut tx, workspace_id, &input.document_id).await?;
+        assert_pdf_document_in_workspace_tx(&mut tx, workspace_id, &input.document_id).await?;
     let invoice_id = input.invoice_id.trim();
 
     assert_invoice_payable_tx(&mut tx, workspace_id, invoice_id).await?;

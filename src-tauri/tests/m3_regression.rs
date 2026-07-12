@@ -461,3 +461,39 @@ async fn invoice_payment_record_links_bank_statement_pdf() {
         .expect("invoice");
     assert!(refreshed.payment_voucher_id.is_some());
 }
+
+#[tokio::test]
+async fn invoice_payment_record_rejects_non_pdf_document() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let issued = issue_standard_invoice(&pool, &workspace_id, "issue-for-non-pdf-payment").await;
+
+    let receipt = oppenbokforing_desktop_lib::documents::store_document_bytes(
+        &pool,
+        &workspace_id,
+        b"not a pdf",
+        "receipt.png",
+        "image/png",
+    )
+    .await
+    .expect("png document");
+
+    let error = reconciliation::invoice_payment_record(
+        &pool,
+        &workspace_id,
+        &reconciliation::InvoicePaymentRecordInput {
+            invoice_id: issued.id.clone(),
+            document_id: receipt.id.clone(),
+            payment_date: Some("2026-03-01".to_string()),
+            idempotency_key: "png-payment-1".to_string(),
+        },
+    )
+    .await
+    .expect_err("non-pdf evidence must be rejected");
+
+    assert_eq!(error.code, "validation_error");
+    assert!(
+        error.message.to_lowercase().contains("pdf"),
+        "expected PDF requirement message, got: {}",
+        error.message
+    );
+}

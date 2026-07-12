@@ -289,7 +289,7 @@ async fn assert_pdf_document_in_workspace_tx(
     .ok_or_else(|| AppError::validation("Document not found in workspace", "documentId"))?;
 
     let mime_type: String = row.get("mime_type");
-    if mime_type.trim() != "application/pdf" {
+    if !crate::documents::is_pdf_mime(&mime_type) {
         return Err(AppError::validation(
             "Bank statement evidence must be a PDF document",
             "documentId",

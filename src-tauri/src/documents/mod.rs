@@ -13,6 +13,10 @@ use crate::{audit::record_event, error::AppError, workspace::{ensure_path_within
 
 const JOB_DOCUMENT_IMPORT: &str = "document_import";
 
+pub fn is_pdf_mime(mime_type: &str) -> bool {
+    mime_type.trim().eq_ignore_ascii_case("application/pdf")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Document {
@@ -285,7 +289,8 @@ pub async fn document_import(
           id, workspace_id, object_path, content_sha256, mime_type, original_filename, retention_years
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
         ON CONFLICT(workspace_id, content_sha256) DO UPDATE SET
-          original_filename = excluded.original_filename
+          original_filename = excluded.original_filename,
+          mime_type = excluded.mime_type
         "#,
     )
     .bind(&id)
@@ -385,7 +390,8 @@ pub async fn store_document_bytes(
           id, workspace_id, object_path, content_sha256, mime_type, original_filename, retention_years
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
         ON CONFLICT(workspace_id, content_sha256) DO UPDATE SET
-          original_filename = excluded.original_filename
+          original_filename = excluded.original_filename,
+          mime_type = excluded.mime_type
         "#,
     )
     .bind(&id)

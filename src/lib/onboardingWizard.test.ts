@@ -1,46 +1,55 @@
 import { describe, expect, it } from "vitest"
-import { canAdvanceOnboardingStep, canVisitOnboardingStep, nextOnboardingStep } from "./onboardingWizard"
+import { onboardingDraftFromProfiles } from "./onboardingWizard"
 
-const draft = {
-  businessName: "Test AB",
-  ownerName: "Anna",
-  sniCode: "",
-  taxStatus: "f_skatt" as const,
-  salarySek: "0",
-  businessProfitSek: "0",
-  vatStatus: "exempt_low_turnover" as const,
-  reportingPeriod: "quarterly" as const,
-  accountingMethod: "invoice_method" as const,
-}
+describe("onboardingDraftFromProfiles", () => {
+  it("prefills business name from workspace label when no profile exists", () => {
+    const { draft, hasSavedProfiles } = onboardingDraftFromProfiles({
+      business: null,
+      tax: null,
+      vat: null,
+      workspaceName: "Min enskilda firma",
+    })
 
-describe("onboardingWizard", () => {
-  it("requires business names before tax step", () => {
-    expect(
-      canAdvanceOnboardingStep("business", { ...draft, businessName: "" }, { salary: true, profit: true }),
-    ).toBe(false)
-    expect(canAdvanceOnboardingStep("business", draft, { salary: true, profit: true })).toBe(true)
+    expect(hasSavedProfiles).toBe(false)
+    expect(draft.businessName).toBe("Min enskilda firma")
+    expect(draft.ownerName).toBe("")
   })
 
-  it("requires valid SEK before VAT step", () => {
-    expect(canAdvanceOnboardingStep("tax", draft, { salary: false, profit: true })).toBe(false)
-    expect(canAdvanceOnboardingStep("tax", draft, { salary: true, profit: true })).toBe(true)
-  })
+  it("hydrates all saved profile fields for edit mode", () => {
+    const { draft, hasSavedProfiles } = onboardingDraftFromProfiles({
+      business: {
+        id: "bp-1",
+        businessName: "Konsult AB",
+        ownerName: "Anna Svensson",
+        residencyCountry: "SE",
+        sniCode: "62010",
+      },
+      tax: {
+        id: "tp-1",
+        taxStatus: "fa_skatt",
+        expectedBusinessProfitMinor: 120_000_00,
+        expectedSalaryIncomeMinor: 48_000_50,
+        activeRuleYear: 2026,
+      },
+      vat: {
+        id: "vp-1",
+        vatStatus: "registered",
+        reportingPeriod: "monthly",
+        accountingMethod: "cash_method",
+        voluntaryRegistrationDate: null,
+      },
+      workspaceName: "Min enskilda firma",
+    })
 
-  it("advances through steps", () => {
-    expect(nextOnboardingStep("business")).toBe("tax")
-    expect(nextOnboardingStep("vat")).toBe("review")
-    expect(nextOnboardingStep("review")).toBeNull()
-  })
-
-  it("blocks visiting later steps until earlier steps are valid", () => {
-    expect(
-      canVisitOnboardingStep(
-        "tax",
-        { ...draft, businessName: "", ownerName: "Anna" },
-        { salary: true, profit: true },
-      ),
-    ).toBe(false)
-    expect(canVisitOnboardingStep("review", draft, { salary: true, profit: true })).toBe(true)
-    expect(canVisitOnboardingStep("review", draft, { salary: false, profit: true })).toBe(false)
+    expect(hasSavedProfiles).toBe(true)
+    expect(draft.businessName).toBe("Konsult AB")
+    expect(draft.ownerName).toBe("Anna Svensson")
+    expect(draft.sniCode).toBe("62010")
+    expect(draft.taxStatus).toBe("fa_skatt")
+    expect(draft.salarySek).toBe("48000,50")
+    expect(draft.businessProfitSek).toBe("120000")
+    expect(draft.vatStatus).toBe("registered")
+    expect(draft.reportingPeriod).toBe("monthly")
+    expect(draft.accountingMethod).toBe("cash_method")
   })
 })

@@ -6,6 +6,18 @@ export function formatSekMinor(amountMinor: number) {
   }).format(amount)
 }
 
+/** Format stored minor units for editable SEK fields (no currency symbol). */
+export function minorUnitsToSekInput(amountMinor: number) {
+  const sign = amountMinor < 0 ? "-" : ""
+  const absMinor = Math.abs(amountMinor)
+  const whole = Math.floor(absMinor / 100)
+  const fraction = absMinor % 100
+  if (fraction === 0) {
+    return `${sign}${whole}`
+  }
+  return `${sign}${whole},${String(fraction).padStart(2, "0")}`
+}
+
 /** Parse a user-entered SEK amount to integer minor units (öre). */
 export function parseSekToMinorUnits(value: string): number | null {
   let normalized = value.trim().replace(/[\s\u00a0]/g, "")

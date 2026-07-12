@@ -8,7 +8,7 @@ use aes_gcm::{
 use argon2::Argon2;
 use rand::RngCore;
 
-use crate::error::AppError;
+use crate::error::{AppError, redacted_internal_from};
 
 pub const BACKUP_MAGIC: &[u8; 9] = b"SKATBKUP1";
 pub const BACKUP_FORMAT_VERSION: u32 = 2;
@@ -48,7 +48,7 @@ fn derive_key(passphrase: &str, salt: &[u8]) -> Result<[u8; 32], AppError> {
     let mut key = [0u8; 32];
     Argon2::default()
         .hash_password_into(passphrase.as_bytes(), salt, &mut key)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
     Ok(key)
 }
 
@@ -62,7 +62,7 @@ pub fn encrypt_bytes(passphrase: &str, plaintext: &[u8]) -> Result<Vec<u8>, AppE
 
     let key = derive_key(passphrase, &salt)?;
     let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
         .encrypt(nonce, plaintext)
@@ -106,7 +106,7 @@ pub fn decrypt_bytes(passphrase: &str, encrypted: &[u8]) -> Result<Vec<u8>, AppE
 
     let key = derive_key(passphrase, salt)?;
     let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
     let nonce = Nonce::from_slice(nonce_bytes);
     cipher
         .decrypt(nonce, ciphertext)

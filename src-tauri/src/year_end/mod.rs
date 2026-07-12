@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     audit::{record_event, record_event_tx},
-    error::AppError,
+    error::{AppError, redacted_internal_from, redacted_storage_from},
     rules::{get_active_rule_version, get_rule_bool, get_rule_string, get_rule_version_by_id},
     workspace::{ensure_fiscal_year_open_tx, fiscal_year_id_for_year},
 };
@@ -147,10 +147,10 @@ fn resolve_workspace_subdir(
     std::fs::create_dir_all(&subdir).map_err(AppError::from)?;
     let canonical_subdir = subdir
         .canonicalize()
-        .map_err(|e| AppError::storage(format!("Cannot resolve {label} path: {e}")))?;
+        .map_err(redacted_storage_from)?;
     let canonical_root = data_root
         .canonicalize()
-        .map_err(|e| AppError::storage(format!("Cannot resolve workspace data path: {e}")))?;
+        .map_err(redacted_storage_from)?;
 
     if !canonical_subdir.starts_with(&canonical_root) {
         return Err(AppError::validation(
@@ -364,7 +364,7 @@ async fn check_create_idempotency(
         return Ok(None);
     };
     let parsed: IdempotentYearEndPayload =
-        serde_json::from_str(&json).map_err(|e| AppError::internal(e.to_string()))?;
+        serde_json::from_str(&json).map_err(|e| redacted_internal_from(e))?;
     Ok(Some(parsed))
 }
 
@@ -404,7 +404,7 @@ async fn check_export_idempotency(
         return Ok(None);
     };
     let parsed: IdempotentYearEndExportPayload =
-        serde_json::from_str(&json).map_err(|e| AppError::internal(e.to_string()))?;
+        serde_json::from_str(&json).map_err(|e| redacted_internal_from(e))?;
     Ok(Some(parsed))
 }
 
@@ -605,7 +605,7 @@ fn ne_drafts_from_summaries(fields: &[NeFieldSummary]) -> Vec<NeFieldDraft> {
 fn read_export_ne_fields(exports_dir: &Path, rel_path: &str) -> Result<Vec<NeFieldDraft>, AppError> {
     let content = std::fs::read_to_string(exports_dir.join(rel_path)).map_err(AppError::from)?;
     let json: serde_json::Value =
-        serde_json::from_str(&content).map_err(|e| AppError::internal(e.to_string()))?;
+        serde_json::from_str(&content).map_err(|e| redacted_internal_from(e))?;
     let fields = json
         .get("neFields")
         .and_then(|value| value.as_array())
@@ -778,7 +778,7 @@ async fn write_local_drafts(
     });
     std::fs::write(
         &annual_path,
-        serde_json::to_string_pretty(&annual_json).map_err(|e| AppError::internal(e.to_string()))?,
+        serde_json::to_string_pretty(&annual_json).map_err(|e| redacted_internal_from(e))?,
     )?;
 
     let ne_json = serde_json::json!({
@@ -794,7 +794,7 @@ async fn write_local_drafts(
     });
     std::fs::write(
         &ne_path,
-        serde_json::to_string_pretty(&ne_json).map_err(|e| AppError::internal(e.to_string()))?,
+        serde_json::to_string_pretty(&ne_json).map_err(|e| redacted_internal_from(e))?,
     )?;
 
     Ok((
@@ -826,7 +826,7 @@ async fn write_export_file(
     std::fs::write(
         &export_path,
         serde_json::to_string_pretty(&build_export_json(summary, source_url))
-            .map_err(|e| AppError::internal(e.to_string()))?,
+            .map_err(|e| redacted_internal_from(e))?,
     )?;
     Ok(format!("year-end/{filename}"))
 }
@@ -1075,7 +1075,7 @@ pub async fn year_end_package_create(
         package_id: package_id.clone(),
         fiscal_year: input.fiscal_year,
     })
-    .map_err(|e| AppError::internal(e.to_string()))?;
+        .map_err(redacted_internal_from)?;
 
     let (documents_path, exports_path, database_path) = load_workspace_paths(pool, workspace_id).await?;
     let documents_dir = resolve_workspace_subdir(&documents_path, &database_path, "documentsPath")?;
@@ -1378,7 +1378,7 @@ pub async fn year_end_package_approve(
             package_id: input.package_id.clone(),
             fiscal_year: summary.fiscal_year,
         })
-        .map_err(|e| AppError::internal(e.to_string()))?,
+        .map_err(|e| redacted_internal_from(e))?,
     )
     .bind(idempotency_key)
     .execute(&mut *tx)
@@ -1471,7 +1471,7 @@ pub async fn year_end_package_export(
     let export_payload = serde_json::to_string(&IdempotentYearEndExportPayload {
         package_id: input.package_id.clone(),
     })
-    .map_err(|e| AppError::internal(e.to_string()))?;
+        .map_err(redacted_internal_from)?;
 
     match sqlx::query(
         r#"

@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::{
     audit::record_event,
     documents,
-    error::AppError,
+    error::{AppError, redacted_internal_from},
     invoicing::{self, InvoiceSummary},
     profiles,
 };
@@ -233,7 +233,7 @@ async fn run_invoice_pdf_job(
         move || invoicing::pdf::render_invoice_pdf(&invoice, &pdf_context)
     })
     .await
-    .map_err(|error| AppError::internal(error.to_string()))??;
+    .map_err(redacted_internal_from)??;
     let filename = format!(
         "invoice-{}.pdf",
         invoice
@@ -300,7 +300,7 @@ async fn existing_pdf_document_id(
     .bind(invoice_id)
     .fetch_optional(pool)
     .await
-    .map_err(|error| AppError::internal(error.to_string()))
+    .map_err(redacted_internal_from)
 }
 
 async fn mark_job_succeeded(
@@ -308,7 +308,7 @@ async fn mark_job_succeeded(
     job_id: &str,
     result: &InvoicePdfJobResult,
 ) -> Result<(), AppError> {
-    let payload = serde_json::to_string(result).map_err(|e| AppError::internal(e.to_string()))?;
+    let payload = serde_json::to_string(result).map_err(redacted_internal_from)?;
     sqlx::query(
         r#"
         UPDATE local_jobs

@@ -364,7 +364,7 @@ async fn check_create_idempotency(
         return Ok(None);
     };
     let parsed: IdempotentYearEndPayload =
-        serde_json::from_str(&json).map_err(|e| redacted_internal_from(e))?;
+        serde_json::from_str(&json).map_err(redacted_internal_from)?;
     Ok(Some(parsed))
 }
 
@@ -404,7 +404,7 @@ async fn check_export_idempotency(
         return Ok(None);
     };
     let parsed: IdempotentYearEndExportPayload =
-        serde_json::from_str(&json).map_err(|e| redacted_internal_from(e))?;
+        serde_json::from_str(&json).map_err(redacted_internal_from)?;
     Ok(Some(parsed))
 }
 
@@ -605,7 +605,7 @@ fn ne_drafts_from_summaries(fields: &[NeFieldSummary]) -> Vec<NeFieldDraft> {
 fn read_export_ne_fields(exports_dir: &Path, rel_path: &str) -> Result<Vec<NeFieldDraft>, AppError> {
     let content = std::fs::read_to_string(exports_dir.join(rel_path)).map_err(AppError::from)?;
     let json: serde_json::Value =
-        serde_json::from_str(&content).map_err(|e| redacted_internal_from(e))?;
+        serde_json::from_str(&content).map_err(redacted_internal_from)?;
     let fields = json
         .get("neFields")
         .and_then(|value| value.as_array())
@@ -778,7 +778,7 @@ async fn write_local_drafts(
     });
     std::fs::write(
         &annual_path,
-        serde_json::to_string_pretty(&annual_json).map_err(|e| redacted_internal_from(e))?,
+        serde_json::to_string_pretty(&annual_json).map_err(redacted_internal_from)?,
     )?;
 
     let ne_json = serde_json::json!({
@@ -794,7 +794,7 @@ async fn write_local_drafts(
     });
     std::fs::write(
         &ne_path,
-        serde_json::to_string_pretty(&ne_json).map_err(|e| redacted_internal_from(e))?,
+        serde_json::to_string_pretty(&ne_json).map_err(redacted_internal_from)?,
     )?;
 
     Ok((
@@ -826,7 +826,7 @@ async fn write_export_file(
     std::fs::write(
         &export_path,
         serde_json::to_string_pretty(&build_export_json(summary, source_url))
-            .map_err(|e| redacted_internal_from(e))?,
+            .map_err(redacted_internal_from)?,
     )?;
     Ok(format!("year-end/{filename}"))
 }
@@ -1378,7 +1378,7 @@ pub async fn year_end_package_approve(
             package_id: input.package_id.clone(),
             fiscal_year: summary.fiscal_year,
         })
-        .map_err(|e| redacted_internal_from(e))?,
+        .map_err(redacted_internal_from)?,
     )
     .bind(idempotency_key)
     .execute(&mut *tx)

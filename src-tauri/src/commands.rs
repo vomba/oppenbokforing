@@ -21,7 +21,7 @@ use crate::{
     counterparties::{self, Counterparty, CounterpartyCreateInput},
     db::{connect_workspace, open_existing_workspace},
     documents::{Document, DocumentGetInput, DocumentImportInput, DocumentListInput},
-    error::{AppError, redacted_internal_from, redacted_storage_from},
+    error::{AppError, redacted_storage_from},
     expenses::{ExpensePostInput, ExpensePostResult},
     imports::{self, CsvImportCreateInput, CsvImportSummary, StagedTransactionsListInput, StagedTransactionSummary},
     integrations::{self, IntegrationStatusResponse},

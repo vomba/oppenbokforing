@@ -4,7 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::error::{AppError, redacted_internal_from, redacted_storage_from};
+use crate::error::{AppError, redacted_storage_from};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

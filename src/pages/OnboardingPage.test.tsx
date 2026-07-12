@@ -4,7 +4,30 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { LocaleProvider } from "../context/LocaleContext"
 import { WorkspaceProvider } from "../context/WorkspaceContext"
+import type { AppError } from "../lib/bindings"
 import { OnboardingPage } from "./OnboardingPage"
+
+const { workspaceSettingsFixture, profileNotFoundError } = vi.hoisted(() => {
+  const workspaceSettingsFixture = {
+    id: "settings-1",
+    locale: "sv",
+    updaterEnabled: false,
+    defaultExportDirectory: null,
+    defaultBackupDirectory: null,
+    dashboardTourCompleted: false,
+    simpleMode: true,
+  }
+
+  function profileNotFoundError(field: string): AppError {
+    return {
+      code: "validation_error",
+      message: "not found",
+      details: [{ field, message: "not found", code: "invalid_value" }],
+    }
+  }
+
+  return { workspaceSettingsFixture, profileNotFoundError }
+})
 
 const workspace = {
   id: "ws-1",
@@ -39,13 +62,13 @@ vi.mock("../lib/commands", () => ({
     taxYear: 2026,
     sourceUrl: "https://example.com/rules",
   }),
-  businessProfileGetCurrent: vi.fn().mockResolvedValue(null),
-  taxProfileGetCurrent: vi.fn().mockResolvedValue(null),
-  vatProfileGetCurrent: vi.fn().mockResolvedValue(null),
+  businessProfileGetCurrent: vi.fn().mockRejectedValue(profileNotFoundError("businessProfile")),
+  taxProfileGetCurrent: vi.fn().mockRejectedValue(profileNotFoundError("taxProfile")),
+  vatProfileGetCurrent: vi.fn().mockRejectedValue(profileNotFoundError("vatProfile")),
   businessProfileSaveCurrent: vi.fn().mockResolvedValue({}),
   taxProfileSaveCurrent: vi.fn().mockResolvedValue({}),
   vatProfileSaveCurrent: vi.fn().mockResolvedValue({}),
-  workspaceSettingsSave: vi.fn().mockResolvedValue({ locale: "sv", simpleMode: true }),
+  workspaceSettingsSave: vi.fn().mockResolvedValue(workspaceSettingsFixture),
   complianceProfileCheck: vi.fn().mockResolvedValue({
     scenarioIds: ["vat-exempt-below-threshold"],
     passed: true,
@@ -78,10 +101,15 @@ afterEach(() => {
 
 beforeEach(async () => {
   const commands = await import("../lib/commands")
-  vi.mocked(commands.businessProfileGetCurrent).mockResolvedValue(null)
-  vi.mocked(commands.taxProfileGetCurrent).mockResolvedValue(null)
-  vi.mocked(commands.vatProfileGetCurrent).mockResolvedValue(null)
-  vi.mocked(commands.workspaceSettingsSave).mockResolvedValue({ locale: "sv", simpleMode: true })
+  vi.mocked(commands.businessProfileGetCurrent).mockRejectedValue(
+    profileNotFoundError("businessProfile"),
+  )
+  vi.mocked(commands.taxProfileGetCurrent).mockRejectedValue(profileNotFoundError("taxProfile"))
+  vi.mocked(commands.vatProfileGetCurrent).mockRejectedValue(profileNotFoundError("vatProfile"))
+  vi.mocked(commands.workspaceSettingsSave).mockResolvedValue({
+    ...workspaceSettingsFixture,
+    locale: "sv",
+  })
 })
 
 describe("OnboardingPage", () => {

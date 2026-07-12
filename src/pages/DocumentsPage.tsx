@@ -2,11 +2,12 @@ import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
 import { useEffect, useRef, useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
-import { useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { useLocale } from "../context/LocaleContext"
 import { t, tVars } from "../i18n"
 import { helpTopics } from "../lib/helpTopics"
+import { resolveInvoicePaymentPanelState } from "../lib/documentsPaymentPanel"
 import {
   appErrorMessage,
   accountList,
@@ -57,6 +58,8 @@ export function DocumentsPage() {
   const [paymentDocumentId, setPaymentDocumentId] = useState("")
   const [paymentDocumentName, setPaymentDocumentName] = useState("")
   const [paymentDate, setPaymentDate] = useState("")
+  const [inboxLoaded, setInboxLoaded] = useState(false)
+  const [paymentRecorded, setPaymentRecorded] = useState(false)
 
   async function refreshInbox() {
     if (!workspace) return
@@ -73,6 +76,7 @@ export function DocumentsPage() {
     setSelectedStagedId((current) => reconcileListSelection(current, stagedRows))
     setSelectedInvoiceId((current) => reconcileListSelection(current, invoiceRows))
     setSelectedDocumentId((current) => reconcileListSelection(current, documentRows))
+    setInboxLoaded(true)
   }
 
   useEffect(() => {
@@ -88,6 +92,7 @@ export function DocumentsPage() {
   useEffect(() => {
     if (invoiceIdFromUrl) {
       setSelectedInvoiceId(invoiceIdFromUrl)
+      setPaymentRecorded(false)
       setStatus(t(locale, "documents.invoicePaymentHint"))
       const invoice = invoices.find((row) => row.id === invoiceIdFromUrl)
       if (invoice?.issueDate) {
@@ -129,7 +134,7 @@ export function DocumentsPage() {
   }
 
   async function handleRecordInvoicePayment() {
-    if (busy || !invoiceIdFromUrl) return
+    if (busy || !invoiceIdFromUrl || paymentRecorded) return
     if (!paymentDocumentId) {
       setStatus(t(locale, "documents.invoicePaymentNeedsStatement"))
       return
@@ -144,13 +149,15 @@ export function DocumentsPage() {
         idempotencyKey,
       })
       delete paymentKeysRef.current[invoiceIdFromUrl]
-      setStatus(
-        result.voucherId
-          ? `${t(locale, "documents.invoicePaymentRecorded")} (${result.voucherId})`
-          : t(locale, "documents.invoicePaymentRecorded"),
-      )
+      setPaymentRecorded(true)
       setPaymentDocumentId("")
       setPaymentDocumentName("")
+      setPaymentDate("")
+      setStatus(
+        result.voucherId
+          ? `${t(locale, "documents.invoicePaymentComplete")} (${result.voucherId})`
+          : t(locale, "documents.invoicePaymentComplete"),
+      )
       await refreshInbox()
     } catch (error) {
       setStatus(appErrorMessage(error, t(locale, "documents.invoicePaymentRecordFailed")))
@@ -285,6 +292,13 @@ export function DocumentsPage() {
 
   const selectedStaged = staged.find((row) => row.id === selectedStagedId) ?? null
   const invoiceFromUrl = invoices.find((row) => row.id === invoiceIdFromUrl) ?? null
+  const paymentPanelState = resolveInvoicePaymentPanelState({
+    invoiceIdFromUrl,
+    inboxLoaded,
+    paymentRecorded,
+    invoice: invoiceFromUrl,
+  })
+  const paymentPanelActionable = paymentPanelState === "ready"
 
   return (
     <main className="app-shell">
@@ -310,39 +324,68 @@ export function DocumentsPage() {
           {invoiceIdFromUrl ? (
             <div className="panel" role="note">
               <h3>{t(locale, "documents.invoicePaymentWithStatementTitle")}</h3>
-              {invoiceFromUrl ? (
-                <p className="muted">
-                  {invoiceFromUrl.invoiceNumber ?? invoiceFromUrl.id} ·{" "}
-                  {formatSek(invoiceFromUrl.totalIncVatMinor)}
+              {paymentPanelState === "completed" ? (
+                <>
+                  <p className="muted" role="status">
+                    {t(locale, "documents.invoicePaymentComplete")}
+                  </p>
+                  <Link to="/invoices">{t(locale, "documents.backToInvoices")}</Link>
+                </>
+              ) : paymentPanelState === "loading" ? (
+                <p className="muted" role="status">
+                  {t(locale, "documents.invoicePaymentLoading")}
                 </p>
-              ) : null}
-              <div className="button-row">
-                <button type="button" onClick={() => void handlePickBankStatement()} disabled={busy || !workspace}>
-                  {t(locale, "documents.pickBankStatement")}
-                </button>
-              </div>
-              {paymentDocumentName ? (
-                <p className="muted">
-                  {tVars(locale, "documents.bankStatementSelected", { name: paymentDocumentName })}
+              ) : paymentPanelState === "already_paid" ? (
+                <p className="muted" role="status">
+                  {t(locale, "documents.invoiceAlreadyPaid")}
                 </p>
-              ) : null}
-              <label>
-                {t(locale, "documents.paymentDate")}
-                <input
-                  type="date"
-                  value={paymentDate}
-                  onChange={(event) => setPaymentDate(event.target.value)}
-                  disabled={busy}
-                />
-              </label>
-              <button
-                type="button"
-                disabled={busy || !paymentDocumentId}
-                onClick={() => void handleRecordInvoicePayment()}
-              >
-                {t(locale, "documents.recordInvoicePayment")}
-              </button>
-              <p className="muted">{t(locale, "documents.orUseCsv")}</p>
+              ) : paymentPanelState === "not_found" ? (
+                <p className="muted" role="status">
+                  {t(locale, "documents.invoiceNotPayable")}
+                </p>
+              ) : (
+                <>
+                  {invoiceFromUrl ? (
+                    <p className="muted">
+                      {invoiceFromUrl.invoiceNumber ?? invoiceFromUrl.id} ·{" "}
+                      {formatSek(invoiceFromUrl.totalIncVatMinor)}
+                    </p>
+                  ) : null}
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      onClick={() => void handlePickBankStatement()}
+                      disabled={busy || !workspace}
+                    >
+                      {t(locale, "documents.pickBankStatement")}
+                    </button>
+                  </div>
+                  {paymentDocumentName ? (
+                    <p className="muted">
+                      {tVars(locale, "documents.bankStatementSelected", {
+                        name: paymentDocumentName,
+                      })}
+                    </p>
+                  ) : null}
+                  <label>
+                    {t(locale, "documents.paymentDate")}
+                    <input
+                      type="date"
+                      value={paymentDate}
+                      onChange={(event) => setPaymentDate(event.target.value)}
+                      disabled={busy}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={busy || !paymentDocumentId || !paymentPanelActionable}
+                    onClick={() => void handleRecordInvoicePayment()}
+                  >
+                    {t(locale, "documents.recordInvoicePayment")}
+                  </button>
+                  <p className="muted">{t(locale, "documents.orUseCsv")}</p>
+                </>
+              )}
             </div>
           ) : null}
 

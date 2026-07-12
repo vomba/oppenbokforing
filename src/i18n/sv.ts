@@ -142,6 +142,13 @@ export const sv: Record<MessageKey, string> = {
   "documents.matchedTransactions": "Matchade transaktioner",
   "documents.invoicePaymentHint":
     "Välj bankutdrag (PDF) och klicka Markera faktura betald — eller importera bank-CSV och matcha manuellt.",
+  "documents.invoicePaymentLoading": "Laddar faktura…",
+  "documents.invoiceNotPayable":
+    "Fakturan hittades inte eller kan inte markeras betald här (utkast, redan betald eller felaktigt id).",
+  "documents.invoiceAlreadyPaid": "Fakturan är redan markerad betald.",
+  "documents.invoicePaymentComplete":
+    "Betalningen är registrerad. Du kan stänga panelen eller gå tillbaka till fakturor.",
+  "documents.backToInvoices": "Tillbaka till fakturor",
   "yearEnd.eyebrow": "Bokslut",
   "yearEnd.noWorkspace": "Ingen arbetsyta öppen",
   "yearEnd.status": "Skapa K1-årsbokslut och NE-utkast från huvudboken.",

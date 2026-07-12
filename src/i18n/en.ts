@@ -139,6 +139,13 @@ export const en = {
   "documents.matchedTransactions": "Matched transactions",
   "documents.invoicePaymentHint":
     "Pick a bank statement PDF and click Mark invoice paid — or import bank CSV and match manually.",
+  "documents.invoicePaymentLoading": "Loading invoice…",
+  "documents.invoiceNotPayable":
+    "Invoice was not found or cannot be marked paid here (draft, already paid, or invalid id).",
+  "documents.invoiceAlreadyPaid": "This invoice is already marked paid.",
+  "documents.invoicePaymentComplete":
+    "Payment recorded. You can close this panel or return to invoices.",
+  "documents.backToInvoices": "Back to invoices",
   "yearEnd.eyebrow": "Annual close",
   "yearEnd.noWorkspace": "No workspace open",
   "yearEnd.status": "Create K1 annual accounts and NE draft from the ledger.",

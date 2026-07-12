@@ -491,6 +491,50 @@ fn prepare_reveal_path(documents_dir: &Path, object_path: &str) -> Result<PathBu
     Ok(canonical)
 }
 
+fn reveal_extension_for_mime(mime_type: &str) -> Result<&'static str, AppError> {
+    match mime_type.trim() {
+        "application/pdf" => Ok("pdf"),
+        "image/png" => Ok("png"),
+        "image/jpeg" | "image/jpg" => Ok("jpg"),
+        _ => Err(AppError::validation(
+            "Document type cannot be opened in the system viewer",
+            "documentId",
+        )),
+    }
+}
+
+#[cfg(unix)]
+fn restrict_temp_permissions(file: &std::fs::File) -> Result<(), AppError> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut permissions = file.metadata()?.permissions();
+    permissions.set_mode(0o600);
+    file.set_permissions(permissions)?;
+    Ok(())
+}
+
+fn stage_reveal_copy(source: &Path, mime_type: &str) -> Result<PathBuf, AppError> {
+    let extension = reveal_extension_for_mime(mime_type)?;
+    let mut temp = tempfile::Builder::new()
+        .prefix("oppenbokforing-reveal-")
+        .suffix(&format!(".{extension}"))
+        .tempfile()
+        .map_err(|_| AppError::internal("Could not stage document for reveal"))?;
+
+    #[cfg(unix)]
+    restrict_temp_permissions(temp.as_file())?;
+
+    {
+        let mut input = std::fs::File::open(source)?;
+        std::io::copy(&mut input, temp.as_file_mut())?;
+    }
+
+    let staged = temp
+        .into_temp_path()
+        .keep()
+        .map_err(|_| AppError::internal("Could not stage document for reveal"))?;
+    Ok(staged)
+}
+
 fn reveal_in_system_viewer(full_path: &Path) -> Result<(), AppError> {
     const REVEAL_FAILED: &str = "Could not open document in the system viewer";
 
@@ -512,8 +556,17 @@ fn reveal_in_system_viewer(full_path: &Path) -> Result<(), AppError> {
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("explorer")
-            .arg(full_path)
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let path = full_path.to_string_lossy().replace('\'', "''");
+        std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &format!("Start-Process -LiteralPath '{path}'"),
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|_| AppError::internal(REVEAL_FAILED))?;
     }
@@ -529,7 +582,11 @@ pub async fn document_reveal(
     let documents_dir = load_documents_dir(pool, workspace_id).await?;
     let document = document_get(pool, workspace_id, document_id).await?;
     let full_path = prepare_reveal_path(&documents_dir, &document.object_path)?;
-    reveal_in_system_viewer(&full_path)
+    let mime_type = document.mime_type.clone();
+    let staged_path = tokio::task::spawn_blocking(move || stage_reveal_copy(&full_path, &mime_type))
+        .await
+        .map_err(|error| AppError::internal(error.to_string()))??;
+    reveal_in_system_viewer(&staged_path)
 }
 
 pub async fn document_list(
@@ -587,3 +644,33 @@ pub async fn document_list(
         .collect())
 }
 
+#[cfg(test)]
+mod reveal_tests {
+    use super::{reveal_extension_for_mime, stage_reveal_copy};
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn reveal_extension_rejects_unsupported_mime_types() {
+        let error = reveal_extension_for_mime("application/x-msdownload").expect_err("reject exe");
+        assert_eq!(error.code, "validation_error");
+    }
+
+    #[test]
+    fn stage_reveal_copy_writes_randomized_pdf_with_extension() {
+        let dir = tempdir().expect("tempdir");
+        let source = dir.path().join("objects").join("deadbeef");
+        fs::create_dir_all(source.parent().expect("parent")).expect("objects dir");
+        fs::write(&source, b"%PDF-1.3 test").expect("source pdf");
+
+        let staged = stage_reveal_copy(&source, "application/pdf").expect("stage reveal copy");
+
+        assert_eq!(staged.extension().and_then(|ext| ext.to_str()), Some("pdf"));
+        assert!(staged
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("oppenbokforing-reveal-")));
+        assert_eq!(fs::read(&staged).expect("read staged"), b"%PDF-1.3 test");
+        let _ = fs::remove_file(staged);
+    }
+}

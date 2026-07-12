@@ -516,3 +516,88 @@ async fn invoice_pdf_status_ignores_orphaned_document_reference() {
 
     drop(dir);
 }
+
+#[tokio::test]
+async fn refresh_invoice_pdf_skips_duplicate_queued_job() {
+    let (dir, workspace_id, pool) = setup_invoice_workspace().await;
+    let customer = counterparties::create_counterparty(
+        &pool,
+        &workspace_id,
+        &CounterpartyCreateInput {
+            kind: "customer".to_string(),
+            name: "Refresh Customer".to_string(),
+            email: None,
+            org_number: None,
+        },
+    )
+    .await
+    .expect("customer");
+
+    let draft = invoicing::create_draft(
+        &pool,
+        &workspace_id,
+        &InvoiceCreateDraftInput {
+            counterparty_id: customer.id,
+            due_date: Some("2026-03-01".to_string()),
+            lines: vec![InvoiceLineInput {
+                description: "Refresh line".to_string(),
+                quantity: 1,
+                unit_price_minor: 1_000_00,
+                vat_rate: 0.25,
+                account_number: Some("3041".to_string()),
+            }],
+        },
+    )
+    .await
+    .expect("draft");
+
+    let issued = invoicing::issue_invoice(
+        &pool,
+        &workspace_id,
+        &InvoiceIssueInput {
+            invoice_id: draft.id.clone(),
+            idempotency_key: "pdf-refresh-dedupe".to_string(),
+            issue_date: Some("2026-01-15".to_string()),
+        },
+    )
+    .await
+    .expect("issue");
+
+    let queued_after_issue: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*) FROM local_jobs
+        WHERE workspace_id = ?1
+          AND job_type = 'invoice_pdf_generate'
+          AND status IN ('queued', 'running')
+          AND json_extract(payload_json, '$.invoiceId') = ?2
+        "#,
+    )
+    .bind(&workspace_id)
+    .bind(&issued.id)
+    .fetch_one(&pool)
+    .await
+    .expect("queued count after issue");
+    assert_eq!(queued_after_issue, 1);
+
+    jobs::refresh_invoice_pdf(&pool, &workspace_id, &issued.id)
+        .await
+        .expect("refresh while job pending");
+
+    let queued_after_refresh: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*) FROM local_jobs
+        WHERE workspace_id = ?1
+          AND job_type = 'invoice_pdf_generate'
+          AND status IN ('queued', 'running')
+          AND json_extract(payload_json, '$.invoiceId') = ?2
+        "#,
+    )
+    .bind(&workspace_id)
+    .bind(&issued.id)
+    .fetch_one(&pool)
+    .await
+    .expect("queued count after refresh");
+    assert_eq!(queued_after_refresh, 1);
+
+    drop(dir);
+}

@@ -4,7 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::error::AppError;
+use crate::error::{AppError, redacted_storage_from};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -26,7 +26,7 @@ pub fn list_recent_workspaces(app_data_dir: &Path) -> Result<Vec<RecentWorkspace
     }
     let raw = fs::read_to_string(path)?;
     let entries: Vec<RecentWorkspaceEntry> = serde_json::from_str(&raw)
-        .map_err(|error| AppError::storage(error.to_string()))?;
+        .map_err(redacted_storage_from)?;
     Ok(entries)
 }
 
@@ -53,7 +53,7 @@ pub fn record_recent_workspace(
     fs::write(
         &path,
         serde_json::to_string_pretty(&entries)
-            .map_err(|error| AppError::storage(error.to_string()))?,
+            .map_err(redacted_storage_from)?,
     )?;
     Ok(entries)
 }

@@ -21,7 +21,7 @@ use crate::{
     counterparties::{self, Counterparty, CounterpartyCreateInput},
     db::{connect_workspace, open_existing_workspace},
     documents::{Document, DocumentGetInput, DocumentImportInput, DocumentListInput},
-    error::AppError,
+    error::{AppError, redacted_storage_from},
     expenses::{ExpensePostInput, ExpensePostResult},
     imports::{self, CsvImportCreateInput, CsvImportSummary, StagedTransactionsListInput, StagedTransactionSummary},
     integrations::{self, IntegrationStatusResponse},
@@ -80,7 +80,7 @@ async fn require_workspace(state: &State<'_, AppState>) -> Result<WorkspaceConte
 fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
     app.path()
         .app_data_dir()
-        .map_err(|error| AppError::storage(error.to_string()))
+        .map_err(redacted_storage_from)
 }
 
 #[tauri::command]

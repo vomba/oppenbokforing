@@ -4,7 +4,7 @@ use printpdf::{
 };
 use std::io::BufWriter;
 
-use crate::{error::AppError, invoicing::InvoiceSummary};
+use crate::{error::{AppError, redacted_internal_from}, invoicing::InvoiceSummary};
 
 #[derive(Debug, Clone)]
 pub struct InvoicePdfContext {
@@ -470,10 +470,10 @@ pub fn render_invoice_pdf(
     let (doc, page1, layer1) = PdfDocument::new(&title, Mm(PAGE_WIDTH_MM), Mm(PAGE_HEIGHT_MM), "Layer 1");
     let font = doc
         .add_builtin_font(BuiltinFont::Helvetica)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
     let font_bold = doc
         .add_builtin_font(BuiltinFont::HelveticaBold)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
     let layer = doc.get_page(page1).get_layer(layer1);
     set_text_color_black(&layer);
 
@@ -507,7 +507,7 @@ pub fn render_invoice_pdf(
 fn save_document(doc: PdfDocumentReference) -> Result<Vec<u8>, AppError> {
     let mut buffer = Vec::new();
     doc.save(&mut BufWriter::new(&mut buffer))
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
     Ok(buffer)
 }
 

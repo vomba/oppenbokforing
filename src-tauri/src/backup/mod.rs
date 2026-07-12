@@ -12,7 +12,7 @@ use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::{audit::record_event, db::connect_workspace, error::AppError};
+use crate::{audit::record_event, db::connect_workspace, error::{AppError, redacted_internal_from, redacted_storage_from}};
 
 mod crypto;
 
@@ -282,7 +282,7 @@ pub async fn create_backup_package(
             "entries": entries,
         });
         let manifest_raw = serde_json::to_string(&manifest_body)
-            .map_err(|error| AppError::internal(error.to_string()))?;
+            .map_err(redacted_internal_from)?;
         let manifest_sha256 = hash_string(&manifest_raw);
         let manifest = BackupManifest {
             version: MANIFEST_VERSION,
@@ -290,7 +290,7 @@ pub async fn create_backup_package(
             workspace_name: workspace_name.clone(),
             created_at,
             entries: serde_json::from_value(manifest_body["entries"].clone())
-                .map_err(|error| AppError::internal(error.to_string()))?,
+                .map_err(redacted_internal_from)?,
             manifest_sha256: manifest_sha256.clone(),
         };
 
@@ -306,7 +306,7 @@ pub async fn create_backup_package(
         fs::write(
             &manifest_path,
             serde_json::to_string_pretty(&manifest_with_hash)
-                .map_err(|error| AppError::internal(error.to_string()))?,
+                .map_err(redacted_internal_from)?,
         )?;
 
         let tar_bytes = tokio::task::spawn_blocking({
@@ -314,11 +314,11 @@ pub async fn create_backup_package(
             move || crypto::create_tar_archive(&backup_dir)
         })
         .await
-        .map_err(|error| AppError::internal(error.to_string()))??;
+        .map_err(redacted_internal_from)??;
         let passphrase_owned = passphrase.to_string();
         let encrypted = tokio::task::spawn_blocking(move || crypto::encrypt_bytes(&passphrase_owned, &tar_bytes))
             .await
-            .map_err(|error| AppError::internal(error.to_string()))??;
+            .map_err(redacted_internal_from)??;
         fs::write(&backup_file, encrypted)?;
         fs::remove_dir_all(&backup_dir)?;
 
@@ -367,7 +367,7 @@ pub async fn restore_backup_package(
         return Err(AppError::validation("Backup path not found", "backupPath"));
     }
 
-    let temp_dir = tempfile::tempdir().map_err(|error| AppError::storage(error.to_string()))?;
+    let temp_dir = tempfile::tempdir().map_err(redacted_storage_from)?;
     let backup_root = if crypto::is_encrypted_backup_file(&backup_path) {
         let metadata = fs::metadata(&backup_path)?;
         if metadata.len() > crypto::MAX_ENCRYPTED_BACKUP_BYTES {
@@ -404,7 +404,7 @@ async fn restore_from_staged_backup(
 
     let manifest_raw = fs::read_to_string(&manifest_path)?;
     let manifest_value: serde_json::Value = serde_json::from_str(&manifest_raw)
-        .map_err(|error| AppError::validation(error.to_string(), "backupPath"))?;
+        .map_err(|_| AppError::validation("Invalid backup manifest", "backupPath"))?;
     let expected_hash = manifest_value["manifestSha256"]
         .as_str()
         .ok_or_else(|| AppError::validation("Manifest hash missing", "backupPath"))?;
@@ -418,7 +418,7 @@ async fn restore_from_staged_backup(
     });
     let computed_hash = hash_string(
         &serde_json::to_string(&body_for_hash)
-            .map_err(|error| AppError::internal(error.to_string()))?,
+            .map_err(redacted_internal_from)?,
     );
     if computed_hash != expected_hash {
         return Err(AppError::validation("Backup manifest hash mismatch", "backupPath"));
@@ -588,7 +588,7 @@ pub async fn check_idempotency(
     };
 
     let parsed: IdempotentBackupPayload = serde_json::from_str(&payload)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
     if parsed.summary.backup_path.is_empty() {
         return Ok(None);
     }
@@ -627,7 +627,7 @@ pub async fn claim_backup_create(
         },
     };
     let payload_json = serde_json::to_string(&pending)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
 
     let id = Uuid::new_v4().to_string();
     match sqlx::query(
@@ -673,7 +673,7 @@ pub async fn finalize_backup_create(
         summary: summary.clone(),
     };
     let payload_json = serde_json::to_string(&payload)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
 
     sqlx::query(
         r#"
@@ -704,7 +704,7 @@ pub async fn record_idempotent_job(
         summary: summary.clone(),
     };
     let payload_json = serde_json::to_string(&payload)
-        .map_err(|error| AppError::internal(error.to_string()))?;
+        .map_err(redacted_internal_from)?;
 
     let id = Uuid::new_v4().to_string();
     let key = idempotency_key.trim();

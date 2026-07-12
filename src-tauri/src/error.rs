@@ -90,6 +90,29 @@ const STORAGE_ERROR_PUBLIC: &str =
 
 const IO_ERROR_PUBLIC: &str = "A file operation failed. Try again or reopen the workspace.";
 
+const INTERNAL_ERROR_PUBLIC: &str =
+    "An internal error occurred. Try again or reopen the workspace.";
+
+pub fn redacted_internal() -> AppError {
+    AppError::internal(INTERNAL_ERROR_PUBLIC)
+}
+
+pub fn redacted_internal_from(error: impl std::fmt::Debug) -> AppError {
+    #[cfg(debug_assertions)]
+    eprintln!("internal error (redacted from client): {error:?}");
+    redacted_internal()
+}
+
+pub fn redacted_storage() -> AppError {
+    AppError::storage(IO_ERROR_PUBLIC)
+}
+
+pub fn redacted_storage_from(error: impl std::fmt::Debug) -> AppError {
+    #[cfg(debug_assertions)]
+    eprintln!("storage error (redacted from client): {error:?}");
+    redacted_storage()
+}
+
 impl From<std::io::Error> for AppError {
     fn from(error: std::io::Error) -> Self {
         #[cfg(debug_assertions)]
@@ -171,5 +194,27 @@ mod tests {
 
         let serialized = serde_json::to_string(&error).expect("serialize");
         assert!(!serialized.contains("unique"));
+    }
+
+    #[test]
+    fn redacted_storage_helper_omits_io_path_details() {
+        let io_error = std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "/Users/secret/recent_workspaces.json",
+        );
+        let error = super::redacted_storage_from(io_error);
+
+        assert_eq!(error.code, "storage_error");
+        assert_eq!(error.message, super::IO_ERROR_PUBLIC);
+        assert!(!error.message.contains("/Users/"));
+    }
+
+    #[test]
+    fn redacted_internal_helper_omits_debug_details() {
+        let error = super::redacted_internal_from("printpdf font load failed: /tmp/font");
+
+        assert_eq!(error.code, "internal_error");
+        assert_eq!(error.message, super::INTERNAL_ERROR_PUBLIC);
+        assert!(!error.message.contains("/tmp/"));
     }
 }

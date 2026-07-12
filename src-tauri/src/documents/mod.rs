@@ -2,9 +2,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use specta::Type;
 use sqlx::{Row, SqlitePool};
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, OnceLock};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use uuid::Uuid;
 
 use crate::{audit::record_event, error::AppError, workspace::{ensure_path_within_root, safe_join_under}};
@@ -656,9 +658,35 @@ fn reveal_cleanup_sender() -> &'static mpsc::Sender<PathBuf> {
         std::thread::Builder::new()
             .name("reveal-cleanup".into())
             .spawn(move || {
-                while let Ok(path) = rx.recv() {
-                    std::thread::sleep(REVEAL_STAGED_TTL);
-                    let _ = std::fs::remove_file(path);
+                let mut due: BinaryHeap<Reverse<(Instant, PathBuf)>> = BinaryHeap::new();
+                loop {
+                    let now = Instant::now();
+                    while due
+                        .peek()
+                        .is_some_and(|Reverse((deadline, _))| *deadline <= now)
+                    {
+                        if let Some(Reverse((_, path))) = due.pop() {
+                            let _ = std::fs::remove_file(path);
+                        }
+                    }
+
+                    let timeout = due
+                        .peek()
+                        .map(|Reverse((deadline, _))| deadline.saturating_duration_since(now))
+                        .unwrap_or(REVEAL_STAGED_TTL);
+
+                    match rx.recv_timeout(timeout) {
+                        Ok(path) => {
+                            due.push(Reverse((Instant::now() + REVEAL_STAGED_TTL, path)));
+                        }
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                        Err(mpsc::RecvTimeoutError::Disconnected) => {
+                            while let Some(Reverse((_, path))) = due.pop() {
+                                let _ = std::fs::remove_file(path);
+                            }
+                            break;
+                        }
+                    }
                 }
             })
             .expect("reveal cleanup worker");
@@ -710,8 +738,8 @@ fn reveal_document_blocking(
     let full_path = prepare_reveal_path(documents_dir, object_path)?;
     let staged = stage_reveal_copy(&full_path, documents_dir, mime_type)?;
     validate_staged_reveal_path(&staged)?;
+    schedule_reveal_cleanup(staged.clone());
     reveal_in_system_viewer(&staged)?;
-    schedule_reveal_cleanup(staged);
     Ok(())
 }
 

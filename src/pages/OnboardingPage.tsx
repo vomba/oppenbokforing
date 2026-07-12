@@ -108,7 +108,7 @@ export function OnboardingPage() {
     return () => {
       active = false
     }
-  }, [workspace, locale])
+  }, [workspace])
 
   useEffect(() => {
     if (!workspace && !profilesLoading) {

@@ -192,6 +192,10 @@ describe("DocumentsPage", () => {
       retentionYears: 7,
     } satisfies Document)
     invoicePaymentRecord.mockResolvedValue({ matchId: "m-1", voucherId: "v-pay-1" })
+    invoiceList
+      .mockResolvedValueOnce([baseInvoice])
+      .mockResolvedValueOnce([baseInvoice])
+      .mockResolvedValueOnce([{ ...baseInvoice, paymentVoucherId: "v-pay-1" }])
 
     renderDocuments("/documents?invoiceId=inv-1")
 
@@ -211,5 +215,21 @@ describe("DocumentsPage", () => {
       expect(screen.getByRole("link", { name: "Tillbaka till fakturor" })).toBeInTheDocument()
     })
     expect(screen.queryByRole("button", { name: "Markera faktura betald" })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(invoiceList).toHaveBeenCalledTimes(3)
+    })
+  })
+
+  it("shows not payable after inbox load failure", async () => {
+    stagedTransactionsList.mockRejectedValue(new Error("network"))
+
+    renderDocuments("/documents?invoiceId=inv-1")
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Fakturan hittades inte eller kan inte markeras betald/i),
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/Laddar faktura/i)).not.toBeInTheDocument()
   })
 })

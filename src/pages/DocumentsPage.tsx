@@ -81,7 +81,10 @@ export function DocumentsPage() {
 
   useEffect(() => {
     if (!workspace) return
-    refreshInbox().catch(() => setStatus(t(locale, "documents.loadFailed")))
+    refreshInbox().catch(() => {
+      setStatus(t(locale, "documents.loadFailed"))
+      setInboxLoaded(true)
+    })
     accountList()
       .then((accounts) =>
         setExpenseAccounts(accounts.filter((account) => account.accountType === "expense")),
@@ -90,16 +93,19 @@ export function DocumentsPage() {
   }, [workspace, locale])
 
   useEffect(() => {
-    if (invoiceIdFromUrl) {
-      setSelectedInvoiceId(invoiceIdFromUrl)
-      setPaymentRecorded(false)
-      setStatus(t(locale, "documents.invoicePaymentHint"))
-      const invoice = invoices.find((row) => row.id === invoiceIdFromUrl)
-      if (invoice?.issueDate) {
-        setPaymentDate((current) => current || invoice.issueDate!)
-      }
+    if (!invoiceIdFromUrl) return
+    setPaymentRecorded(false)
+    setSelectedInvoiceId(invoiceIdFromUrl)
+    setStatus(t(locale, "documents.invoicePaymentHint"))
+  }, [invoiceIdFromUrl, locale])
+
+  useEffect(() => {
+    if (!invoiceIdFromUrl) return
+    const invoice = invoices.find((row) => row.id === invoiceIdFromUrl)
+    if (invoice?.issueDate) {
+      setPaymentDate((current) => current || invoice.issueDate!)
     }
-  }, [invoiceIdFromUrl, locale, invoices])
+  }, [invoiceIdFromUrl, invoices])
 
   async function handlePickBankStatement() {
     if (!workspace || busy) return

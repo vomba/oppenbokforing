@@ -162,24 +162,48 @@ impl GridTable {
         text: &str,
         align: TextAlign,
     ) {
+        let max_width_mm = self.col_widths_mm[column] - 2.0 * CELL_PAD_X_MM;
+        let display_text = truncate_text_to_width(text, max_width_mm, BODY_FONT_PT);
         let x_left = self.col_left_mm(column) + CELL_PAD_X_MM;
         let x_right = self.col_left_mm(column) + self.col_widths_mm[column] - CELL_PAD_X_MM;
         let y = self.text_baseline_mm(row);
         let x = match align {
             TextAlign::Left => x_left,
             TextAlign::Center => {
-                let width = text_width_mm(text, BODY_FONT_PT);
-                x_left + (self.col_widths_mm[column] - 2.0 * CELL_PAD_X_MM - width) / 2.0
+                let width = text_width_mm(&display_text, BODY_FONT_PT);
+                x_left + (max_width_mm - width) / 2.0
             }
-            TextAlign::Right => x_right - text_width_mm(text, BODY_FONT_PT),
+            TextAlign::Right => x_right - text_width_mm(&display_text, BODY_FONT_PT),
         };
         set_text_color_black(layer);
-        layer.use_text(text, BODY_FONT_PT, Mm(x), Mm(y), font);
+        layer.use_text(&display_text, BODY_FONT_PT, Mm(x), Mm(y), font);
     }
 }
 
 fn text_width_mm(text: &str, font_size_pt: f32) -> f32 {
     text.chars().count() as f32 * font_size_pt * 0.5 * 0.352_778
+}
+
+const TRUNCATION_ELLIPSIS: &str = "…";
+
+fn truncate_text_to_width(text: &str, max_width_mm: f32, font_size_pt: f32) -> String {
+    if text.is_empty() || text_width_mm(text, font_size_pt) <= max_width_mm {
+        return text.to_string();
+    }
+
+    let ellipsis_width = text_width_mm(TRUNCATION_ELLIPSIS, font_size_pt);
+    let target_width = (max_width_mm - ellipsis_width).max(0.0);
+    let chars: Vec<char> = text.chars().collect();
+    let mut end = chars.len();
+    while end > 0 {
+        let candidate: String = chars[..end].iter().collect();
+        if text_width_mm(&candidate, font_size_pt) <= target_width {
+            return format!("{candidate}{TRUNCATION_ELLIPSIS}");
+        }
+        end -= 1;
+    }
+
+    TRUNCATION_ELLIPSIS.to_string()
 }
 
 fn write_text_at(
@@ -271,11 +295,21 @@ fn compliance_footer_lines(context: &InvoicePdfContext) -> Vec<String> {
     lines
 }
 
+fn header_owner_subtitle(owner_name: &str) -> Option<&str> {
+    let trimmed = owner_name.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
 fn draw_header(
     layer: &PdfLayerReference,
     font: &printpdf::IndirectFontRef,
     font_bold: &printpdf::IndirectFontRef,
     business_name: &str,
+    owner_name: Option<&str>,
     title: &str,
     issue_date: Option<&str>,
     due_date: Option<&str>,
@@ -289,6 +323,19 @@ fn draw_header(
         top,
         business_name,
     );
+
+    let mut left_block_bottom = top + 6.0;
+    if let Some(owner_name) = owner_name {
+        write_text_at(
+            layer,
+            font,
+            BODY_FONT_PT,
+            MARGIN_LEFT_MM,
+            top + 6.0,
+            owner_name,
+        );
+        left_block_bottom = top + 12.0;
+    }
 
     let right_edge = MARGIN_LEFT_MM + CONTENT_WIDTH_MM;
     write_text_right_at(layer, font_bold, TITLE_FONT_PT, right_edge, top, title);
@@ -317,7 +364,7 @@ fn draw_header(
         meta_top += 6.0;
     }
 
-    meta_top.max(top + 16.0) + 8.0
+    meta_top.max(left_block_bottom + 4.0) + 8.0
 }
 
 fn draw_customer_table(
@@ -477,11 +524,14 @@ pub fn render_invoice_pdf(
     let layer = doc.get_page(page1).get_layer(layer1);
     set_text_color_black(&layer);
 
+    let owner_subtitle = header_owner_subtitle(&context.owner_name);
+
     let mut y = draw_header(
         &layer,
         &font,
         &font_bold,
         context.business_name.trim(),
+        owner_subtitle,
         &title,
         invoice.issue_date.as_deref(),
         invoice.due_date.as_deref(),
@@ -514,8 +564,8 @@ fn save_document(doc: PdfDocumentReference) -> Result<Vec<u8>, AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compliance_footer_lines, format_sek_minor, format_thousands_se, invoice_title,
-        InvoicePdfContext,
+        compliance_footer_lines, format_sek_minor, format_thousands_se, header_owner_subtitle,
+        invoice_title, text_width_mm, truncate_text_to_width, InvoicePdfContext, BODY_FONT_PT,
     };
     use crate::invoicing::{InvoiceLine, InvoiceSummary};
 
@@ -594,5 +644,22 @@ mod tests {
         let bytes = super::render_invoice_pdf(&invoice, &context).expect("render pdf");
         assert!(bytes.starts_with(b"%PDF"));
         assert!(bytes.len() > 1_000);
+    }
+
+    #[test]
+    fn header_owner_subtitle_omits_blank_names() {
+        assert_eq!(header_owner_subtitle(""), None);
+        assert_eq!(header_owner_subtitle("   "), None);
+        assert_eq!(header_owner_subtitle("Anna Svensson"), Some("Anna Svensson"));
+    }
+
+    #[test]
+    fn truncate_text_to_width_adds_ellipsis_for_long_descriptions() {
+        let long = "Konsulttjänster ".repeat(20);
+        let max_width_mm = 74.0;
+        let truncated = truncate_text_to_width(&long, max_width_mm, BODY_FONT_PT);
+        assert!(truncated.ends_with('…'));
+        assert!(text_width_mm(&truncated, BODY_FONT_PT) <= max_width_mm + 0.01);
+        assert!(truncated.len() < long.len());
     }
 }

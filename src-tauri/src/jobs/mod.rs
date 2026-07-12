@@ -370,6 +370,13 @@ pub async fn refresh_invoice_pdf(
         ));
     }
 
+    if pending_pdf_refresh_job_id(pool, workspace_id, invoice_id)
+        .await?
+        .is_some()
+    {
+        return Ok(());
+    }
+
     sqlx::query(
         r#"
         UPDATE invoices
@@ -419,6 +426,30 @@ pub async fn refresh_invoice_pdf(
 
     process_pending_invoice_pdf_jobs(pool, workspace_id).await?;
     Ok(())
+}
+
+async fn pending_pdf_refresh_job_id(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    invoice_id: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar(
+        r#"
+        SELECT id FROM local_jobs
+        WHERE workspace_id = ?1
+          AND job_type = ?2
+          AND status IN ('queued', 'running')
+          AND json_extract(payload_json, '$.invoiceId') = ?3
+        ORDER BY created_at ASC
+        LIMIT 1
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(JOB_INVOICE_PDF)
+    .bind(invoice_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(redacted_internal_from)
 }
 
 pub async fn invoice_pdf_status(

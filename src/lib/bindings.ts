@@ -86,6 +86,8 @@ export type InvoiceLineInput = { description: string; quantity: number; unitPric
 
 export type InvoiceListInput = { status: string | null }
 
+export type InvoicePaymentRecordInput = { invoiceId: string; documentId: string; paymentDate: string | null; idempotencyKey: string }
+
 export type InvoicePdfStatusInput = { invoiceId: string }
 
 export type InvoiceSummary = { id: string; counterpartyId: string; counterpartyName: string; status: string; invoiceKind: string; invoiceNumber: string | null; sourceInvoiceId: string | null; issueDate: string | null; dueDate: string | null; totalExVatMinor: number; totalVatMinor: number; totalIncVatMinor: number; pdfJobId: string | null; pdfDocumentId: string | null; voucherId: string | null; paymentVoucherId: string | null; lines: InvoiceLine[] }

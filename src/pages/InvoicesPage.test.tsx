@@ -97,7 +97,7 @@ describe("InvoicesPage", () => {
       expect(screen.getByText("Betald")).toBeInTheDocument()
     })
     expect(screen.queryByRole("button", { name: "Kreditera" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "Markera betald" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Registrera betalning" })).not.toBeInTheDocument()
   })
 
   it("shows credit for open issued invoices", async () => {

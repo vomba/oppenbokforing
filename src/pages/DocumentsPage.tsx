@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog"
 import { useSearchParams } from "react-router-dom"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { useLocale } from "../context/LocaleContext"
-import { t } from "../i18n"
+import { t, tVars } from "../i18n"
 import { helpTopics } from "../lib/helpTopics"
 import {
   appErrorMessage,
@@ -15,6 +15,7 @@ import {
   documentList,
   expensePost,
   invoiceList,
+  invoicePaymentRecord,
   reconciliationMatchCreate,
   stagedTransactionsList,
   type AccountSummary,
@@ -52,6 +53,10 @@ export function DocumentsPage() {
   const csvKeysRef = useRef<Record<string, string>>({})
   const matchKeysRef = useRef<Record<string, string>>({})
   const expenseKeysRef = useRef<Record<string, string>>({})
+  const paymentKeysRef = useRef<Record<string, string>>({})
+  const [paymentDocumentId, setPaymentDocumentId] = useState("")
+  const [paymentDocumentName, setPaymentDocumentName] = useState("")
+  const [paymentDate, setPaymentDate] = useState("")
 
   async function refreshInbox() {
     if (!workspace) return
@@ -84,8 +89,75 @@ export function DocumentsPage() {
     if (invoiceIdFromUrl) {
       setSelectedInvoiceId(invoiceIdFromUrl)
       setStatus(t(locale, "documents.invoicePaymentHint"))
+      const invoice = invoices.find((row) => row.id === invoiceIdFromUrl)
+      if (invoice?.issueDate) {
+        setPaymentDate((current) => current || invoice.issueDate!)
+      }
     }
-  }, [invoiceIdFromUrl, locale])
+  }, [invoiceIdFromUrl, locale, invoices])
+
+  async function handlePickBankStatement() {
+    if (!workspace || busy) return
+    setBusy(true)
+    try {
+      const selection = await open({
+        multiple: false,
+        title: t(locale, "documents.pickBankStatement"),
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      })
+      if (!selection || Array.isArray(selection)) return
+
+      const idempotencyKey = docKeysRef.current[selection] ??= crypto.randomUUID()
+      const filename = selection.split("/").pop() ?? "bank-statement.pdf"
+      const imported = await documentImport({
+        sourcePath: selection,
+        filename,
+        mimeType: "application/pdf",
+        idempotencyKey,
+      })
+
+      delete docKeysRef.current[selection]
+      setPaymentDocumentId(imported.id)
+      setPaymentDocumentName(imported.originalFilename)
+      setStatus(tVars(locale, "documents.bankStatementSelected", { name: imported.originalFilename }))
+      await refreshInbox()
+    } catch (error) {
+      setStatus(appErrorMessage(error, t(locale, "documents.importFailed")))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRecordInvoicePayment() {
+    if (busy || !invoiceIdFromUrl) return
+    if (!paymentDocumentId) {
+      setStatus(t(locale, "documents.invoicePaymentNeedsStatement"))
+      return
+    }
+    setBusy(true)
+    const idempotencyKey = paymentKeysRef.current[invoiceIdFromUrl] ??= crypto.randomUUID()
+    try {
+      const result = await invoicePaymentRecord({
+        invoiceId: invoiceIdFromUrl,
+        documentId: paymentDocumentId,
+        paymentDate: paymentDate.trim() || null,
+        idempotencyKey,
+      })
+      delete paymentKeysRef.current[invoiceIdFromUrl]
+      setStatus(
+        result.voucherId
+          ? `${t(locale, "documents.invoicePaymentRecorded")} (${result.voucherId})`
+          : t(locale, "documents.invoicePaymentRecorded"),
+      )
+      setPaymentDocumentId("")
+      setPaymentDocumentName("")
+      await refreshInbox()
+    } catch (error) {
+      setStatus(appErrorMessage(error, t(locale, "documents.invoicePaymentRecordFailed")))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function handlePickAndImportDocument() {
     if (!workspace || busy) return
@@ -212,6 +284,7 @@ export function DocumentsPage() {
   }
 
   const selectedStaged = staged.find((row) => row.id === selectedStagedId) ?? null
+  const invoiceFromUrl = invoices.find((row) => row.id === invoiceIdFromUrl) ?? null
 
   return (
     <main className="app-shell">
@@ -234,6 +307,45 @@ export function DocumentsPage() {
         </header>
 
         <section className="workbench">
+          {invoiceIdFromUrl ? (
+            <div className="panel" role="note">
+              <h3>{t(locale, "documents.invoicePaymentWithStatementTitle")}</h3>
+              {invoiceFromUrl ? (
+                <p className="muted">
+                  {invoiceFromUrl.invoiceNumber ?? invoiceFromUrl.id} ·{" "}
+                  {formatSek(invoiceFromUrl.totalIncVatMinor)}
+                </p>
+              ) : null}
+              <div className="button-row">
+                <button type="button" onClick={() => void handlePickBankStatement()} disabled={busy || !workspace}>
+                  {t(locale, "documents.pickBankStatement")}
+                </button>
+              </div>
+              {paymentDocumentName ? (
+                <p className="muted">
+                  {tVars(locale, "documents.bankStatementSelected", { name: paymentDocumentName })}
+                </p>
+              ) : null}
+              <label>
+                {t(locale, "documents.paymentDate")}
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(event) => setPaymentDate(event.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={busy || !paymentDocumentId}
+                onClick={() => void handleRecordInvoicePayment()}
+              >
+                {t(locale, "documents.recordInvoicePayment")}
+              </button>
+              <p className="muted">{t(locale, "documents.orUseCsv")}</p>
+            </div>
+          ) : null}
+
           <div className="panel">
             <header>
               <p className="eyebrow">{t(locale, "documents.imports")}</p>
@@ -263,6 +375,13 @@ export function DocumentsPage() {
                 </tr>
               </thead>
               <tbody>
+                {staged.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      {t(locale, "documents.stagedEmpty")}
+                    </td>
+                  </tr>
+                ) : null}
                 {staged.map((row) => (
                   <tr key={row.id} className={selectedStagedId === row.id ? "selected-row" : undefined}>
                     <td>
@@ -392,6 +511,13 @@ export function DocumentsPage() {
                 </tr>
               </thead>
               <tbody>
+                {matched.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      {t(locale, "documents.matchedEmpty")}
+                    </td>
+                  </tr>
+                ) : null}
                 {matched.map((row) => (
                   <tr key={row.id}>
                     <td>{row.transactionDate}</td>

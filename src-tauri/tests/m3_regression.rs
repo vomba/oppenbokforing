@@ -410,3 +410,54 @@ async fn reconciliation_rejects_already_matched_staged_row() {
     assert_eq!(error.code, "validation_error");
     assert!(error.message.contains("not available for matching"));
 }
+
+#[tokio::test]
+async fn invoice_payment_record_links_bank_statement_pdf() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let issued = issue_standard_invoice(&pool, &workspace_id, "issue-for-pdf-payment").await;
+
+    let statement = oppenbokforing_desktop_lib::documents::store_document_bytes(
+        &pool,
+        &workspace_id,
+        b"%PDF-1.4 bank statement",
+        "bank-july.pdf",
+        "application/pdf",
+    )
+    .await
+    .expect("bank statement");
+
+    let result = reconciliation::invoice_payment_record(
+        &pool,
+        &workspace_id,
+        &reconciliation::InvoicePaymentRecordInput {
+            invoice_id: issued.id.clone(),
+            document_id: statement.id.clone(),
+            payment_date: Some("2026-03-01".to_string()),
+            idempotency_key: "pdf-payment-1".to_string(),
+        },
+    )
+    .await
+    .expect("record payment");
+
+    assert!(result.voucher_id.is_some());
+
+    let voucher_document: Option<String> = sqlx::query_scalar(
+        r#"
+        SELECT document_id FROM vouchers
+        WHERE workspace_id = ?1 AND id = ?2
+        LIMIT 1
+        "#,
+    )
+    .bind(&workspace_id)
+    .bind(result.voucher_id.as_ref().expect("voucher id"))
+    .fetch_one(&pool)
+    .await
+    .expect("voucher row");
+
+    assert_eq!(voucher_document.as_deref(), Some(statement.id.as_str()));
+
+    let refreshed = invoicing::get_invoice(&pool, &workspace_id, &issued.id)
+        .await
+        .expect("invoice");
+    assert!(refreshed.payment_voucher_id.is_some());
+}

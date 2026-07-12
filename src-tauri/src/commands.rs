@@ -33,7 +33,7 @@ use crate::{
         self, AccountSummary, VoucherCountInput, VoucherDetail, VoucherGetInput, VoucherListInput,
         VoucherSummary,
     },
-    reconciliation::{self, ReconciliationMatchCreateInput, ReconciliationMatchResult},
+    reconciliation::{self, ReconciliationMatchCreateInput, ReconciliationMatchResult, InvoicePaymentRecordInput},
     settings::{self, WorkspaceSettings, WorkspaceSettingsSaveInput},
     sie::{self, SieExportCreateInput, SieExportSummary},
     cashflow::{self, CashflowOverview},
@@ -595,6 +595,18 @@ pub async fn csv_import_create(
     let workspace = require_workspace(&state).await?;
     crate::workspace::ensure_workspace_ready(&workspace.pool, &workspace.id).await?;
     let result = imports::csv_import_create(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data: result })
+}
+
+#[tauri::command]
+pub async fn invoice_payment_record(
+    state: State<'_, AppState>,
+    input: InvoicePaymentRecordInput,
+) -> CommandResult<ReconciliationMatchResult> {
+    let workspace = require_workspace(&state).await?;
+    crate::workspace::ensure_workspace_ready(&workspace.pool, &workspace.id).await?;
+    let result =
+        reconciliation::invoice_payment_record(&workspace.pool, &workspace.id, &input).await?;
     Ok(CommandResponse { data: result })
 }
 

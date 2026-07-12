@@ -28,7 +28,7 @@ use crate::{
         VoucherListInput,
         VoucherSummary,
     },
-    reconciliation::{ReconciliationMatchCreateInput, ReconciliationMatchResult},
+    reconciliation::{ReconciliationMatchCreateInput, ReconciliationMatchResult, InvoicePaymentRecordInput},
     cashflow::CashflowOverview,
     vat::{
         FiscalPeriodSummary, VatReturnApproveInput, VatReturnDraftCreateInput, VatReturnExportInput,
@@ -136,6 +136,7 @@ pub fn export_types() -> String {
     types.register::<StagedTransactionSummary>();
     types.register::<ReconciliationMatchCreateInput>();
     types.register::<ReconciliationMatchResult>();
+    types.register::<InvoicePaymentRecordInput>();
     types.register::<VatReturnBox>();
     types.register::<VatReturnSummary>();
     types.register::<VatReturnDraftCreateInput>();

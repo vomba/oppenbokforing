@@ -3,8 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { HelpTip } from "../components/HelpTip"
 import { useLocale } from "../context/LocaleContext"
 import { useWorkspace } from "../context/WorkspaceContext"
-import { t } from "../i18n"
-import type { Locale } from "../i18n"
+import { isLocale, t } from "../i18n"
 import { profileComplianceFailureMessages } from "../lib/compliancePresentation"
 import {
   appErrorMessage,
@@ -130,8 +129,8 @@ export function OnboardingPage() {
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
-  async function handleLocaleChange(nextLocale: Locale) {
-    if (localeBusy || busy || nextLocale === locale) {
+  async function handleLocaleChange(nextLocale: string) {
+    if (!isLocale(nextLocale) || localeBusy || busy || nextLocale === locale) {
       return
     }
 
@@ -310,7 +309,7 @@ export function OnboardingPage() {
           <select
             aria-label={t(locale, "onboarding.locale")}
             value={locale}
-            onChange={(event) => void handleLocaleChange(event.target.value as Locale)}
+            onChange={(event) => void handleLocaleChange(event.target.value)}
             disabled={busy || profilesLoading || localeBusy || profilesLoadFailed}
           >
             <option value="sv">{t(locale, "settings.locale.sv")}</option>

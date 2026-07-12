@@ -101,6 +101,9 @@ afterEach(() => {
 
 beforeEach(async () => {
   const commands = await import("../lib/commands")
+  vi.mocked(commands.businessProfileGetCurrent).mockClear()
+  vi.mocked(commands.taxProfileGetCurrent).mockClear()
+  vi.mocked(commands.vatProfileGetCurrent).mockClear()
   vi.mocked(commands.businessProfileGetCurrent).mockRejectedValue(
     profileNotFoundError("businessProfile"),
   )
@@ -170,6 +173,48 @@ describe("OnboardingPage", () => {
       ).toBeInTheDocument()
     })
     expect(screen.getByRole("button", { name: "Fortsätt" })).toBeDisabled()
+  })
+
+  it("does not reload profiles when locale changes", async () => {
+    const user = userEvent.setup()
+    const commands = await import("../lib/commands")
+    vi.mocked(commands.businessProfileGetCurrent).mockResolvedValue({
+      id: "bp-1",
+      businessName: "Konsult AB",
+      ownerName: "Anna",
+      residencyCountry: "SE",
+      sniCode: "62010",
+    })
+    vi.mocked(commands.taxProfileGetCurrent).mockResolvedValue({
+      id: "tp-1",
+      taxStatus: "f_skatt",
+      expectedBusinessProfitMinor: 0,
+      expectedSalaryIncomeMinor: 0,
+      activeRuleYear: 2026,
+    })
+    vi.mocked(commands.vatProfileGetCurrent).mockResolvedValue({
+      id: "vp-1",
+      vatStatus: "exempt_low_turnover",
+      reportingPeriod: "quarterly",
+      accountingMethod: "invoice_method",
+      voluntaryRegistrationDate: null,
+    })
+
+    renderOnboarding()
+
+    await waitFor(() => {
+      expect(commands.businessProfileGetCurrent).toHaveBeenCalledTimes(1)
+    })
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Språk" }), "en")
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Language" })).toBeInTheDocument()
+    })
+    expect(commands.businessProfileGetCurrent).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("textbox", { name: "Business name on invoices" })).toHaveValue(
+      "Konsult AB",
+    )
   })
 
   it("switches onboarding language and persists workspace locale", async () => {

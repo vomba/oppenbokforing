@@ -491,6 +491,21 @@ fn prepare_reveal_path(documents_dir: &Path, object_path: &str) -> Result<PathBu
     Ok(canonical)
 }
 
+#[cfg(unix)]
+fn open_reveal_source(source: &Path) -> Result<std::fs::File, AppError> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(source)
+        .map_err(|_| AppError::validation("Document file not found", "documentId"))
+}
+
+#[cfg(not(unix))]
+fn open_reveal_source(source: &Path) -> Result<std::fs::File, AppError> {
+    std::fs::File::open(source).map_err(|_| AppError::validation("Document file not found", "documentId"))
+}
+
 fn reveal_extension_for_mime(mime_type: &str) -> Result<&'static str, AppError> {
     match mime_type.trim() {
         "application/pdf" => Ok("pdf"),
@@ -513,6 +528,19 @@ fn restrict_temp_permissions(file: &std::fs::File) -> Result<(), AppError> {
 }
 
 fn stage_reveal_copy(source: &Path, mime_type: &str) -> Result<PathBuf, AppError> {
+    let meta = std::fs::symlink_metadata(source).map_err(|_| {
+        AppError::validation("Document file not found", "documentId")
+    })?;
+    if meta.file_type().is_symlink() {
+        return Err(AppError::validation(
+            "Document path must be a regular file",
+            "documentId",
+        ));
+    }
+    if !meta.is_file() {
+        return Err(AppError::validation("Document file not found", "documentId"));
+    }
+
     let extension = reveal_extension_for_mime(mime_type)?;
     let mut temp = tempfile::Builder::new()
         .prefix("oppenbokforing-reveal-")
@@ -524,7 +552,7 @@ fn stage_reveal_copy(source: &Path, mime_type: &str) -> Result<PathBuf, AppError
     restrict_temp_permissions(temp.as_file())?;
 
     {
-        let mut input = std::fs::File::open(source)?;
+        let mut input = open_reveal_source(source)?;
         std::io::copy(&mut input, temp.as_file_mut())?;
     }
 
@@ -534,6 +562,18 @@ fn stage_reveal_copy(source: &Path, mime_type: &str) -> Result<PathBuf, AppError
         .map_err(|_| AppError::internal("Could not stage document for reveal"))?;
     Ok(staged)
 }
+
+/// Staged reveal copies are kept for the OS viewer; delete after a bounded TTL.
+const REVEAL_STAGED_TTL: Duration = Duration::from_secs(3600);
+
+fn schedule_reveal_cleanup(path: PathBuf) {
+    std::thread::spawn(move || {
+        std::thread::sleep(REVEAL_STAGED_TTL);
+        let _ = std::fs::remove_file(path);
+    });
+}
+
+const REVEAL_TASK_FAILED: &str = "Could not open document in the system viewer";
 
 fn reveal_in_system_viewer(full_path: &Path) -> Result<(), AppError> {
     const REVEAL_FAILED: &str = "Could not open document in the system viewer";
@@ -581,12 +621,23 @@ pub async fn document_reveal(
 ) -> Result<(), AppError> {
     let documents_dir = load_documents_dir(pool, workspace_id).await?;
     let document = document_get(pool, workspace_id, document_id).await?;
-    let full_path = prepare_reveal_path(&documents_dir, &document.object_path)?;
+    let object_path = document.object_path.clone();
     let mime_type = document.mime_type.clone();
-    let staged_path = tokio::task::spawn_blocking(move || stage_reveal_copy(&full_path, &mime_type))
+
+    let staged_path = tokio::task::spawn_blocking(move || {
+        let full_path = prepare_reveal_path(&documents_dir, &object_path)?;
+        stage_reveal_copy(&full_path, &mime_type)
+    })
+    .await
+    .map_err(|_| AppError::internal(REVEAL_TASK_FAILED))??;
+
+    schedule_reveal_cleanup(staged_path.clone());
+
+    tokio::task::spawn_blocking(move || reveal_in_system_viewer(&staged_path))
         .await
-        .map_err(|error| AppError::internal(error.to_string()))??;
-    reveal_in_system_viewer(&staged_path)
+        .map_err(|_| AppError::internal(REVEAL_TASK_FAILED))??;
+
+    Ok(())
 }
 
 pub async fn document_list(
@@ -672,5 +723,20 @@ mod reveal_tests {
             .is_some_and(|name| name.starts_with("oppenbokforing-reveal-")));
         assert_eq!(fs::read(&staged).expect("read staged"), b"%PDF-1.3 test");
         let _ = fs::remove_file(staged);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stage_reveal_copy_rejects_symlink_source() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().expect("tempdir");
+        let target = dir.path().join("real.pdf");
+        fs::write(&target, b"%PDF-1.3").expect("target pdf");
+        let link = dir.path().join("link.pdf");
+        symlink(&target, &link).expect("symlink");
+
+        let error = stage_reveal_copy(&link, "application/pdf").expect_err("symlink source");
+        assert_eq!(error.code, "validation_error");
     }
 }

@@ -2562,6 +2562,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "chrono",
+ "libc",
  "printpdf",
  "rand",
  "serde",

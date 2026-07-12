@@ -368,3 +368,63 @@ async fn document_reveal_rejects_symlink_object_path() {
         .expect_err("symlink must be rejected");
     assert_eq!(error.code, "validation_error");
 }
+
+#[cfg(windows)]
+#[tokio::test]
+async fn document_reveal_rejects_symlink_object_path() {
+    use std::os::windows::fs::symlink_file;
+
+    let dir = tempdir().expect("tempdir");
+    let workspace_id = Uuid::new_v4().to_string();
+    let data_dir = dir.path().join(&workspace_id);
+    let documents_dir = data_dir.join("documents");
+    fs::create_dir_all(&documents_dir).expect("documents");
+    fs::create_dir_all(data_dir.join("exports")).expect("exports");
+    let outside_file = dir.path().join("outside-secret.pdf");
+    fs::write(&outside_file, b"secret").expect("outside file");
+    let symlink_path = documents_dir.join("link.pdf");
+    symlink_file(&outside_file, &symlink_path).expect("symlink");
+
+    let database_path = data_dir.join("workspace.sqlite");
+    let pool = connect_workspace(&database_path).await.expect("connect");
+
+    sqlx::query(
+        r#"
+        INSERT INTO workspaces (id, name, database_path, documents_path, exports_path)
+        VALUES (?1, ?2, ?3, ?4, ?5)
+        "#,
+    )
+    .bind(&workspace_id)
+    .bind("M8 reveal symlink workspace")
+    .bind(database_path.to_string_lossy().to_string())
+    .bind(documents_dir.to_string_lossy().to_string())
+    .bind(data_dir.join("exports").to_string_lossy().to_string())
+    .execute(&pool)
+    .await
+    .expect("workspace row");
+
+    ensure_workspace_ready(&pool, &workspace_id)
+        .await
+        .expect("bootstrap");
+
+    let document_id = Uuid::new_v4().to_string();
+    sqlx::query(
+        r#"
+        INSERT INTO documents (
+          id, workspace_id, object_path, content_sha256, mime_type, original_filename, retention_years
+        ) VALUES (?1, ?2, ?3, ?4, 'application/pdf', 'link.pdf', 7)
+        "#,
+    )
+    .bind(&document_id)
+    .bind(&workspace_id)
+    .bind("link.pdf")
+    .bind("cafebabe")
+    .execute(&pool)
+    .await
+    .expect("symlink document");
+
+    let error = documents::document_reveal(&pool, &workspace_id, &document_id)
+        .await
+        .expect_err("symlink must be rejected");
+    assert_eq!(error.code, "validation_error");
+}

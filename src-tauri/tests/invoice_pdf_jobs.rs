@@ -107,7 +107,12 @@ async fn render_and_store_invoice_pdf_bytes() {
 
     let bytes = oppenbokforing_desktop_lib::invoicing::pdf::render_invoice_pdf(
         &invoice,
-        "PDF Test Firma",
+        &oppenbokforing_desktop_lib::invoicing::pdf::InvoicePdfContext {
+            business_name: "PDF Test Firma".to_string(),
+            owner_name: "Owner".to_string(),
+            tax_status: "f_skatt".to_string(),
+            vat_status: "registered".to_string(),
+        },
     )
     .expect("render pdf");
     assert!(bytes.starts_with(b"%PDF"));

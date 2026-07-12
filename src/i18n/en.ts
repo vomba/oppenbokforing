@@ -315,6 +315,8 @@ export const en = {
   "invoices.status.credited": "Credited",
   "invoices.status.credit_note": "Credit note",
   "invoices.previewPdf": "Preview PDF",
+  "invoices.faSkattPdfNote":
+    "With FA-skatt, salary is taxed via A-tax. Customer invoices state Approved for F-tax so clients do not withhold tax.",
   "invoices.pdfNotReady": "PDF is still generating — try again shortly.",
   "invoices.pdfOpened": "Invoice PDF opened.",
   "invoices.pdfFailed": "Could not open invoice PDF.",

@@ -294,6 +294,11 @@ export async function invoiceOpenCount() {
   return response.data
 }
 
+export async function invoicePdfRefresh(input: InvoicePdfStatusInput) {
+  const response = await invoke<CommandResponse<string>>("invoice_pdf_refresh", { input })
+  return response.data
+}
+
 export async function invoicePdfStatus(input: InvoicePdfStatusInput) {
   const response = await invoke<CommandResponse<string>>("invoice_pdf_status", { input })
   return response.data

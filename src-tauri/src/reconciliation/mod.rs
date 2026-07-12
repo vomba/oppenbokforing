@@ -752,7 +752,7 @@ pub async fn invoice_payment_record(
     .await?;
 
     let match_id = Uuid::new_v4().to_string();
-    sqlx::query(
+    match sqlx::query(
         r#"
         INSERT INTO reconciliation_matches (id, workspace_id, staged_transaction_id, match_kind, invoice_id, voucher_id)
         VALUES (?1, ?2, ?3, 'invoice_payment', ?4, ?5)
@@ -764,7 +764,23 @@ pub async fn invoice_payment_record(
     .bind(invoice_id)
     .bind(&voucher_id)
     .execute(&mut *tx)
-    .await?;
+    .await
+    {
+        Ok(_) => {}
+        Err(error) if crate::error::is_sqlite_unique_violation(&error)
+                && error.to_string().contains("idx_reconciliation_one_payment_per_invoice") =>
+        {
+            tx.rollback().await?;
+            return Err(AppError::validation(
+                "Invoice already has a payment match",
+                "invoiceId",
+            ));
+        }
+        Err(error) => {
+            tx.rollback().await?;
+            return Err(error.into());
+        }
+    }
 
     let result = ReconciliationMatchResult {
         match_id: match_id.clone(),

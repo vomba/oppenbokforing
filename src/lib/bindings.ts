@@ -102,6 +102,13 @@ export type RecentWorkspaceEntry = { id: string; name: string; databasePath: str
 
 export type ReconciliationMatchCreateInput = { stagedTransactionId: string; matchKind: string; invoiceId: string | null; idempotencyKey: string }
 
+export type InvoicePaymentRecordInput = {
+  invoiceId: string
+  documentId: string
+  paymentDate: string | null
+  idempotencyKey: string
+}
+
 export type ReconciliationMatchResult = { matchId: string; voucherId: string | null }
 
 export type RuleVersionSummary = { id: string; taxYear: number; sourceUrl: string; status: string }

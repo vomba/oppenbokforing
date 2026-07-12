@@ -24,6 +24,7 @@ import type {
   InvoiceCreditInput,
   InvoiceIssueInput,
   InvoiceListInput,
+  InvoicePaymentRecordInput,
   InvoicePdfStatusInput,
   InvoiceSummary,
   InvoiceUpdateDraftInput,
@@ -97,6 +98,7 @@ export type {
   InvoiceCreditInput,
   InvoiceIssueInput,
   InvoiceListInput,
+  InvoicePaymentRecordInput,
   InvoicePdfStatusInput,
   InvoiceSummary,
   InvoiceUpdateDraftInput,
@@ -309,6 +311,14 @@ export async function expensePost(input: ExpensePostInput) {
 
 export async function csvImportCreate(input: CsvImportCreateInput) {
   const response = await invoke<CommandResponse<CsvImportSummary>>("csv_import_create", { input })
+  return response.data
+}
+
+export async function invoicePaymentRecord(input: InvoicePaymentRecordInput) {
+  const response = await invoke<CommandResponse<ReconciliationMatchResult>>(
+    "invoice_payment_record",
+    { input },
+  )
   return response.data
 }
 

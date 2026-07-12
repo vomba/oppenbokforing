@@ -4,24 +4,32 @@ import { HelpTip } from "../components/HelpTip"
 import { useLocale } from "../context/LocaleContext"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { t } from "../i18n"
+import type { Locale } from "../i18n"
 import { profileComplianceFailureMessages } from "../lib/compliancePresentation"
 import {
   appErrorMessage,
+  businessProfileGetCurrent,
   businessProfileSaveCurrent,
   complianceProfileCheck,
   ruleVersionGet,
+  taxProfileGetCurrent,
   taxProfileSaveCurrent,
+  vatProfileGetCurrent,
   vatProfileSaveCurrent,
+  workspaceSettingsSave,
   type ComplianceProfileCheckResult,
   type RuleVersionSummary,
 } from "../lib/commands"
 import { humanAppError } from "../lib/errorPresentation"
+import { loadOptionalProfile } from "../lib/profileLoad"
 import { parseSekToMinorUnits } from "../lib/money"
 import {
   ONBOARDING_STEPS,
   canAdvanceOnboardingStep,
   canVisitOnboardingStep,
+  defaultOnboardingDraft,
   nextOnboardingStep,
+  onboardingDraftFromProfiles,
   previousOnboardingStep,
   type OnboardingDraft,
   type OnboardingStep,
@@ -30,23 +38,17 @@ import {
 export function OnboardingPage() {
   const navigate = useNavigate()
   const { workspace } = useWorkspace()
-  const { locale } = useLocale()
+  const { locale, setLocale } = useLocale()
   const [step, setStep] = useState<OnboardingStep>("business")
-  const [draft, setDraft] = useState<OnboardingDraft>({
-    businessName: "",
-    ownerName: "",
-    sniCode: "",
-    taxStatus: "f_skatt",
-    salarySek: "0",
-    businessProfitSek: "0",
-    vatStatus: "exempt_low_turnover",
-    reportingPeriod: "quarterly",
-    accountingMethod: "invoice_method",
-  })
+  const [draft, setDraft] = useState<OnboardingDraft>(() => defaultOnboardingDraft())
+  const [hasSavedProfiles, setHasSavedProfiles] = useState(false)
+  const [profilesLoading, setProfilesLoading] = useState(true)
+  const [profilesLoadFailed, setProfilesLoadFailed] = useState(false)
   const [ruleVersion, setRuleVersion] = useState<RuleVersionSummary | null>(null)
   const [compliance, setCompliance] = useState<ComplianceProfileCheckResult | null>(null)
   const [status, setStatus] = useState("")
   const [busy, setBusy] = useState(false)
+  const [localeBusy, setLocaleBusy] = useState(false)
   const reviewPreviewKey = useRef<string | null>(null)
 
   const activeRuleYear = ruleVersion?.taxYear ?? new Date().getFullYear()
@@ -65,9 +67,54 @@ export function OnboardingPage() {
 
   useEffect(() => {
     if (!workspace) {
+      setProfilesLoading(false)
+      setProfilesLoadFailed(false)
+      return
+    }
+
+    let active = true
+    setProfilesLoading(true)
+    setProfilesLoadFailed(false)
+
+    void Promise.all([
+      loadOptionalProfile(businessProfileGetCurrent, "businessProfile"),
+      loadOptionalProfile(taxProfileGetCurrent, "taxProfile"),
+      loadOptionalProfile(vatProfileGetCurrent, "vatProfile"),
+    ])
+      .then(([business, tax, vat]) => {
+        if (!active) {
+          return
+        }
+        if (business.failed || tax.failed || vat.failed) {
+          setProfilesLoadFailed(true)
+          setStatus(t(locale, "onboarding.status.loadFailed"))
+          return
+        }
+        const hydrated = onboardingDraftFromProfiles({
+          business: business.profile,
+          tax: tax.profile,
+          vat: vat.profile,
+          workspaceName: workspace.name,
+        })
+        setDraft(hydrated.draft)
+        setHasSavedProfiles(hydrated.hasSavedProfiles)
+      })
+      .finally(() => {
+        if (active) {
+          setProfilesLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [workspace, locale])
+
+  useEffect(() => {
+    if (!workspace && !profilesLoading) {
       navigate("/")
     }
-  }, [navigate, workspace])
+  }, [navigate, profilesLoading, workspace])
 
   useEffect(() => {
     setStatus("")
@@ -81,6 +128,29 @@ export function OnboardingPage() {
 
   function updateDraft<K extends keyof OnboardingDraft>(key: K, value: OnboardingDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  async function handleLocaleChange(nextLocale: Locale) {
+    if (localeBusy || busy || nextLocale === locale) {
+      return
+    }
+
+    setLocaleBusy(true)
+    try {
+      await workspaceSettingsSave({
+        locale: nextLocale,
+        updaterEnabled: null,
+        defaultExportDirectory: null,
+        defaultBackupDirectory: null,
+        simpleMode: null,
+      })
+      setLocale(nextLocale)
+    } catch (error) {
+      const message = humanAppError(error, "onboarding.status.localeFailed")
+      setStatus(typeof message === "string" ? message : t(locale, message))
+    } finally {
+      setLocaleBusy(false)
+    }
   }
 
   async function previewCompliance() {
@@ -163,7 +233,7 @@ export function OnboardingPage() {
   }, [step, workspace, draft, sekValid, activeRuleYear])
 
   async function handleSave() {
-    if (!workspace || busy) return
+    if (!workspace || busy || profilesLoadFailed) return
     if (!canVisitOnboardingStep("review", draft, sekValid)) {
       setStatus(t(locale, "onboarding.status.invalidAmounts"))
       return
@@ -215,13 +285,38 @@ export function OnboardingPage() {
     }
   }
 
+  const pageTitle = hasSavedProfiles
+    ? t(locale, "onboarding.titleEdit")
+    : t(locale, "onboarding.title")
+  const saveLabel = hasSavedProfiles
+    ? busy
+      ? t(locale, "onboarding.action.saving")
+      : t(locale, "onboarding.action.saveEdit")
+    : busy
+      ? t(locale, "onboarding.action.saving")
+      : t(locale, "onboarding.action.save")
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <div>
-          <p className="eyebrow">{t(locale, "onboarding.eyebrow")}</p>
-          <h1>{t(locale, "onboarding.title")}</h1>
+          <p className="eyebrow">
+            {hasSavedProfiles ? t(locale, "onboarding.eyebrowEdit") : t(locale, "onboarding.eyebrow")}
+          </p>
+          <h1>{pageTitle}</h1>
         </div>
+        <label className="locale-switcher">
+          {t(locale, "onboarding.locale")}
+          <select
+            aria-label={t(locale, "onboarding.locale")}
+            value={locale}
+            onChange={(event) => void handleLocaleChange(event.target.value as Locale)}
+            disabled={busy || profilesLoading || localeBusy || profilesLoadFailed}
+          >
+            <option value="sv">{t(locale, "settings.locale.sv")}</option>
+            <option value="en">{t(locale, "settings.locale.en")}</option>
+          </select>
+        </label>
         <nav aria-label={t(locale, "onboarding.eyebrow")}>
           {ONBOARDING_STEPS.map((item) => {
             const visitable = canVisitOnboardingStep(item, draft, sekValid)
@@ -231,7 +326,7 @@ export function OnboardingPage() {
                 type="button"
                 className={`wizard-step${step === item ? " wizard-step-active" : ""}`}
                 aria-current={step === item ? "step" : undefined}
-                disabled={!visitable || busy}
+                disabled={!visitable || busy || profilesLoading || localeBusy || profilesLoadFailed}
                 onClick={() => handleStepSelect(item)}
               >
                 {t(locale, `onboarding.step.${item}`)}
@@ -247,8 +342,18 @@ export function OnboardingPage() {
             <p className="eyebrow">{workspace?.name ?? "Workspace"}</p>
             <h2>{t(locale, `onboarding.${step}.title`)}</h2>
           </div>
-          <Link to="/">{t(locale, "onboarding.switchWorkspace")}</Link>
+          <Link to={hasSavedProfiles ? "/dashboard" : "/"}>
+            {hasSavedProfiles
+              ? t(locale, "onboarding.backToDashboard")
+              : t(locale, "onboarding.switchWorkspace")}
+          </Link>
         </header>
+
+        {profilesLoading ? (
+          <p className="status-line" role="status" aria-live="polite">
+            {t(locale, "onboarding.status.loading")}
+          </p>
+        ) : null}
 
         {status ? (
           <p className="status-line" role="status" aria-live="polite">
@@ -268,6 +373,7 @@ export function OnboardingPage() {
               id="onboarding-business-name"
               value={draft.businessName}
               onChange={(event) => updateDraft("businessName", event.target.value)}
+              disabled={profilesLoading || busy || profilesLoadFailed}
             />
             <div className="field-label-row">
               <label htmlFor="onboarding-owner-name">{t(locale, "onboarding.business.owner")}</label>
@@ -279,6 +385,7 @@ export function OnboardingPage() {
               id="onboarding-owner-name"
               value={draft.ownerName}
               onChange={(event) => updateDraft("ownerName", event.target.value)}
+              disabled={profilesLoading || busy || profilesLoadFailed}
             />
             <div className="field-label-row">
               <label htmlFor="onboarding-sni-code">{t(locale, "onboarding.business.sni")}</label>
@@ -290,6 +397,7 @@ export function OnboardingPage() {
               id="onboarding-sni-code"
               value={draft.sniCode}
               onChange={(event) => updateDraft("sniCode", event.target.value)}
+              disabled={profilesLoading || busy || profilesLoadFailed}
             />
           </section>
         ) : null}
@@ -311,6 +419,9 @@ export function OnboardingPage() {
                 <option value="fa_skatt">{t(locale, "onboarding.tax.faSkatt")}</option>
               </select>
             </label>
+            {draft.taxStatus === "fa_skatt" ? (
+              <p className="muted">{t(locale, "onboarding.tax.faSkattInvoiceNote")}</p>
+            ) : null}
             <label>
               {t(locale, "onboarding.tax.salary")}
               <HelpTip label={t(locale, "onboarding.tax.salary")}>
@@ -438,17 +549,17 @@ export function OnboardingPage() {
 
         <div className="form-row">
           {previousOnboardingStep(step) ? (
-            <button type="button" className="secondary" onClick={handleBack} disabled={busy}>
+            <button type="button" className="secondary" onClick={handleBack} disabled={busy || profilesLoading || profilesLoadFailed}>
               {t(locale, "onboarding.action.back")}
             </button>
           ) : null}
           {step !== "review" ? (
-            <button type="button" onClick={handleNext} disabled={!canAdvance || busy}>
+            <button type="button" onClick={handleNext} disabled={!canAdvance || busy || profilesLoading || profilesLoadFailed}>
               {t(locale, "onboarding.action.next")}
             </button>
           ) : (
-            <button type="button" onClick={() => void handleSave()} disabled={busy}>
-              {busy ? t(locale, "onboarding.action.saving") : t(locale, "onboarding.action.save")}
+            <button type="button" onClick={() => void handleSave()} disabled={busy || profilesLoading || profilesLoadFailed}>
+              {saveLabel}
             </button>
           )}
         </div>

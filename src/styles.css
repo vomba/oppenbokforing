@@ -48,6 +48,22 @@ input {
   line-height: 1.1;
 }
 
+.locale-switcher {
+  display: grid;
+  gap: 6px;
+  color: #dfe8e2;
+  font-size: 13px;
+}
+
+.locale-switcher select {
+  width: 100%;
+  padding: 8px 10px;
+  color: #10221d;
+  background: #f6f1e8;
+  border: 0;
+  border-radius: 6px;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: #8aa398;

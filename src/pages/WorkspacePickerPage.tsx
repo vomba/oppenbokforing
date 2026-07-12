@@ -121,6 +121,7 @@ export function WorkspacePickerPage() {
               {t(locale, "workspace.createAction")}
             </button>
           </div>
+          <p className="muted">{t(locale, "workspace.nameHelp")}</p>
         </div>
 
         <div className="picker-block">

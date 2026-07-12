@@ -542,6 +542,20 @@ pub async fn invoice_open_count(state: State<'_, AppState>) -> CommandResult<i64
 }
 
 #[tauri::command]
+pub async fn invoice_pdf_refresh(
+    state: State<'_, AppState>,
+    input: InvoicePdfStatusInput,
+) -> CommandResult<String> {
+    let workspace = require_workspace(&state).await?;
+    crate::jobs::refresh_invoice_pdf(&workspace.pool, &workspace.id, &input.invoice_id).await?;
+    let invoice =
+        invoicing::get_invoice(&workspace.pool, &workspace.id, &input.invoice_id).await?;
+    let status =
+        crate::jobs::invoice_pdf_status(&workspace.pool, &workspace.id, &invoice).await?;
+    Ok(CommandResponse { data: status })
+}
+
+#[tauri::command]
 pub async fn invoice_pdf_status(
     state: State<'_, AppState>,
     input: InvoicePdfStatusInput,

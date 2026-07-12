@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, beforeEach, vi } from "vitest"
 import { LocaleProvider } from "../context/LocaleContext"
 import { SimpleModeProvider } from "../context/SimpleModeContext"
 import { WorkspaceProvider } from "../context/WorkspaceContext"
@@ -34,10 +34,13 @@ const baseInvoice: InvoiceSummary = {
   lines: [],
 }
 
-const { invoiceList, invoicePdfStatus, documentReveal } = vi.hoisted(() => ({
+const { invoiceList, invoicePdfRefresh, invoicePdfStatus, documentReveal, taxProfileGetCurrent } =
+  vi.hoisted(() => ({
   invoiceList: vi.fn(),
+  invoicePdfRefresh: vi.fn(),
   invoicePdfStatus: vi.fn(),
   documentReveal: vi.fn(),
+  taxProfileGetCurrent: vi.fn(),
 }))
 
 vi.mock("../context/WorkspaceContext", async () => {
@@ -68,7 +71,9 @@ vi.mock("../lib/commands", () => ({
   invoiceCredit: vi.fn(),
   invoiceIssue: vi.fn(),
   invoiceList,
+  invoicePdfRefresh,
   invoicePdfStatus,
+  taxProfileGetCurrent,
 }))
 
 function renderInvoices() {
@@ -86,6 +91,10 @@ function renderInvoices() {
 }
 
 describe("InvoicesPage", () => {
+  beforeEach(() => {
+    taxProfileGetCurrent.mockResolvedValue({ taxStatus: "f_skatt" })
+  })
+
   it("hides credit and mark-paid actions for reconciled invoices", async () => {
     invoiceList.mockResolvedValue([
       { ...baseInvoice, paymentVoucherId: "pay-v-1" },
@@ -112,7 +121,7 @@ describe("InvoicesPage", () => {
 
   it("surfaces PDF-not-ready status when preview is requested before generation", async () => {
     invoiceList.mockResolvedValue([baseInvoice])
-    invoicePdfStatus.mockResolvedValue("queued")
+    invoicePdfRefresh.mockResolvedValue("queued")
 
     renderInvoices()
 
@@ -128,5 +137,24 @@ describe("InvoicesPage", () => {
       ).toBeInTheDocument()
     })
     expect(documentReveal).not.toHaveBeenCalled()
+  })
+
+  it("shows FA-skatt invoice note when tax profile is FA-skatt", async () => {
+    taxProfileGetCurrent.mockResolvedValue({
+      id: "tp-1",
+      taxStatus: "fa_skatt",
+      expectedBusinessProfitMinor: 0,
+      expectedSalaryIncomeMinor: 480_000_00,
+      activeRuleYear: 2026,
+    })
+    invoiceList.mockResolvedValue([baseInvoice])
+
+    renderInvoices()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Med FA-skatt gäller A-skatt på lön/i),
+      ).toBeInTheDocument()
+    })
   })
 })

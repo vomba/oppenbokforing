@@ -290,6 +290,8 @@ export const sv: Record<MessageKey, string> = {
   "invoices.status.credited": "Krediterad",
   "invoices.status.credit_note": "Kreditfaktura",
   "invoices.previewPdf": "Förhandsgranska PDF",
+  "invoices.faSkattPdfNote":
+    "Med FA-skatt gäller A-skatt på lön. På kundfakturor anges Godkänd för F-skatt så att uppdragsgivaren slipper skatteavdrag.",
   "invoices.pdfNotReady": "PDF genereras fortfarande — försök igen om en stund.",
   "invoices.pdfOpened": "Faktura-PDF öppnad.",
   "invoices.pdfFailed": "Kunde inte öppna faktura-PDF.",

@@ -6,7 +6,7 @@ use crate::{
     audit::record_event,
     documents,
     error::AppError,
-    invoicing::{self, pdf::render_invoice_pdf, InvoiceSummary},
+    invoicing::{self, InvoiceSummary},
     profiles,
 };
 
@@ -220,10 +220,17 @@ async fn run_invoice_pdf_job(
     let business = profiles::get_business_profile(pool, workspace_id)
         .await?
         .ok_or_else(|| AppError::validation("Business profile not found", "businessProfile"))?;
+    let tax = profiles::get_tax_profile(pool, workspace_id).await?;
+    let vat = profiles::get_vat_profile(pool, workspace_id).await?;
+    let pdf_context = invoicing::pdf::InvoicePdfContext {
+        business_name: business.business_name,
+        owner_name: business.owner_name,
+        tax_status: tax.map(|profile| profile.tax_status).unwrap_or_default(),
+        vat_status: vat.map(|profile| profile.vat_status).unwrap_or_default(),
+    };
     let pdf_bytes = tokio::task::spawn_blocking({
         let invoice = invoice.clone();
-        let business_name = business.business_name.clone();
-        move || render_invoice_pdf(&invoice, &business_name)
+        move || invoicing::pdf::render_invoice_pdf(&invoice, &pdf_context)
     })
     .await
     .map_err(|error| AppError::internal(error.to_string()))??;
@@ -348,6 +355,70 @@ fn sanitize_job_error(error: &AppError) -> String {
     } else {
         "invoice_pdf_generation_failed".to_string()
     }
+}
+
+pub async fn refresh_invoice_pdf(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    invoice_id: &str,
+) -> Result<(), AppError> {
+    let invoice = invoicing::get_invoice(pool, workspace_id, invoice_id).await?;
+    if invoice.status != "issued" {
+        return Err(AppError::validation(
+            "Only issued invoices can refresh PDF",
+            "invoiceId",
+        ));
+    }
+
+    sqlx::query(
+        r#"
+        UPDATE invoices
+        SET pdf_document_id = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE workspace_id = ?1 AND id = ?2
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(invoice_id)
+    .execute(pool)
+    .await?;
+
+    let job_id = uuid::Uuid::new_v4().to_string();
+    let invoice_number = invoice
+        .invoice_number
+        .as_deref()
+        .unwrap_or(&invoice.id);
+    let payload = serde_json::json!({
+        "invoiceId": invoice_id,
+        "invoiceNumber": invoice_number,
+        "format": "pdf"
+    });
+    sqlx::query(
+        r#"
+        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json)
+        VALUES (?1, ?2, 'invoice_pdf_generate', 'queued', ?3)
+        "#,
+    )
+    .bind(&job_id)
+    .bind(workspace_id)
+    .bind(payload.to_string())
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        UPDATE invoices
+        SET pdf_job_id = ?1, updated_at = CURRENT_TIMESTAMP
+        WHERE workspace_id = ?2 AND id = ?3
+        "#,
+    )
+    .bind(&job_id)
+    .bind(workspace_id)
+    .bind(invoice_id)
+    .execute(pool)
+    .await?;
+
+    process_pending_invoice_pdf_jobs(pool, workspace_id).await?;
+    Ok(())
 }
 
 pub async fn invoice_pdf_status(

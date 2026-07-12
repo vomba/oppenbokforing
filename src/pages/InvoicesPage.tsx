@@ -16,7 +16,9 @@ import {
   invoiceCredit,
   invoiceIssue,
   invoiceList,
+  invoicePdfRefresh,
   invoicePdfStatus,
+  taxProfileGetCurrent,
   type Counterparty,
   type InvoiceSummary,
 } from "../lib/commands"
@@ -41,6 +43,7 @@ export function InvoicesPage() {
   const [amountSek, setAmountSek] = useState("10000")
   const [vatRate, setVatRate] = useState("0.25")
   const [status, setStatus] = useState("")
+  const [taxStatus, setTaxStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const issueKeysRef = useRef<Record<string, string>>({})
   const creditKeysRef = useRef<Record<string, string>>({})
@@ -51,12 +54,14 @@ export function InvoicesPage() {
 
   async function refresh(filter: StatusFilter = statusFilter) {
     if (!workspace) return
-    const [customerRows, invoiceRows] = await Promise.all([
+    const [customerRows, invoiceRows, taxProfile] = await Promise.all([
       counterpartyList(),
       invoiceList({
         status: filter === "all" ? null : filter,
       }),
+      taxProfileGetCurrent().catch(() => null),
     ])
+    setTaxStatus(taxProfile?.taxStatus ?? null)
     const customerOnly = customerRows.filter((row) => row.kind === "customer")
     setCustomers(customerOnly)
     setInvoices(invoiceRows)
@@ -179,7 +184,10 @@ export function InvoicesPage() {
     if (busy) return
     setBusy(true)
     try {
-      const pdfStatus = await invoicePdfStatus({ invoiceId: invoice.id })
+      const pdfStatus =
+        invoice.status === "issued"
+          ? await invoicePdfRefresh({ invoiceId: invoice.id })
+          : await invoicePdfStatus({ invoiceId: invoice.id })
       if (pdfStatus !== "succeeded") {
         setStatus(t(locale, "invoices.pdfNotReady"))
         return
@@ -285,6 +293,9 @@ export function InvoicesPage() {
               </select>
             </label>
           </div>
+          {taxStatus === "fa_skatt" ? (
+            <p className="muted">{t(locale, "invoices.faSkattPdfNote")}</p>
+          ) : null}
           {invoices.length === 0 ? (
             <p className="muted">{t(locale, "invoices.empty")}</p>
           ) : (
@@ -331,7 +342,7 @@ export function InvoicesPage() {
                             {t(locale, "invoices.credit")}
                           </button>
                         ) : null}
-                        {invoice.status === "issued" ? (
+                        {(invoice.status === "issued" || invoice.status === "credited") ? (
                           <button
                             type="button"
                             className="secondary"

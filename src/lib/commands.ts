@@ -24,6 +24,7 @@ import type {
   InvoiceCreditInput,
   InvoiceIssueInput,
   InvoiceListInput,
+  InvoicePaymentRecordInput,
   InvoicePdfStatusInput,
   InvoiceSummary,
   InvoiceUpdateDraftInput,
@@ -97,6 +98,7 @@ export type {
   InvoiceCreditInput,
   InvoiceIssueInput,
   InvoiceListInput,
+  InvoicePaymentRecordInput,
   InvoicePdfStatusInput,
   InvoiceSummary,
   InvoiceUpdateDraftInput,
@@ -289,6 +291,11 @@ export async function invoiceCredit(input: InvoiceCreditInput) {
 
 export async function invoiceOpenCount() {
   const response = await invoke<CommandResponse<number>>("invoice_open_count")
+  return response.data
+}
+
+export async function invoicePdfRefresh(input: InvoicePdfStatusInput) {
+  const response = await invoke<CommandResponse<string>>("invoice_pdf_refresh", { input })
   return response.data
 }
 

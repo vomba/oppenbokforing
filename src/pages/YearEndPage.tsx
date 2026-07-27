@@ -21,10 +21,8 @@ import {
   type YearEndReadiness,
 } from "../lib/commands"
 import { resolveExportDirectory } from "../lib/exportDirectory"
-
-function formatSek(minor: number) {
-  return `${(minor / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`
-}
+import { formatSekMinor } from "../lib/money"
+import { yearEndPackageStatusLabel } from "../lib/domainStatus"
 
 export function YearEndPage() {
   const { workspace } = useWorkspace()
@@ -65,7 +63,9 @@ export function YearEndPage() {
       .then((existing) => {
         setYearPackage(existing)
         if (existing) {
-          setStatus(`${t(locale, "yearEnd.packageStatus")}: ${existing.status}`)
+          setStatus(
+            `${t(locale, "yearEnd.packageStatus")}: ${yearEndPackageStatusLabel(locale, existing.status)}`,
+          )
         } else {
           setStatus(t(locale, "yearEnd.status"))
         }
@@ -88,7 +88,9 @@ export function YearEndPage() {
       })
       delete createKeyRef.current[fiscalYear]
       setYearPackage(created)
-      setStatus(`${t(locale, "yearEnd.packageStatus")}: ${created.status}`)
+      setStatus(
+        `${t(locale, "yearEnd.packageStatus")}: ${yearEndPackageStatusLabel(locale, created.status)}`,
+      )
       const nextReadiness = await yearEndReadinessGet({ fiscalYear })
       setReadiness(nextReadiness)
     } catch (error) {
@@ -294,7 +296,8 @@ export function YearEndPage() {
               </header>
               <p className="status-line">
                 {t(locale, "yearEnd.ruleVersion")}: {yearPackage.ruleVersionId} ·{" "}
-                {t(locale, "yearEnd.packageStatusLabel")}: {yearPackage.status}
+                {t(locale, "yearEnd.packageStatusLabel")}:{" "}
+                {yearEndPackageStatusLabel(locale, yearPackage.status)}
               </p>
               <table className="data-table">
                 <thead>
@@ -308,7 +311,7 @@ export function YearEndPage() {
                   {yearPackage.neFields.map((field) => (
                     <tr key={field.fieldCode}>
                       <td>{field.fieldCode}</td>
-                      <td>{formatSek(field.amountMinor)}</td>
+                      <td>{formatSekMinor(field.amountMinor)}</td>
                       <td>{field.sourceRef ?? field.sourceType}</td>
                     </tr>
                   ))}

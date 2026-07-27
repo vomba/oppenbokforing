@@ -22,12 +22,8 @@ import {
   type Counterparty,
   type InvoiceSummary,
 } from "../lib/commands"
-import { parseSekToMinorUnits } from "../lib/money"
+import { formatSekMinor, parseSekToMinorUnits } from "../lib/money"
 import { invoiceDisplayStatus, invoiceStatusLabel } from "../lib/invoiceStatus"
-
-function formatMinor(minor: number) {
-  return (minor / 100).toFixed(2)
-}
 
 type StatusFilter = "all" | "draft" | "issued"
 
@@ -319,7 +315,7 @@ export function InvoicesPage() {
                       <td>{invoice.invoiceNumber ?? "—"}</td>
                       <td>{invoice.counterpartyName}</td>
                       <td>{invoiceStatusLabel(locale, displayStatus)}</td>
-                      <td>{formatMinor(invoice.totalIncVatMinor)}</td>
+                      <td>{formatSekMinor(invoice.totalIncVatMinor)}</td>
                       <td className="table-actions">
                         {invoice.status === "draft" ? (
                           <button

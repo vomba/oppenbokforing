@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::{audit::record_event, documents, error::AppError};
 
 const JOB_CSV_IMPORT: &str = "csv_import_create";
+const MAX_CSV_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB — aligned with document import
 
 #[derive(Debug, Clone, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -63,33 +64,19 @@ struct ParsedRow {
     amount_minor: i64,
 }
 
-fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
-    Ok(trimmed)
-}
+use crate::idempotency::normalize_idempotency_key;
 
 async fn check_idempotency(
     pool: &SqlitePool,
     workspace_id: &str,
     idempotency_key: &str,
 ) -> Result<Option<IdempotentCsvPayload>, AppError> {
-    let key = normalize_idempotency_key(idempotency_key)?;
-    let existing: Option<String> = sqlx::query_scalar(
-        r#"
-        SELECT payload_json FROM local_jobs
-        WHERE workspace_id = ?1
-          AND job_type = ?2
-          AND idempotency_key = ?3
-        LIMIT 1
-        "#,
+    let existing = crate::idempotency::fetch_local_job_payload(
+        pool,
+        workspace_id,
+        JOB_CSV_IMPORT,
+        idempotency_key,
     )
-    .bind(workspace_id)
-    .bind(JOB_CSV_IMPORT)
-    .bind(key)
-    .fetch_optional(pool)
     .await?;
 
     let Some(payload) = existing else {
@@ -214,6 +201,14 @@ pub async fn csv_import_create(
     let source_path = input.source_path.trim();
     if source_path.is_empty() {
         return Err(AppError::validation("Source path is required", "sourcePath"));
+    }
+
+    let metadata = std::fs::metadata(source_path)?;
+    if metadata.len() > MAX_CSV_BYTES {
+        return Err(AppError::validation(
+            "CSV file exceeds the 10 MiB size limit",
+            "sourcePath",
+        ));
     }
 
     let raw_bytes = std::fs::read(source_path)?;

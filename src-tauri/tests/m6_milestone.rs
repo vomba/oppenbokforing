@@ -15,6 +15,7 @@ use oppenbokforing_desktop_lib::{
     workspace::ensure_workspace_ready,
 };
 use std::fs;
+use std::path::Path;
 use tempfile::tempdir;
 use uuid::Uuid;
 
@@ -174,7 +175,7 @@ async fn m6_locale_persists_after_save() {
 #[tokio::test]
 async fn m6_sie_export_ledger_fixture() {
     let dir = tempdir().expect("tempdir");
-    let scenario = load_golden_scenario("sie-export-ledger");
+    let scenario = load_golden_scenario("sie-export-ledger").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
     let (pool, workspace_id, data_dir) = setup_workspace_with_invoice(&dir).await;
 
@@ -227,7 +228,7 @@ async fn m6_sie_export_ledger_fixture() {
 #[tokio::test]
 async fn m6_accountant_package_export_and_validate() {
     let dir = tempdir().expect("tempdir");
-    let scenario = load_golden_scenario("sie-export-ledger");
+    let scenario = load_golden_scenario("sie-export-ledger").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
     let (pool, workspace_id, _) = setup_workspace_with_invoice(&dir).await;
 
@@ -263,8 +264,56 @@ async fn m6_accountant_package_export_and_validate() {
 }
 
 #[tokio::test]
+async fn m6_accountant_package_export_to_external_dir_then_validate() {
+    let dir = tempdir().expect("tempdir");
+    let (pool, workspace_id, _) = setup_workspace_with_invoice(&dir).await;
+    let external = dir.path().join("external-accountant-export");
+    fs::create_dir_all(&external).expect("external export dir");
+
+    let package = accountant_package::accountant_package_export_create(
+        &pool,
+        &workspace_id,
+        &AccountantPackageExportCreateInput {
+            fiscal_year: 2026,
+            idempotency_key: "accountant-package-external".to_string(),
+            export_directory: Some(external.to_string_lossy().to_string()),
+        },
+    )
+    .await
+    .expect("accountant export to external dir");
+
+    assert!(
+        Path::new(&package.package_path).is_absolute(),
+        "published package path should be absolute: {}",
+        package.package_path
+    );
+    assert!(
+        package.package_path.starts_with(external.to_string_lossy().as_ref())
+            || Path::new(&package.package_path)
+                .canonicalize()
+                .ok()
+                .is_some_and(|p| p.starts_with(external.canonicalize().unwrap())),
+        "package path should live under external export dir"
+    );
+
+    let validation = accountant_package::accountant_package_import_validate(
+        &pool,
+        &workspace_id,
+        &AccountantPackageImportValidateInput {
+            package_path: package.package_path.clone(),
+        },
+    )
+    .await
+    .expect("validate external package");
+    assert!(
+        validation.valid,
+        "export→validate round-trip must succeed for external dirs"
+    );
+}
+
+#[tokio::test]
 async fn m6_integrations_degrade_to_manual_fallback() {
-    let scenario = load_golden_scenario("sie-export-ledger");
+    let scenario = load_golden_scenario("sie-export-ledger").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
 
     let status = integrations::status_response();

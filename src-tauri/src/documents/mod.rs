@@ -17,6 +17,70 @@ pub fn is_pdf_mime(mime_type: &str) -> bool {
     mime_type.trim().eq_ignore_ascii_case("application/pdf")
 }
 
+/// Sniff common document MIME types from magic bytes.
+pub fn sniff_document_mime(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"%PDF-") {
+        return Some("application/pdf");
+    }
+    if bytes.len() >= 8 && bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Some("image/png");
+    }
+    if bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
+        return Some("image/jpeg");
+    }
+    None
+}
+
+fn normalize_declared_mime(mime_type: &str) -> String {
+    let trimmed = mime_type.trim();
+    if trimmed.eq_ignore_ascii_case("image/jpg") {
+        "image/jpeg".to_string()
+    } else {
+        trimmed.to_ascii_lowercase()
+    }
+}
+
+/// Resolve a trusted MIME type: sniffed content wins; declared type must match when sniffable.
+/// `application/octet-stream` is treated as undeclared (Documents picker / OS dialogs).
+pub fn resolve_document_mime(declared: &str, bytes: &[u8]) -> Result<String, AppError> {
+    let declared = normalize_declared_mime(declared);
+    if declared.is_empty() {
+        return Err(AppError::validation("MIME type is required", "mimeType"));
+    }
+    match sniff_document_mime(bytes) {
+        Some(sniffed)
+            if sniffed == declared || declared == "application/octet-stream" =>
+        {
+            Ok(sniffed.to_string())
+        }
+        Some(sniffed) => Err(AppError::validation(
+            format!("Declared MIME type does not match file content (expected {sniffed})"),
+            "mimeType",
+        )),
+        None => {
+            // CSV/plain text imports are not magic-byte sniffable; allow when declared.
+            if matches!(declared.as_str(), "text/csv" | "text/plain") {
+                Ok(declared)
+            } else {
+                Err(AppError::validation(
+                    "Unsupported document content; expected PDF, PNG, JPEG, or CSV",
+                    "mimeType",
+                ))
+            }
+        }
+    }
+}
+
+/// Extension MIME for reveal: prefer sniffed bytes so legacy `octet-stream` rows still open.
+fn resolve_reveal_mime(declared: &str, header: &[u8]) -> Result<String, AppError> {
+    if let Some(sniffed) = sniff_document_mime(header) {
+        return Ok(sniffed.to_string());
+    }
+    let declared = normalize_declared_mime(declared);
+    reveal_extension_for_mime(&declared)?;
+    Ok(declared)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Document {
@@ -158,13 +222,7 @@ async fn finalize_document_import(
     Ok(())
 }
 
-fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
-    Ok(trimmed)
-}
+use crate::idempotency::normalize_idempotency_key;
 
 async fn load_documents_dir(pool: &SqlitePool, workspace_id: &str) -> Result<PathBuf, AppError> {
     let path: Option<String> = sqlx::query_scalar(
@@ -245,9 +303,6 @@ pub async fn document_import(
     if input.filename.trim().is_empty() {
         return Err(AppError::validation("Filename is required", "filename"));
     }
-    if input.mime_type.trim().is_empty() {
-        return Err(AppError::validation("MIME type is required", "mimeType"));
-    }
 
     // Basic size guard to avoid importing unreasonably large documents into the
     // local workspace archive.
@@ -261,6 +316,7 @@ pub async fn document_import(
     }
 
     let bytes = std::fs::read(source_path)?;
+    let mime_type = resolve_document_mime(&input.mime_type, &bytes)?;
     let content_sha256 = sha256_hex(&bytes);
 
     match claim_document_import(pool, workspace_id, idempotency_key, &content_sha256).await? {
@@ -297,7 +353,7 @@ pub async fn document_import(
     .bind(workspace_id)
     .bind(&object_rel)
     .bind(&content_sha256)
-    .bind(input.mime_type.trim())
+    .bind(&mime_type)
     .bind(input.filename.trim())
     .bind(retention_years)
     .execute(pool)
@@ -357,9 +413,6 @@ pub async fn store_document_bytes(
     if filename.trim().is_empty() {
         return Err(AppError::validation("Filename is required", "filename"));
     }
-    if mime_type.trim().is_empty() {
-        return Err(AppError::validation("MIME type is required", "mimeType"));
-    }
     const MAX_DOCUMENT_BYTES: u64 = 10 * 1024 * 1024;
     if bytes.len() as u64 > MAX_DOCUMENT_BYTES {
         return Err(AppError::validation(
@@ -368,6 +421,7 @@ pub async fn store_document_bytes(
         ));
     }
 
+    let mime_type = resolve_document_mime(mime_type, bytes)?;
     let content_sha256 = sha256_hex(bytes);
     let documents_dir = load_documents_dir(pool, workspace_id).await?;
     std::fs::create_dir_all(&documents_dir)?;
@@ -398,7 +452,7 @@ pub async fn store_document_bytes(
     .bind(workspace_id)
     .bind(&object_rel)
     .bind(&content_sha256)
-    .bind(mime_type.trim())
+    .bind(&mime_type)
     .bind(filename.trim())
     .bind(retention_years)
     .execute(pool)
@@ -607,7 +661,13 @@ fn stage_reveal_copy(
         ));
     }
 
-    let extension = reveal_extension_for_mime(mime_type)?;
+    let extension = {
+        let mut header = [0u8; 16];
+        let mut file = open_reveal_source(&canonical)?;
+        let read = std::io::Read::read(&mut file, &mut header).unwrap_or(0);
+        let trusted = resolve_reveal_mime(mime_type, &header[..read])?;
+        reveal_extension_for_mime(&trusted)?
+    };
     let mut temp = tempfile::Builder::new()
         .prefix(REVEAL_STAGING_PREFIX)
         .suffix(&format!(".{extension}"))
@@ -770,19 +830,45 @@ fn reveal_in_system_viewer(full_path: &Path) -> Result<(), AppError> {
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        let path = full_path.to_string_lossy().replace('\'', "''");
-        std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                &format!("Start-Process -LiteralPath '{path}'"),
-            ])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|_| AppError::internal(REVEAL_FAILED))?;
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        #[link(name = "shell32")]
+        extern "system" {
+            fn ShellExecuteW(
+                hwnd: *mut core::ffi::c_void,
+                lp_operation: *const u16,
+                lp_file: *const u16,
+                lp_parameters: *const u16,
+                lp_directory: *const u16,
+                n_show_cmd: i32,
+            ) -> isize;
+        }
+
+        const SW_SHOWNORMAL: i32 = 1;
+        let operation: Vec<u16> = OsStr::new("open")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let file: Vec<u16> = full_path
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        // ShellExecuteW returns a value > 32 on success; avoids PowerShell/cmd parsing.
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                operation.as_ptr(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+        if result <= 32 {
+            return Err(AppError::internal(REVEAL_FAILED));
+        }
     }
 
     Ok(())
@@ -894,6 +980,19 @@ mod reveal_tests {
             .is_some_and(|name| name.starts_with(REVEAL_STAGING_PREFIX)));
         assert_eq!(fs::read(&staged).expect("read staged"), b"%PDF-1.3 test");
         validate_staged_reveal_path(&staged).expect("staged path is safe to reveal");
+        let _ = fs::remove_file(staged);
+    }
+
+    #[test]
+    fn stage_reveal_copy_accepts_legacy_octet_stream_mime() {
+        let dir = tempdir().expect("tempdir");
+        let source = dir.path().join("objects").join("legacy");
+        fs::create_dir_all(source.parent().expect("parent")).expect("objects dir");
+        fs::write(&source, b"%PDF-1.4 legacy").expect("source pdf");
+
+        let staged = stage_reveal_copy(&source, dir.path(), "application/octet-stream")
+            .expect("legacy octet-stream reveal");
+        assert_eq!(staged.extension().and_then(|ext| ext.to_str()), Some("pdf"));
         let _ = fs::remove_file(staged);
     }
 

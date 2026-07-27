@@ -58,16 +58,15 @@ use crate::{
 
 type CommandResult<T> = Result<CommandResponse<T>, AppError>;
 
-async fn best_effort_process_invoice_pdf_jobs(
-    pool: &sqlx::SqlitePool,
-    workspace_id: &str,
-) {
-    if let Err(error) =
-        crate::jobs::process_pending_invoice_pdf_jobs(pool, workspace_id).await
-    {
-        #[cfg(debug_assertions)]
-        eprintln!("invoice PDF job processing failed: {error:?}");
-    }
+fn spawn_best_effort_invoice_pdf_jobs(pool: sqlx::SqlitePool, workspace_id: String) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) =
+            crate::jobs::process_pending_invoice_pdf_jobs(&pool, &workspace_id).await
+        {
+            #[cfg(debug_assertions)]
+            eprintln!("invoice PDF job processing failed: {error:?}");
+        }
+    });
 }
 
 async fn require_workspace(state: &State<'_, AppState>) -> Result<WorkspaceContext, AppError> {
@@ -186,7 +185,7 @@ pub async fn workspace_open(
         .parent()
         .map(|parent| parent.join("documents"))
         .ok_or_else(|| AppError::storage("Invalid workspace database path"))?;
-    if std::path::PathBuf::from(&documents_path) != expected_documents {
+    if std::path::Path::new(&documents_path) != expected_documents.as_path() {
         return Err(AppError::validation(
             "Workspace documents path does not match database location",
             "databasePath",
@@ -398,15 +397,17 @@ pub async fn compliance_check_run(
 ) -> CommandResult<crate::compliance::ComplianceCheckResult> {
     let workspace = require_workspace(&state).await?;
 
-    let scenario = crate::state::load_golden_scenario(&input.scenario_id);
+    let scenario = crate::state::load_compliance_golden_scenario(&input.scenario_id)?;
     let profile: ScenarioProfile = serde_json::from_value(scenario.profile)
-        .map_err(|error| AppError::validation(error.to_string(), "scenarioId"))?;
+        .map_err(|_| AppError::validation("Invalid compliance scenario profile", "scenarioId"))?;
     let transactions: Vec<ScenarioTransaction> = scenario
         .transactions
         .iter()
         .map(|value| serde_json::from_value(value.clone()))
         .collect::<Result<_, _>>()
-        .map_err(|error| AppError::validation(error.to_string(), "scenarioId"))?;
+        .map_err(|_| {
+            AppError::validation("Invalid compliance scenario transactions", "scenarioId")
+        })?;
 
     let tax_profile = profiles::get_tax_profile(&workspace.pool, &workspace.id).await?;
     let vat_profile = profiles::get_vat_profile(&workspace.pool, &workspace.id).await?;
@@ -519,7 +520,7 @@ pub async fn invoice_issue(
 ) -> CommandResult<InvoiceSummary> {
     let workspace = require_workspace(&state).await?;
     let invoice = invoicing::issue_invoice(&workspace.pool, &workspace.id, &input).await?;
-    best_effort_process_invoice_pdf_jobs(&workspace.pool, &workspace.id).await;
+    spawn_best_effort_invoice_pdf_jobs(workspace.pool.clone(), workspace.id.clone());
     Ok(CommandResponse { data: invoice })
 }
 
@@ -530,7 +531,7 @@ pub async fn invoice_credit(
 ) -> CommandResult<InvoiceSummary> {
     let workspace = require_workspace(&state).await?;
     let invoice = invoicing::credit_invoice(&workspace.pool, &workspace.id, &input).await?;
-    best_effort_process_invoice_pdf_jobs(&workspace.pool, &workspace.id).await;
+    spawn_best_effort_invoice_pdf_jobs(workspace.pool.clone(), workspace.id.clone());
     Ok(CommandResponse { data: invoice })
 }
 

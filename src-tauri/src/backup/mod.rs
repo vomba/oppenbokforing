@@ -434,7 +434,7 @@ async fn restore_from_staged_backup(
         let relative = entry["relativePath"]
             .as_str()
             .ok_or_else(|| AppError::validation("Invalid manifest entry", "backupPath"))?;
-        let file_path = safe_backup_join(&backup_path, relative)?;
+        let file_path = safe_backup_join(backup_path, relative)?;
         let (actual_hash, actual_bytes) = hash_file(&file_path)?;
         if actual_hash != entry["sha256"].as_str().unwrap_or_default()
             || actual_bytes != entry["bytes"].as_u64().unwrap_or(0)
@@ -552,7 +552,7 @@ pub fn idempotent_backup_matches_request(
     backup_file_path: Option<&str>,
 ) -> bool {
     match backup_file_path {
-        Some(requested) => PathBuf::from(requested) == PathBuf::from(&summary.backup_path),
+        Some(requested) => Path::new(requested) == Path::new(summary.backup_path.as_str()),
         None => true,
     }
 }
@@ -563,10 +563,7 @@ pub async fn check_idempotency(
     idempotency_key: &str,
     job_type: &str,
 ) -> Result<Option<BackupSummary>, AppError> {
-    let key = idempotency_key.trim();
-    if key.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
+    let key = crate::idempotency::normalize_idempotency_key(idempotency_key)?;
 
     let existing: Option<String> = sqlx::query_scalar(
         r#"

@@ -50,13 +50,7 @@ struct IdempotentExpensePayload {
     result: ExpensePostResult,
 }
 
-fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
-    Ok(trimmed)
-}
+use crate::idempotency::normalize_idempotency_key;
 
 fn vat_rate_to_bp(rate: f64) -> Result<i64, AppError> {
     if !(0.0..=1.0).contains(&rate) {

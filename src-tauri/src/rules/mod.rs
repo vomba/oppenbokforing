@@ -36,8 +36,37 @@ pub async fn get_active_rule_version(pool: &SqlitePool) -> Result<Option<RuleVer
     }))
 }
 
-pub async fn require_rule_i64(pool: &SqlitePool, family: &str, key: &str) -> Result<i64, AppError> {
-    get_rule_i64(pool, family, key)
+pub async fn get_active_rule_version_for_year(
+    pool: &SqlitePool,
+    tax_year: i32,
+) -> Result<Option<RuleVersionSummary>, AppError> {
+    let row = sqlx::query(
+        r#"
+        SELECT id, tax_year, source_url, status
+        FROM rule_versions
+        WHERE status = 'active' AND tax_year = ?1
+        LIMIT 1
+        "#,
+    )
+    .bind(tax_year)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|row| RuleVersionSummary {
+        id: row.get("id"),
+        tax_year: row.get("tax_year"),
+        source_url: row.get("source_url"),
+        status: row.get("status"),
+    }))
+}
+
+pub async fn require_rule_i64(
+    pool: &SqlitePool,
+    family: &str,
+    key: &str,
+    tax_year: i32,
+) -> Result<i64, AppError> {
+    get_rule_i64(pool, family, key, tax_year)
         .await?
         .ok_or_else(|| {
             AppError::validation(
@@ -47,16 +76,25 @@ pub async fn require_rule_i64(pool: &SqlitePool, family: &str, key: &str) -> Res
         })
 }
 
-pub async fn get_rule_i64(pool: &SqlitePool, family: &str, key: &str) -> Result<Option<i64>, AppError> {
+pub async fn get_rule_i64(
+    pool: &SqlitePool,
+    family: &str,
+    key: &str,
+    tax_year: i32,
+) -> Result<Option<i64>, AppError> {
     let row = sqlx::query(
         r#"
         SELECT tr.value_json AS value_json
         FROM tax_rules tr
         JOIN rule_versions rv ON rv.id = tr.rule_version_id
-        WHERE rv.status = 'active' AND tr.family = ?1 AND tr.key = ?2
+        WHERE rv.status = 'active'
+          AND rv.tax_year = ?1
+          AND tr.family = ?2
+          AND tr.key = ?3
         LIMIT 1
         "#,
     )
+    .bind(tax_year)
     .bind(family)
     .bind(key)
     .fetch_optional(pool)
@@ -92,16 +130,25 @@ pub async fn get_rule_version_by_id(
     }))
 }
 
-pub async fn get_rule_string(pool: &SqlitePool, family: &str, key: &str) -> Result<Option<String>, AppError> {
+pub async fn get_rule_string(
+    pool: &SqlitePool,
+    family: &str,
+    key: &str,
+    tax_year: i32,
+) -> Result<Option<String>, AppError> {
     let row = sqlx::query(
         r#"
         SELECT tr.value_json AS value_json
         FROM tax_rules tr
         JOIN rule_versions rv ON rv.id = tr.rule_version_id
-        WHERE rv.status = 'active' AND tr.family = ?1 AND tr.key = ?2
+        WHERE rv.status = 'active'
+          AND rv.tax_year = ?1
+          AND tr.family = ?2
+          AND tr.key = ?3
         LIMIT 1
         "#,
     )
+    .bind(tax_year)
     .bind(family)
     .bind(key)
     .fetch_optional(pool)
@@ -113,16 +160,25 @@ pub async fn get_rule_string(pool: &SqlitePool, family: &str, key: &str) -> Resu
     }))
 }
 
-pub async fn get_rule_bool(pool: &SqlitePool, family: &str, key: &str) -> Result<Option<bool>, AppError> {
+pub async fn get_rule_bool(
+    pool: &SqlitePool,
+    family: &str,
+    key: &str,
+    tax_year: i32,
+) -> Result<Option<bool>, AppError> {
     let row = sqlx::query(
         r#"
         SELECT tr.value_json AS value_json
         FROM tax_rules tr
         JOIN rule_versions rv ON rv.id = tr.rule_version_id
-        WHERE rv.status = 'active' AND tr.family = ?1 AND tr.key = ?2
+        WHERE rv.status = 'active'
+          AND rv.tax_year = ?1
+          AND tr.family = ?2
+          AND tr.key = ?3
         LIMIT 1
         "#,
     )
+    .bind(tax_year)
     .bind(family)
     .bind(key)
     .fetch_optional(pool)
@@ -141,15 +197,20 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
-    async fn seed_migration_loads_vat_threshold() {
+    async fn seed_migration_loads_vat_threshold_for_year() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("workspace.sqlite");
         let pool = connect_workspace(&db_path).await.unwrap();
 
-        let threshold = get_rule_i64(&pool, "vat", "annual_turnover_threshold_minor")
+        let threshold = get_rule_i64(&pool, "vat", "annual_turnover_threshold_minor", 2026)
             .await
             .unwrap()
             .unwrap();
         assert_eq!(threshold, 12_000_000);
+
+        let missing = get_rule_i64(&pool, "vat", "annual_turnover_threshold_minor", 2099)
+            .await
+            .unwrap();
+        assert!(missing.is_none());
     }
 }

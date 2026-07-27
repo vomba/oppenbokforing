@@ -7,7 +7,10 @@ use uuid::Uuid;
 use crate::{
     audit::{record_event, record_event_tx},
     error::{AppError, redacted_internal_from, redacted_storage_from},
-    rules::{get_active_rule_version, get_rule_bool, get_rule_string, get_rule_version_by_id},
+    rules::{
+        get_active_rule_version, get_active_rule_version_for_year, get_rule_bool, get_rule_string,
+        get_rule_version_by_id,
+    },
     workspace::{ensure_fiscal_year_open_tx, fiscal_year_id_for_year},
 };
 
@@ -122,13 +125,7 @@ struct NeFieldDraft {
     source_ref: String,
 }
 
-fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
-    Ok(trimmed)
-}
+use crate::idempotency::normalize_idempotency_key;
 
 fn resolve_workspace_subdir(
     subdir_path: &str,
@@ -178,13 +175,13 @@ async fn load_workspace_paths(
     .ok_or_else(|| AppError::validation("Workspace not found", "workspaceId"))
 }
 
-async fn k1_regime_allowed(pool: &SqlitePool) -> Result<bool, AppError> {
-    let regime = get_rule_string(pool, "year_end", "accounting_regime").await?;
+async fn k1_regime_allowed(pool: &SqlitePool, tax_year: i32) -> Result<bool, AppError> {
+    let regime = get_rule_string(pool, "year_end", "accounting_regime", tax_year).await?;
     Ok(regime.as_deref() == Some(K1_REGIME))
 }
 
-async fn ne_draft_required(pool: &SqlitePool) -> Result<bool, AppError> {
-    Ok(get_rule_bool(pool, "year_end", "ne_draft_required")
+async fn ne_draft_required(pool: &SqlitePool, tax_year: i32) -> Result<bool, AppError> {
+    Ok(get_rule_bool(pool, "year_end", "ne_draft_required", tax_year)
         .await?
         .unwrap_or(false))
 }
@@ -546,7 +543,7 @@ async fn load_package_summary(
         .and_then(|y| y.parse().ok())
         .unwrap_or(0);
 
-    let k1_allowed = k1_regime_allowed(pool).await?;
+    let k1_allowed = k1_regime_allowed(pool, fiscal_year).await?;
     let ne_fields = load_ne_fields(pool, package_id).await?;
     let annual_accounts_path: Option<String> = row.get("annual_accounts_path");
     let ne_draft_path: Option<String> = row.get("ne_draft_path");
@@ -677,8 +674,7 @@ async fn ensure_package_artifacts(
     let mut tx = pool.begin().await?;
     let mut snapshot =
         build_ledger_snapshot_tx(&mut tx, workspace_id, &summary.fiscal_year_id).await?;
-    let ne_field_drafts = if export_on_disk {
-        let rel = export_path.as_ref().expect("export path checked above");
+    let ne_field_drafts = if let Some(rel) = export_path.as_ref().filter(|_| export_on_disk) {
         let drafts = read_export_ne_fields(&exports_dir, rel)?;
         if let Some(b14) = drafts.iter().find(|field| field.field_code == "B14") {
             snapshot.business_result_minor = b14.amount_minor;
@@ -694,24 +690,26 @@ async fn ensure_package_artifacts(
     let annual_ok = artifact_exists(&documents_dir, &annual_accounts_path);
     let ne_ok = artifact_exists(&documents_dir, &ne_draft_path);
 
-    let (annual_rel, ne_rel) = if annual_ok && ne_ok {
-        (
-            annual_accounts_path.clone().expect("annual path checked above"),
-            ne_draft_path.clone().expect("ne path checked above"),
-        )
-    } else {
-        write_local_drafts(
-            &documents_dir,
-            summary.fiscal_year,
-            &summary.rule_version_id,
-            &snapshot,
-            &ne_field_drafts,
-        )
-        .await?
+    let (annual_rel, ne_rel) = match (
+        annual_ok && ne_ok,
+        annual_accounts_path.as_ref(),
+        ne_draft_path.as_ref(),
+    ) {
+        (true, Some(annual), Some(ne)) => (annual.clone(), ne.clone()),
+        _ => {
+            write_local_drafts(
+                &documents_dir,
+                summary.fiscal_year,
+                &summary.rule_version_id,
+                &snapshot,
+                &ne_field_drafts,
+            )
+            .await?
+        }
     };
 
-    let export_rel = if export_on_disk {
-        export_path.clone().expect("export path checked above")
+    let export_rel = if let Some(rel) = export_path.clone().filter(|_| export_on_disk) {
+        rel
     } else {
         let ne_summaries: Vec<NeFieldSummary> = ne_field_drafts
             .iter()
@@ -1046,7 +1044,7 @@ pub async fn year_end_package_create(
         return ensure_package_artifacts(pool, workspace_id, &cached.package_id).await;
     }
 
-    let k1_allowed = k1_regime_allowed(pool).await?;
+    let k1_allowed = k1_regime_allowed(pool, input.fiscal_year).await?;
     if !k1_allowed {
         return Err(AppError::validation(
             "Active rule version does not allow K1 simplified annual accounts",
@@ -1054,13 +1052,21 @@ pub async fn year_end_package_create(
         ));
     }
 
-    if !ne_draft_required(pool).await? {
+    if !ne_draft_required(pool, input.fiscal_year).await? {
         return Err(AppError::validation("NE draft is not required for active rules", "fiscalYear"));
     }
 
-    let rule_version = get_active_rule_version(pool)
+    let rule_version = get_active_rule_version_for_year(pool, input.fiscal_year)
         .await?
-        .ok_or_else(|| AppError::validation("No active rule version", "ruleVersion"))?;
+        .ok_or_else(|| {
+            AppError::validation(
+                format!(
+                    "No active rule version for tax year {}",
+                    input.fiscal_year
+                ),
+                "fiscalYear",
+            )
+        })?;
 
     let fiscal_year_id = fiscal_year_id_for_year(pool, workspace_id, input.fiscal_year).await?;
 
@@ -1279,7 +1285,7 @@ pub async fn year_end_readiness_get(
         vat_year_filing_items_pool(pool, workspace_id, input.fiscal_year).await?,
     );
 
-    let k1_allowed = k1_regime_allowed(pool).await?;
+    let k1_allowed = k1_regime_allowed(pool, input.fiscal_year).await?;
     items.push(YearEndReadinessItem {
         code: "k1_allowed".to_string(),
         satisfied: k1_allowed,

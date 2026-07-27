@@ -37,11 +37,11 @@ async fn m3_document_import_retention_fixture() {
         .await
         .expect("bootstrap");
 
-    let scenario = load_golden_scenario("document-import-retention");
+    let scenario = load_golden_scenario("document-import-retention").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected object");
 
     let source_path = data_dir.join("receipt.png");
-    fs::write(&source_path, b"receipt-bytes").expect("write");
+    fs::write(&source_path, b"\x89PNG\r\n\x1a\nreceipt-bytes").expect("write");
 
     let imported = oppenbokforing_desktop_lib::documents::document_import(
         &pool,
@@ -93,7 +93,7 @@ async fn m3_document_import_idempotency_race_returns_winner() {
         .expect("bootstrap");
 
     let source_path = data_dir.join("race-receipt.png");
-    fs::write(&source_path, b"race-receipt-bytes").expect("write");
+    fs::write(&source_path, b"\x89PNG\r\n\x1a\nrace-receipt-bytes").expect("write");
     let input = oppenbokforing_desktop_lib::documents::DocumentImportInput {
         source_path: source_path.to_string_lossy().to_string(),
         filename: "race-receipt.png".to_string(),
@@ -112,7 +112,7 @@ async fn m3_document_import_idempotency_race_returns_winner() {
     assert_eq!(first.content_sha256, second.content_sha256);
 
     let other_path = data_dir.join("other-receipt.png");
-    fs::write(&other_path, b"other-receipt-bytes").expect("write other");
+    fs::write(&other_path, b"\x89PNG\r\n\x1a\nother-receipt-bytes").expect("write other");
     let conflict = oppenbokforing_desktop_lib::documents::document_import(
         &pool,
         &workspace_id,
@@ -206,11 +206,11 @@ async fn m3_manual_expense_input_vat_fixture() {
         .await
         .expect("bootstrap");
 
-    let scenario = load_golden_scenario("manual-expense-input-vat");
+    let scenario = load_golden_scenario("manual-expense-input-vat").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected object");
 
     let receipt_path = data_dir.join("receipt.pdf");
-    fs::write(&receipt_path, b"pdf-bytes").expect("write receipt");
+    fs::write(&receipt_path, b"%PDF-1.4\npdf-bytes").expect("write receipt");
     let document = oppenbokforing_desktop_lib::documents::document_import(
         &pool,
         &workspace_id,

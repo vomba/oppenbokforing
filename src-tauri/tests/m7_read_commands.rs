@@ -210,7 +210,7 @@ async fn m7_document_list_unattached_only() {
     let (_dir, pool, workspace_id, data_dir) = bootstrap_workspace("M7 document list").await;
 
     let source_path = data_dir.join("receipt.png");
-    fs::write(&source_path, b"receipt").expect("receipt");
+    fs::write(&source_path, b"\x89PNG\r\n\x1a\nreceipt").expect("receipt");
 
     documents::document_import(
         &pool,

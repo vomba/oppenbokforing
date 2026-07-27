@@ -6,7 +6,6 @@ import { useWorkspace } from "../context/WorkspaceContext"
 import { isLocale, t } from "../i18n"
 import { profileComplianceFailureMessages } from "../lib/compliancePresentation"
 import {
-  appErrorMessage,
   businessProfileGetCurrent,
   businessProfileSaveCurrent,
   complianceProfileCheck,

@@ -33,14 +33,7 @@ pub struct SieExportCreateInput {
 }
 
 fn normalize_idempotency_key(key: &str) -> Result<String, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation(
-            "Idempotency key is required",
-            "idempotencyKey",
-        ));
-    }
-    Ok(trimmed.to_string())
+    Ok(crate::idempotency::normalize_idempotency_key(key)?.to_string())
 }
 
 fn sanitize_sie_text(value: &str) -> String {
@@ -65,14 +58,14 @@ pub fn format_sie_amount(signed_minor: i64) -> String {
     }
 }
 
-struct SieAccount {
+pub(crate) struct SieAccount {
     number: String,
     name: String,
     opening_minor: i64,
     closing_minor: i64,
 }
 
-struct SieVoucher {
+pub(crate) struct SieVoucher {
     index: usize,
     accounting_date: String,
     source_type: String,

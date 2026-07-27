@@ -11,6 +11,7 @@ pub mod db;
 pub mod documents;
 pub mod error;
 pub mod expenses;
+pub mod idempotency;
 pub mod imports;
 pub mod integrations;
 pub mod invoicing;

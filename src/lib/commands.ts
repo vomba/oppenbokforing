@@ -499,15 +499,4 @@ export async function documentReveal(input: DocumentGetInput) {
   return response.data
 }
 
-export function appErrorMessage(error: unknown, fallback: string) {
-  if (error && typeof error === "object") {
-    const appError = error as { code?: string; message?: string }
-    if (appError.code === "internal_error" || appError.code === "storage_error") {
-      return fallback
-    }
-    if ("message" in appError && typeof appError.message === "string" && appError.message.length > 0) {
-      return appError.message
-    }
-  }
-  return fallback
-}
+export { presentAppError as appErrorMessage } from "./errorPresentation"

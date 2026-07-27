@@ -427,8 +427,12 @@ export function SettingsPage() {
             <p className="muted">{t(locale, "settings.integrationsHint")}</p>
             {integrations ? (
               <ul>
-                <li>Open Banking: {integrations.openBanking.manualFallbackHint}</li>
-                <li>BankID: {integrations.bankid.manualFallbackHint}</li>
+                <li>
+                  {t(locale, "settings.openBanking")}: {integrations.openBanking.manualFallbackHint}
+                </li>
+                <li>
+                  {t(locale, "settings.bankid")}: {integrations.bankid.manualFallbackHint}
+                </li>
               </ul>
             ) : null}
           </div>

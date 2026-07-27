@@ -24,12 +24,8 @@ import {
   type InvoiceSummary,
   type StagedTransactionSummary,
 } from "../lib/commands"
-import { parseSekToMinorUnits } from "../lib/money"
+import { formatSekMinor, parseSekToMinorUnits } from "../lib/money"
 import { reconcileListSelection } from "../lib/workbenchSelection"
-
-function formatSek(minor: number) {
-  return `${(minor / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`
-}
 
 export function DocumentsPage() {
   const { workspace } = useWorkspace()
@@ -354,7 +350,7 @@ export function DocumentsPage() {
                   {invoiceFromUrl ? (
                     <p className="muted">
                       {invoiceFromUrl.invoiceNumber ?? invoiceFromUrl.id} ·{" "}
-                      {formatSek(invoiceFromUrl.totalIncVatMinor)}
+                      {formatSekMinor(invoiceFromUrl.totalIncVatMinor)}
                     </p>
                   ) : null}
                   <div className="button-row">
@@ -445,7 +441,7 @@ export function DocumentsPage() {
                       </button>
                     </td>
                     <td>{row.description}</td>
-                    <td>{formatSek(row.amountMinor)}</td>
+                    <td>{formatSekMinor(row.amountMinor)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -459,7 +455,7 @@ export function DocumentsPage() {
                 <h3>{selectedStaged.description}</h3>
               </header>
               <p className="muted">
-                {formatSek(selectedStaged.amountMinor)} · {selectedStaged.transactionDate}
+                {formatSekMinor(selectedStaged.amountMinor)} · {selectedStaged.transactionDate}
               </p>
 
               <label>
@@ -471,7 +467,7 @@ export function DocumentsPage() {
                 >
                   {invoices.map((invoice) => (
                     <option key={invoice.id} value={invoice.id}>
-                      {invoice.invoiceNumber ?? invoice.id} · {formatSek(invoice.totalIncVatMinor)}
+                      {invoice.invoiceNumber ?? invoice.id} · {formatSekMinor(invoice.totalIncVatMinor)}
                     </option>
                   ))}
                 </select>
@@ -571,7 +567,7 @@ export function DocumentsPage() {
                   <tr key={row.id}>
                     <td>{row.transactionDate}</td>
                     <td>{row.description}</td>
-                    <td>{formatSek(row.amountMinor)}</td>
+                    <td>{formatSekMinor(row.amountMinor)}</td>
                   </tr>
                 ))}
               </tbody>

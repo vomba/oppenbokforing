@@ -370,10 +370,27 @@ pub async fn refresh_invoice_pdf(
         ));
     }
 
-    if pending_pdf_refresh_job_id(pool, workspace_id, invoice_id)
-        .await?
-        .is_some()
-    {
+    let mut tx = pool.begin().await?;
+
+    let pending: Option<String> = sqlx::query_scalar(
+        r#"
+        SELECT id FROM local_jobs
+        WHERE workspace_id = ?1
+          AND job_type = ?2
+          AND status IN ('queued', 'running')
+          AND json_extract(payload_json, '$.invoiceId') = ?3
+        ORDER BY created_at ASC
+        LIMIT 1
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(JOB_INVOICE_PDF)
+    .bind(invoice_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(redacted_internal_from)?;
+
+    if pending.is_some() {
         return Ok(());
     }
 
@@ -386,7 +403,7 @@ pub async fn refresh_invoice_pdf(
     )
     .bind(workspace_id)
     .bind(invoice_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     let job_id = uuid::Uuid::new_v4().to_string();
@@ -408,7 +425,7 @@ pub async fn refresh_invoice_pdf(
     .bind(&job_id)
     .bind(workspace_id)
     .bind(payload.to_string())
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     sqlx::query(
@@ -421,35 +438,13 @@ pub async fn refresh_invoice_pdf(
     .bind(&job_id)
     .bind(workspace_id)
     .bind(invoice_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     process_pending_invoice_pdf_jobs(pool, workspace_id).await?;
     Ok(())
-}
-
-async fn pending_pdf_refresh_job_id(
-    pool: &SqlitePool,
-    workspace_id: &str,
-    invoice_id: &str,
-) -> Result<Option<String>, AppError> {
-    sqlx::query_scalar(
-        r#"
-        SELECT id FROM local_jobs
-        WHERE workspace_id = ?1
-          AND job_type = ?2
-          AND status IN ('queued', 'running')
-          AND json_extract(payload_json, '$.invoiceId') = ?3
-        ORDER BY created_at ASC
-        LIMIT 1
-        "#,
-    )
-    .bind(workspace_id)
-    .bind(JOB_INVOICE_PDF)
-    .bind(invoice_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(redacted_internal_from)
 }
 
 pub async fn invoice_pdf_status(

@@ -174,8 +174,9 @@ async fn evaluate_vat_exempt_below(
     profile: &ScenarioProfile,
     transactions: &[ScenarioTransaction],
 ) -> Result<serde_json::Value, AppError> {
-    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor").await?;
-    let warning_ratio = get_rule_i64(pool, "vat", "threshold_warning_ratio")
+    let tax_year = profile.rule_year.unwrap_or(2026);
+    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor", tax_year).await?;
+    let warning_ratio = get_rule_i64(pool, "vat", "threshold_warning_ratio", tax_year)
         .await?
         .unwrap_or(80);
     let turnover = sum_turnover(transactions);
@@ -201,7 +202,8 @@ async fn evaluate_vat_exempt_breach(
     profile: &ScenarioProfile,
     transactions: &[ScenarioTransaction],
 ) -> Result<serde_json::Value, AppError> {
-    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor").await?;
+    let tax_year = profile.rule_year.unwrap_or(2026);
+    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor", tax_year).await?;
     let turnover = sum_turnover(transactions);
     let mut breach_index: Option<usize> = None;
     let mut running = 0i64;

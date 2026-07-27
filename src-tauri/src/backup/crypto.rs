@@ -8,7 +8,7 @@ use aes_gcm::{
 use argon2::Argon2;
 use rand::RngCore;
 
-use crate::error::{AppError, redacted_internal_from};
+use crate::error::{AppError, redacted_internal_from, redacted_storage_from};
 
 pub const BACKUP_MAGIC: &[u8; 9] = b"SKATBKUP1";
 pub const BACKUP_FORMAT_VERSION: u32 = 2;
@@ -143,22 +143,20 @@ pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppEr
     let mut archive = tar::Archive::new(bytes);
     let entries = archive
         .entries()
-        .map_err(|error| AppError::validation(error.to_string(), "backupPath"))?;
+        .map_err(redacted_storage_from)?;
 
-    let mut entry_count = 0usize;
-    for entry in entries {
+    for (entry_count, entry) in entries.enumerate() {
         if entry_count >= MAX_TAR_ENTRIES {
             return Err(AppError::validation(
                 "Backup archive contains too many entries",
                 "backupPath",
             ));
         }
-        entry_count += 1;
 
-        let mut entry = entry.map_err(|error| AppError::validation(error.to_string(), "backupPath"))?;
+        let mut entry = entry.map_err(redacted_storage_from)?;
         let entry_path = entry
             .path()
-            .map_err(|error| AppError::validation(error.to_string(), "backupPath"))?
+            .map_err(redacted_storage_from)?
             .into_owned();
 
         if entry_path.is_absolute()
@@ -188,7 +186,7 @@ pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppEr
 
         entry
             .unpack_in(&dest_root)
-            .map_err(|error| AppError::validation(error.to_string(), "backupPath"))?;
+            .map_err(redacted_storage_from)?;
     }
     Ok(())
 }

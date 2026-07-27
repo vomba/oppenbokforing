@@ -252,7 +252,7 @@ fn format_thousands_se(value: i64) -> String {
     }
     let mut out = String::new();
     for (index, ch) in digits.iter().enumerate() {
-        if index > 0 && (digits.len() - index) % 3 == 0 {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
             out.push('\u{00a0}');
         }
         out.push(*ch);
@@ -304,15 +304,19 @@ fn header_owner_subtitle(owner_name: &str) -> Option<&str> {
     }
 }
 
+struct InvoiceHeaderContent<'a> {
+    business_name: &'a str,
+    owner_name: Option<&'a str>,
+    title: &'a str,
+    issue_date: Option<&'a str>,
+    due_date: Option<&'a str>,
+}
+
 fn draw_header(
     layer: &PdfLayerReference,
     font: &printpdf::IndirectFontRef,
     font_bold: &printpdf::IndirectFontRef,
-    business_name: &str,
-    owner_name: Option<&str>,
-    title: &str,
-    issue_date: Option<&str>,
-    due_date: Option<&str>,
+    content: &InvoiceHeaderContent<'_>,
 ) -> f32 {
     let top = 20.0;
     write_text_at(
@@ -321,11 +325,11 @@ fn draw_header(
         TITLE_FONT_PT,
         MARGIN_LEFT_MM,
         top,
-        business_name,
+        content.business_name,
     );
 
     let mut left_block_bottom = top + 6.0;
-    if let Some(owner_name) = owner_name {
+    if let Some(owner_name) = content.owner_name {
         write_text_at(
             layer,
             font,
@@ -338,10 +342,10 @@ fn draw_header(
     }
 
     let right_edge = MARGIN_LEFT_MM + CONTENT_WIDTH_MM;
-    write_text_right_at(layer, font_bold, TITLE_FONT_PT, right_edge, top, title);
+    write_text_right_at(layer, font_bold, TITLE_FONT_PT, right_edge, top, content.title);
 
     let mut meta_top = top + 10.0;
-    if let Some(issue_date) = issue_date {
+    if let Some(issue_date) = content.issue_date {
         write_text_right_at(
             layer,
             font,
@@ -352,7 +356,7 @@ fn draw_header(
         );
         meta_top += 6.0;
     }
-    if let Some(due_date) = due_date {
+    if let Some(due_date) = content.due_date {
         write_text_right_at(
             layer,
             font,
@@ -530,11 +534,13 @@ pub fn render_invoice_pdf(
         &layer,
         &font,
         &font_bold,
-        context.business_name.trim(),
-        owner_subtitle,
-        &title,
-        invoice.issue_date.as_deref(),
-        invoice.due_date.as_deref(),
+        &InvoiceHeaderContent {
+            business_name: context.business_name.trim(),
+            owner_name: owner_subtitle,
+            title: &title,
+            issue_date: invoice.issue_date.as_deref(),
+            due_date: invoice.due_date.as_deref(),
+        },
     );
     y = draw_customer_table(
         &layer,

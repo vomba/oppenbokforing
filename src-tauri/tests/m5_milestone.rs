@@ -125,7 +125,7 @@ async fn m5_year_end_schema_tables_exist() {
 #[tokio::test]
 async fn m5_year_end_k1_ne_fixture() {
     let dir = tempdir().expect("tempdir");
-    let scenario = load_golden_scenario("year-end-k1-ne");
+    let scenario = load_golden_scenario("year-end-k1-ne").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
     let profile = scenario.profile.as_object().expect("profile");
     let tax_status = profile["taxStatus"].as_str().unwrap_or("fa_skatt");

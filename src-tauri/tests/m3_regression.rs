@@ -492,7 +492,25 @@ async fn invoice_payment_record_accepts_case_insensitive_pdf_mime() {
 }
 
 #[tokio::test]
-async fn document_dedupe_refreshes_mime_type_on_reimport() {
+async fn document_store_rejects_mime_mismatch() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let bytes = b"%PDF-1.4 mime mismatch";
+
+    let error = oppenbokforing_desktop_lib::documents::store_document_bytes(
+        &pool,
+        &workspace_id,
+        bytes,
+        "statement.pdf",
+        "image/png",
+    )
+    .await
+    .expect_err("mime mismatch");
+
+    assert_eq!(error.code, "validation_error");
+}
+
+#[tokio::test]
+async fn document_dedupe_keeps_content_addressed_id() {
     let (_dir, workspace_id, pool) = setup_workspace().await;
     let bytes = b"%PDF-1.4 dedupe mime refresh";
 
@@ -504,13 +522,14 @@ async fn document_dedupe_refreshes_mime_type_on_reimport() {
         "application/octet-stream",
     )
     .await
-    .expect("first import");
+    .expect("octet-stream PDF should sniff to application/pdf");
+    assert_eq!(first.mime_type, "application/pdf");
 
     let second = oppenbokforing_desktop_lib::documents::store_document_bytes(
         &pool,
         &workspace_id,
         bytes,
-        "statement.pdf",
+        "statement-renamed.pdf",
         "application/pdf",
     )
     .await
@@ -528,7 +547,7 @@ async fn invoice_payment_record_rejects_non_pdf_document() {
     let receipt = oppenbokforing_desktop_lib::documents::store_document_bytes(
         &pool,
         &workspace_id,
-        b"not a pdf",
+        b"\x89PNG\r\n\x1a\nnot a pdf",
         "receipt.png",
         "image/png",
     )
@@ -553,5 +572,55 @@ async fn invoice_payment_record_rejects_non_pdf_document() {
         error.message.to_lowercase().contains("pdf"),
         "expected PDF requirement message, got: {}",
         error.message
+    );
+}
+
+#[tokio::test]
+async fn posted_voucher_immutability_triggers_reject_mutation() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let issued = issue_standard_invoice(&pool, &workspace_id, "issue-for-immutability").await;
+    let voucher_id = issued
+        .voucher_id
+        .as_ref()
+        .expect("issued invoice should have a posted voucher");
+
+    let update_err = sqlx::query("UPDATE vouchers SET status = 'draft' WHERE id = ?1")
+        .bind(voucher_id)
+        .execute(&pool)
+        .await
+        .expect_err("posted voucher update must abort");
+    assert!(
+        update_err.to_string().to_lowercase().contains("posted"),
+        "expected posted-voucher abort, got: {update_err}"
+    );
+
+    let delete_err = sqlx::query("DELETE FROM vouchers WHERE id = ?1")
+        .bind(voucher_id)
+        .execute(&pool)
+        .await
+        .expect_err("posted voucher delete must abort");
+    assert!(
+        delete_err.to_string().to_lowercase().contains("posted"),
+        "expected posted-voucher abort, got: {delete_err}"
+    );
+
+    let line_id: String = sqlx::query_scalar(
+        "SELECT id FROM journal_lines WHERE voucher_id = ?1 LIMIT 1",
+    )
+    .bind(voucher_id)
+    .fetch_one(&pool)
+    .await
+    .expect("journal line");
+
+    let line_update_err =
+        sqlx::query("UPDATE journal_lines SET debit_minor = debit_minor + 1 WHERE id = ?1")
+            .bind(&line_id)
+            .execute(&pool)
+            .await
+            .expect_err("posted journal line update must abort");
+    assert!(
+        line_update_err.to_string().to_lowercase().contains("posted")
+            || line_update_err.to_string().to_lowercase().contains("journal"),
+        "expected journal immutability abort, got: {line_update_err}"
     );
 }

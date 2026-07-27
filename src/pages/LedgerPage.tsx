@@ -18,10 +18,8 @@ import {
   type VoucherDetail,
   type VoucherSummary,
 } from "../lib/commands"
-
-function formatSek(minor: number) {
-  return `${(minor / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`
-}
+import { formatSekMinor } from "../lib/money"
+import { periodStatusLabel, voucherStatusLabel } from "../lib/domainStatus"
 
 export function LedgerPage() {
   const { workspace } = useWorkspace()
@@ -151,8 +149,8 @@ export function LedgerPage() {
                       </button>
                     </td>
                     <td>{voucher.sourceType}</td>
-                    <td>{voucher.status}</td>
-                    <td>{formatSek(voucher.debitTotalMinor)}</td>
+                    <td>{voucherStatusLabel(locale, voucher.status)}</td>
+                    <td>{formatSekMinor(voucher.debitTotalMinor)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -166,7 +164,7 @@ export function LedgerPage() {
                 <h3>{detail.sourceType}</h3>
               </header>
               <p className="status-line">
-                {detail.status} · {detail.accountingDate ?? detail.postedAt ?? "—"}
+                {voucherStatusLabel(locale, detail.status)} · {detail.accountingDate ?? detail.postedAt ?? "—"}
               </p>
               <table className="data-table">
                 <thead>
@@ -183,8 +181,8 @@ export function LedgerPage() {
                       <td>
                         {line.accountNumber} {line.accountName}
                       </td>
-                      <td>{line.debitMinor > 0 ? formatSek(line.debitMinor) : "—"}</td>
-                      <td>{line.creditMinor > 0 ? formatSek(line.creditMinor) : "—"}</td>
+                      <td>{line.debitMinor > 0 ? formatSekMinor(line.debitMinor) : "—"}</td>
+                      <td>{line.creditMinor > 0 ? formatSekMinor(line.creditMinor) : "—"}</td>
                       <td>{line.vatCode ?? "—"}</td>
                     </tr>
                   ))}
@@ -211,7 +209,7 @@ export function LedgerPage() {
                     <td>
                       {account.number} {account.name}
                     </td>
-                    <td>{formatSek(account.balanceMinor)}</td>
+                    <td>{formatSekMinor(account.balanceMinor)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -234,7 +232,7 @@ export function LedgerPage() {
                 {periods.map((period) => (
                   <tr key={period.id}>
                     <td>{period.periodKey}</td>
-                    <td>{period.status}</td>
+                    <td>{periodStatusLabel(locale, period.status)}</td>
                   </tr>
                 ))}
               </tbody>

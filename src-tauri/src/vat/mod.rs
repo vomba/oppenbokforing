@@ -103,13 +103,7 @@ struct PeriodBounds {
     ends_on: String,
 }
 
-fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
-    Ok(trimmed)
-}
+use crate::idempotency::normalize_idempotency_key;
 
 fn parse_period_key(period_key: &str) -> Result<PeriodBounds, AppError> {
     let key = period_key.trim();
@@ -1240,8 +1234,8 @@ pub async fn vat_threshold_status(
     workspace_id: &str,
     rule_year: i32,
 ) -> Result<VatThresholdStatus, AppError> {
-    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor").await?;
-    let warning_ratio = get_rule_i64(pool, "vat", "threshold_warning_ratio")
+    let threshold = require_rule_i64(pool, "vat", "annual_turnover_threshold_minor", rule_year).await?;
+    let warning_ratio = get_rule_i64(pool, "vat", "threshold_warning_ratio", rule_year)
         .await?
         .unwrap_or(75);
 

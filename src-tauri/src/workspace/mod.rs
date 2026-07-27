@@ -68,6 +68,13 @@ pub fn reject_path_traversal(relative: &str, field: &str) -> Result<(), AppError
 
 pub fn safe_join_under(root: &Path, relative: &str, field: &str) -> Result<PathBuf, AppError> {
     reject_path_traversal(relative, field)?;
+    let candidate = Path::new(relative);
+    if candidate.is_absolute() {
+        return Err(AppError::validation(
+            "Path must be relative",
+            field,
+        ));
+    }
     Ok(root.join(relative))
 }
 

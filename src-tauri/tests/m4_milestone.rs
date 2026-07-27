@@ -78,7 +78,7 @@ async fn m4_vat_registered_zero_period_fixture() {
     let dir = tempdir().expect("tempdir");
     let (pool, workspace_id, _) = setup_workspace(&dir).await;
 
-    let scenario = load_golden_scenario("vat-registered-zero-period");
+    let scenario = load_golden_scenario("vat-registered-zero-period").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
 
     let draft = vat::vat_return_draft_create(
@@ -130,7 +130,7 @@ async fn m4_no_activity_zero_vat_return_fixture() {
     .await
     .expect("yearly vat");
 
-    let scenario = load_golden_scenario("no-activity-zero-vat-return");
+    let scenario = load_golden_scenario("no-activity-zero-vat-return").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
 
     let fiscal_year_id = format!("fy-{workspace_id}-2026");
@@ -168,7 +168,7 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
     let dir = tempdir().expect("tempdir");
     let (pool, workspace_id, data_dir) = setup_workspace(&dir).await;
 
-    let scenario = load_golden_scenario("fiscal-period-lock-after-vat");
+    let scenario = load_golden_scenario("fiscal-period-lock-after-vat").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
 
     let customer = counterparties::create_counterparty(
@@ -242,7 +242,7 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
     assert_eq!(expected["periodLocked"].as_bool(), Some(locked));
 
     let receipt_path = data_dir.join("receipt.pdf");
-    fs::write(&receipt_path, b"pdf").expect("receipt");
+    fs::write(&receipt_path, b"%PDF-1.4\npdf").expect("receipt");
 
     let doc = oppenbokforing_desktop_lib::documents::document_import(
         &pool,

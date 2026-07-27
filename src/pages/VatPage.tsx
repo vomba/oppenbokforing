@@ -22,10 +22,8 @@ import {
   type VatThresholdStatus,
 } from "../lib/commands"
 import { resolveExportDirectory } from "../lib/exportDirectory"
-
-function formatSek(minor: number) {
-  return `${(minor / 100).toLocaleString("sv-SE", { minimumFractionDigits: 2 })} kr`
-}
+import { formatSekMinor } from "../lib/money"
+import { vatReturnStatusLabel } from "../lib/domainStatus"
 
 function periodKeysForYear(reportingPeriod: string, year: number): string[] {
   if (reportingPeriod === "yearly") return [String(year)]
@@ -165,7 +163,7 @@ export function VatPage() {
     setBusy(true)
     try {
       const exportDirectory = await resolveExportDirectory(
-        "Choose export folder",
+        t(locale, "vat.chooseExportFolder"),
         defaultExportDirectory,
       )
       if (!exportDirectory) {
@@ -209,7 +207,7 @@ export function VatPage() {
           </article>
           <article className="metric metric-neutral">
             <span>{t(locale, "vat.turnoverYear")}</span>
-            <strong>{threshold ? formatSek(threshold.annualTurnoverMinor) : "—"}</strong>
+            <strong>{threshold ? formatSekMinor(threshold.annualTurnoverMinor) : "—"}</strong>
           </article>
           <article
             className={`metric metric-${threshold?.warning === "breached" ? "red" : threshold?.warning === "approaching" ? "amber" : "neutral"}`}
@@ -225,11 +223,11 @@ export function VatPage() {
           </article>
           <article className="metric metric-neutral">
             <span>{t(locale, "vat.vatReserve")}</span>
-            <strong>{cashflow ? formatSek(cashflow.vatReserveMinor) : "—"}</strong>
+            <strong>{cashflow ? formatSekMinor(cashflow.vatReserveMinor) : "—"}</strong>
           </article>
           <article className="metric metric-neutral">
             <span>{t(locale, "vat.spendableCash")}</span>
-            <strong>{cashflow ? formatSek(cashflow.spendableCashMinor) : "—"}</strong>
+            <strong>{cashflow ? formatSekMinor(cashflow.spendableCashMinor) : "—"}</strong>
           </article>
         </section>
 
@@ -293,31 +291,31 @@ export function VatPage() {
               <>
                 <dl>
                   <div>
-                    <dt>Status</dt>
-                    <dd>{vatReturn.status}</dd>
+                    <dt>{t(locale, "vat.returnStatus")}</dt>
+                    <dd>{vatReturnStatusLabel(locale, vatReturn.status)}</dd>
                   </div>
                   <div>
-                    <dt>Box 49</dt>
-                    <dd>{formatSek(vatReturn.box49AmountMinor)}</dd>
+                    <dt>{t(locale, "vat.box49")}</dt>
+                    <dd>{formatSekMinor(vatReturn.box49AmountMinor)}</dd>
                   </div>
                   <div>
-                    <dt>Zero return</dt>
-                    <dd>{vatReturn.zeroReturn ? "Yes" : "No"}</dd>
+                    <dt>{t(locale, "vat.zeroReturn")}</dt>
+                    <dd>{vatReturn.zeroReturn ? t(locale, "vat.yes") : t(locale, "vat.no")}</dd>
                   </div>
                 </dl>
                 {vatReturn.boxes.length > 0 ? (
                   <table>
                     <thead>
                       <tr>
-                        <th scope="col">Box</th>
-                        <th scope="col">Amount</th>
+                        <th scope="col">{t(locale, "vat.boxColumn")}</th>
+                        <th scope="col">{t(locale, "vat.amountColumn")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {vatReturn.boxes.map((box) => (
                         <tr key={box.boxCode}>
                           <td>{box.boxCode}</td>
-                          <td>{formatSek(box.amountMinor)}</td>
+                          <td>{formatSekMinor(box.amountMinor)}</td>
                         </tr>
                       ))}
                     </tbody>

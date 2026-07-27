@@ -50,13 +50,7 @@ struct IdempotentMatchPayload {
     result: ReconciliationMatchResult,
 }
 
-fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
-    Ok(trimmed)
-}
+use crate::idempotency::normalize_idempotency_key;
 
 async fn check_idempotency(
     pool: &SqlitePool,

@@ -202,13 +202,7 @@ async fn validate_vat_lines(
     Ok(())
 }
 
-fn normalize_idempotency_key(key: &str) -> Result<&str, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation("Idempotency key is required", "idempotencyKey"));
-    }
-    Ok(trimmed)
-}
+use crate::idempotency::normalize_idempotency_key;
 
 fn validate_issue_idempotency_match(
     invoice_id: &str,

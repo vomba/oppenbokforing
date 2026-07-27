@@ -23,6 +23,7 @@ use crate::{
 const MANIFEST_VERSION: u32 = 1;
 const JOB_ACCOUNTANT_EXPORT: &str = "accountant_package_export_create";
 const MAX_VALIDATE_HASH_BYTES: u64 = 52_428_800;
+const MAX_MANIFEST_BYTES: u64 = 1_048_576;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -78,14 +79,7 @@ pub struct AccountantPackageImportValidateInput {
 }
 
 fn normalize_idempotency_key(key: &str) -> Result<String, AppError> {
-    let trimmed = key.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::validation(
-            "Idempotency key is required",
-            "idempotencyKey",
-        ));
-    }
-    Ok(trimmed.to_string())
+    Ok(crate::idempotency::normalize_idempotency_key(key)?.to_string())
 }
 
 fn hash_file(path: &Path, max_bytes: Option<u64>) -> Result<(String, u64), AppError> {
@@ -124,17 +118,22 @@ fn resolve_package_path(
     database_path: &str,
 ) -> Result<PathBuf, AppError> {
     reject_path_traversal(package_path, "packagePath")?;
+    let export_root = resolve_workspace_exports_dir(exports_path, database_path)?;
     let path = PathBuf::from(package_path);
     if path.is_absolute() {
-        if path.is_file() {
-            return Ok(path);
+        // Absolute paths come from the native folder/file picker (export→validate
+        // round-trip). Bound blast radius by requiring a real file; package entries
+        // are still confined under the manifest directory via ensure_path_within_root.
+        if !path.is_file() {
+            return Err(AppError::validation(
+                "Package manifest file not found",
+                "packagePath",
+            ));
         }
-        return Err(AppError::validation(
-            "Package manifest file not found",
-            "packagePath",
-        ));
+        return path.canonicalize().map_err(|_| {
+            AppError::validation("Package manifest file not found", "packagePath")
+        });
     }
-    let export_root = resolve_workspace_exports_dir(exports_path, database_path)?;
     let joined = safe_join_under(&export_root, package_path, "packagePath")?;
     if joined.exists() {
         ensure_path_within_root(&joined, &export_root, "packagePath")?;
@@ -620,7 +619,16 @@ pub async fn accountant_package_import_validate(
         });
     }
 
-    let manifest_text = fs::read_to_string(&manifest_path).map_err(AppError::from)?;
+    let manifest_text = {
+        let metadata = fs::metadata(&manifest_path).map_err(AppError::from)?;
+        if metadata.len() > MAX_MANIFEST_BYTES {
+            return Err(AppError::validation(
+                "Package manifest exceeds size limit",
+                "packagePath",
+            ));
+        }
+        fs::read_to_string(&manifest_path).map_err(AppError::from)?
+    };
     let manifest: AccountantPackageManifest =
         serde_json::from_str(&manifest_text).map_err(|_| {
             AppError::validation("Invalid accountant package manifest", "packagePath")

@@ -27,7 +27,7 @@ fn list_fixture_ids() -> Vec<String> {
 #[test]
 fn all_golden_fixtures_parse() {
     for id in list_fixture_ids() {
-        let scenario = load_golden_scenario(&id);
+        let scenario = load_golden_scenario(&id).expect("golden scenario");
         assert_eq!(scenario.id, id);
         assert!(!scenario.title.is_empty());
         assert!(scenario.expected.is_object());
@@ -43,7 +43,7 @@ async fn m1_golden_scenarios_pass_compliance_engine() {
         .expect("connect");
 
     for scenario_id in ["fa-skatt-salary-and-business", "vat-exempt-below-threshold", "vat-exempt-threshold-breach"] {
-        let scenario = load_golden_scenario(scenario_id);
+        let scenario = load_golden_scenario(scenario_id).expect("golden scenario");
         let profile: ScenarioProfile =
             serde_json::from_value(scenario.profile).expect("profile");
         let transactions: Vec<ScenarioTransaction> = scenario
@@ -133,7 +133,7 @@ async fn m1_backup_restore_preserves_rules_fixture() {
     .await
     .expect("backup");
 
-    let scenario = load_golden_scenario("backup-restore-preserves-rules");
+    let scenario = load_golden_scenario("backup-restore-preserves-rules").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
 
     let backup_bytes = fs::read(&backup.backup_path).expect("read backup file");
@@ -244,7 +244,7 @@ async fn m1_workspace_offline_reopen_fixture() {
         .expect("rule after reopen")
         .expect("active rule after reopen");
 
-    let scenario = load_golden_scenario("workspace-offline-reopen");
+    let scenario = load_golden_scenario("workspace-offline-reopen").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
 
     assert_eq!(expected["workspacePersisted"].as_bool(), Some(true));
@@ -360,7 +360,7 @@ async fn m2_credit_invoice_fixture() {
     assert_eq!(issued.invoice_number.as_deref(), Some("2026-0001"));
     assert_eq!(issued.status, "issued");
 
-    let scenario = load_golden_scenario("credit-invoice-reversal");
+    let scenario = load_golden_scenario("credit-invoice-reversal").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
 
     let _credited = invoicing::credit_invoice(

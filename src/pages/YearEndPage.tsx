@@ -2,6 +2,7 @@ import { useLocation } from "react-router-dom"
 import { useEffect, useRef, useState } from "react"
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
+import { ActionReviewDialog } from "../components/ActionReviewDialog"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { useLocale } from "../context/LocaleContext"
 import { t, tVars } from "../i18n"
@@ -35,6 +36,7 @@ export function YearEndPage() {
   const [status, setStatus] = useState(t(locale, "yearEnd.status"))
   const [busy, setBusy] = useState(false)
   const [defaultExportDirectory, setDefaultExportDirectory] = useState<string | null>(null)
+  const [approveReviewOpen, setApproveReviewOpen] = useState(false)
   const createKeyRef = useRef<Record<number, string>>({})
   const exportKeyRef = useRef<Record<string, string>>({})
   const approveKeyRef = useRef<Record<string, string>>({})
@@ -140,9 +142,6 @@ export function YearEndPage() {
 
   async function handleApprove() {
     if (busy || !yearPackage || yearPackage.status === "approved") return
-    const confirmed = window.confirm(t(locale, "yearEnd.approveConfirm"))
-    if (!confirmed) return
-
     setBusy(true)
     const idempotencyKey = approveKeyRef.current[yearPackage.id] ??= crypto.randomUUID()
     try {
@@ -160,6 +159,17 @@ export function YearEndPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  function openApproveReview() {
+    if (yearPackage && yearPackage.status !== "approved" && readiness?.readyToApprove && !busy) {
+      setApproveReviewOpen(true)
+    }
+  }
+
+  function confirmApproveReview() {
+    setApproveReviewOpen(false)
+    void handleApprove()
   }
 
   const yearOptions = [fiscalYear - 1, fiscalYear, fiscalYear + 1].filter(
@@ -251,7 +261,7 @@ export function YearEndPage() {
                 <>
                   <button
                     type="button"
-                    onClick={() => void handleApprove()}
+                    onClick={openApproveReview}
                     disabled={
                       busy ||
                       yearPackage.status === "approved" ||
@@ -326,6 +336,39 @@ export function YearEndPage() {
           ) : null}
         </section>
       </section>
+        {yearPackage ? (
+          <ActionReviewDialog
+            open={approveReviewOpen}
+            title={t(locale, "actionReview.yearEnd.title")}
+            summary={tVars(locale, "actionReview.yearEnd.summary", {
+              year: yearPackage.fiscalYear,
+              k1: t(
+                locale,
+                yearPackage.k1Allowed
+                  ? "actionReview.readiness.ready"
+                  : "actionReview.readiness.blocked",
+              ),
+              ne: t(
+                locale,
+                yearPackage.neDraftPresent
+                  ? "actionReview.readiness.ready"
+                  : "actionReview.readiness.missing",
+              ),
+            })}
+            consequences={[
+              t(locale, "actionReview.yearEnd.consequence"),
+              ...(readiness?.items
+                .filter((item) => !item.satisfied)
+                .map((item) => item.detail ?? item.code) ?? []),
+            ]}
+            correction={null}
+            confirmLabel={t(locale, "actionReview.yearEnd.confirm")}
+            cancelLabel={t(locale, "actionReview.cancel")}
+            busy={busy}
+            onConfirm={confirmApproveReview}
+            onCancel={() => setApproveReviewOpen(false)}
+          />
+        ) : null}
     </main>
   )
 }

@@ -15,6 +15,7 @@ export type OnboardingDraft = {
   vatStatus: "exempt_low_turnover" | "registered"
   reportingPeriod: "monthly" | "quarterly" | "yearly"
   accountingMethod: "invoice_method" | "cash_method"
+  vatFilingDeadlineRegime: string | null
 }
 
 export function defaultOnboardingDraft(workspaceName = ""): OnboardingDraft {
@@ -28,6 +29,7 @@ export function defaultOnboardingDraft(workspaceName = ""): OnboardingDraft {
     vatStatus: "exempt_low_turnover",
     reportingPeriod: "quarterly",
     accountingMethod: "invoice_method",
+    vatFilingDeadlineRegime: null,
   }
 }
 
@@ -75,6 +77,7 @@ export function onboardingDraftFromProfiles(input: {
     draft.vatStatus = asVatStatus(input.vat.vatStatus)
     draft.reportingPeriod = asReportingPeriod(input.vat.reportingPeriod)
     draft.accountingMethod = asAccountingMethod(input.vat.accountingMethod)
+    draft.vatFilingDeadlineRegime = input.vat.vatFilingDeadlineRegime
   }
 
   return { draft, hasSavedProfiles }

@@ -147,6 +147,7 @@ describe("OnboardingPage", () => {
       reportingPeriod: "quarterly",
       accountingMethod: "invoice_method",
       voluntaryRegistrationDate: null,
+      vatFilingDeadlineRegime: null,
     })
 
     renderOnboarding()
@@ -198,6 +199,7 @@ describe("OnboardingPage", () => {
       reportingPeriod: "quarterly",
       accountingMethod: "invoice_method",
       voluntaryRegistrationDate: null,
+      vatFilingDeadlineRegime: null,
     })
 
     renderOnboarding()

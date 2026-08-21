@@ -19,6 +19,7 @@ import {
   dashboardTourMarkComplete,
   workspaceSettingsGet,
   yearEndReadinessGet,
+  taxTasksList,
   type CashflowOverview,
   type ComplianceProfileCheckResult,
   type RuleVersionSummary,
@@ -31,6 +32,9 @@ import { dashboardTourSteps } from "../lib/dashboardTour"
 import { pickSaveBackupFile } from "../lib/dialogs"
 import { formatSekMinor } from "../lib/money"
 import { GuidedTour } from "../components/GuidedTour"
+import { formatIsoDate } from "../lib/date"
+import { presentTaxTask } from "../lib/taxTaskPresentation"
+import type { TaxTask } from "../lib/bindings"
 
 export function DashboardPage() {
   const { workspace, setWorkspace } = useWorkspace()
@@ -50,6 +54,7 @@ export function DashboardPage() {
   const [backupPassphraseConfirm, setBackupPassphraseConfirm] = useState("")
   const [defaultBackupDirectory, setDefaultBackupDirectory] = useState<string | null>(null)
   const [tourActive, setTourActive] = useState(false)
+  const [taxTasks, setTaxTasks] = useState<TaxTask[]>([])
   const backupIdempotencyKey = useRef<string | null>(null)
   const backupDestinationPath = useRef<string | null>(null)
 
@@ -107,6 +112,10 @@ export function DashboardPage() {
     yearEndReadinessGet({ fiscalYear })
       .then(setYearEndReadiness)
       .catch(() => setYearEndReadiness(null))
+
+    taxTasksList({ asOfDate: new Date().toISOString().slice(0, 10) })
+      .then(setTaxTasks)
+      .catch(() => setTaxTasks([]))
   }, [workspace, location.key, fiscalYear])
 
   const checklistInput = useMemo(
@@ -266,6 +275,33 @@ export function DashboardPage() {
               })}
             </ul>
           </div>
+
+          {taxTasks.length > 0 ? (
+            <div className="panel" data-tour="tax-tasks">
+              <header>
+                <p className="eyebrow">{t(locale, "taxTasks.title")}</p>
+                <h3>{t(locale, "taxTasks.title")}</h3>
+              </header>
+              <p className="muted">{t(locale, "taxTasks.submitOutside")}</p>
+              <ul className="checklist">
+                {taxTasks.map((task) => {
+                  const presentation = presentTaxTask(task)
+                  return (
+                    <li key={task.id} className="checklist-item checklist-amber">
+                      <Link to={presentation.route}>{t(locale, presentation.actionKey)}</Link>
+                      <span className="muted">
+                        {task.periodKey} · {t(locale, presentation.statusKey)}
+                        {task.dueOn ? ` · ${formatIsoDate(locale, task.dueOn)}` : ""}
+                      </span>
+                      <a href={task.sourceUrl} target="_blank" rel="noreferrer">
+                        {t(locale, "dashboard.rulesSource")}
+                      </a>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="panel" data-tour="rules">
             <header>

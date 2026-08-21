@@ -34,9 +34,18 @@ const baseInvoice: InvoiceSummary = {
   lines: [],
 }
 
-const { invoiceList, invoicePdfRefresh, invoicePdfStatus, documentReveal, taxProfileGetCurrent } =
-  vi.hoisted(() => ({
+const {
+  invoiceList,
+  invoiceIssue,
+  invoiceCredit,
+  invoicePdfRefresh,
+  invoicePdfStatus,
+  documentReveal,
+  taxProfileGetCurrent,
+} = vi.hoisted(() => ({
   invoiceList: vi.fn(),
+  invoiceIssue: vi.fn(),
+  invoiceCredit: vi.fn(),
   invoicePdfRefresh: vi.fn(),
   invoicePdfStatus: vi.fn(),
   documentReveal: vi.fn(),
@@ -68,8 +77,8 @@ vi.mock("../lib/commands", () => ({
   ]),
   documentReveal,
   invoiceCreateDraft: vi.fn(),
-  invoiceCredit: vi.fn(),
-  invoiceIssue: vi.fn(),
+  invoiceCredit,
+  invoiceIssue,
   invoiceList,
   invoicePdfRefresh,
   invoicePdfStatus,
@@ -155,6 +164,29 @@ describe("InvoicesPage", () => {
       expect(
         screen.getByText(/Med FA-skatt gäller A-skatt på lön/i),
       ).toBeInTheDocument()
+    })
+  })
+
+  it("reviews invoice issue before invoking the mutation", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    invoiceIssue.mockResolvedValue({ ...baseInvoice, status: "issued" })
+
+    renderInvoices()
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Skicka" })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }))
+
+    expect(invoiceIssue).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }))
+    expect(invoiceIssue).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }))
+    fireEvent.click(screen.getByRole("button", { name: "Skicka faktura" }))
+
+    await waitFor(() => {
+      expect(invoiceIssue).toHaveBeenCalledTimes(1)
     })
   })
 })

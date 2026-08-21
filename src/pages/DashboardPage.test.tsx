@@ -65,6 +65,19 @@ vi.mock("../lib/commands", () => ({
     readyToApprove: true,
     items: [],
   }),
+  taxTasksList: vi.fn().mockResolvedValue([
+    {
+      id: "vat_return:2026-Q1",
+      kind: "vat_return",
+      status: "upcoming",
+      target: "vat",
+      periodKey: "2026-Q1",
+      dueOn: "2026-05-12",
+      ruleVersionId: "rv-2026-active",
+      taxYear: 2026,
+      sourceUrl: "https://example.com/vat",
+    },
+  ]),
   workspaceBackupCreate: vi.fn(),
   workspaceClose: vi.fn(),
 }))
@@ -95,6 +108,16 @@ describe("DashboardPage", () => {
       expect(screen.getByText("3 omatchade rader under Dokument")).toBeInTheDocument()
       expect(screen.getByText("2 fakturor väntar på betalning")).toBeInTheDocument()
     })
+  })
+
+  it("renders backend-ordered tax tasks without changing the checklist", async () => {
+    renderDashboard()
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Skatteuppgifter" })).toBeInTheDocument()
+    })
+    expect(screen.getByRole("link", { name: "Redovisa moms" })).toHaveAttribute("href", "/vat")
+    expect(screen.getByText(/12 maj 2026/)).toBeInTheDocument()
   })
 
   it("persists tour completion when the user skips the guided tour", async () => {

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { useEffect, useRef, useState } from "react"
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
+import { ActionReviewDialog } from "../components/ActionReviewDialog"
 import { VoucherTraceLink } from "../components/VoucherTraceLink"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { useLocale } from "../context/LocaleContext"
@@ -41,6 +42,9 @@ export function InvoicesPage() {
   const [status, setStatus] = useState("")
   const [taxStatus, setTaxStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [review, setReview] = useState<
+    { kind: "issue" | "credit"; invoice: InvoiceSummary } | null
+  >(null)
   const issueKeysRef = useRef<Record<string, string>>({})
   const creditKeysRef = useRef<Record<string, string>>({})
 
@@ -204,6 +208,23 @@ export function InvoicesPage() {
     }
   }
 
+  function openReview(kind: "issue" | "credit", invoice: InvoiceSummary) {
+    if (!busy) {
+      setReview({ kind, invoice })
+    }
+  }
+
+  function confirmReview() {
+    if (!review) return
+    const { kind, invoice } = review
+    setReview(null)
+    if (kind === "issue") {
+      void handleIssue(invoice.id)
+      return
+    }
+    void handleCredit(invoice.id)
+  }
+
   return (
     <main className="app-shell">
       <AppSidebar current="invoices" />
@@ -320,7 +341,7 @@ export function InvoicesPage() {
                         {invoice.status === "draft" ? (
                           <button
                             type="button"
-                            onClick={() => handleIssue(invoice.id)}
+                            onClick={() => openReview("issue", invoice)}
                             disabled={busy}
                           >
                             {t(locale, "invoices.issue")}
@@ -332,7 +353,7 @@ export function InvoicesPage() {
                           <button
                             type="button"
                             className="secondary"
-                            onClick={() => handleCredit(invoice.id)}
+                            onClick={() => openReview("credit", invoice)}
                             disabled={busy}
                           >
                             {t(locale, "invoices.credit")}
@@ -376,6 +397,55 @@ export function InvoicesPage() {
             </table>
           )}
         </section>
+        {review ? (
+          <ActionReviewDialog
+            open
+            title={t(
+              locale,
+              review.kind === "issue" ? "actionReview.issue.title" : "actionReview.credit.title",
+            )}
+            summary={
+              review.kind === "issue"
+                ? tVars(locale, "actionReview.issue.summary", {
+                    customer: review.invoice.counterpartyName,
+                    total: formatSekMinor(review.invoice.totalIncVatMinor),
+                    vat: formatSekMinor(review.invoice.totalVatMinor),
+                    rate:
+                      review.invoice.totalExVatMinor > 0
+                        ? Math.round((review.invoice.totalVatMinor / review.invoice.totalExVatMinor) * 100)
+                        : 0,
+                  })
+                : tVars(locale, "actionReview.credit.summary", {
+                    customer: review.invoice.counterpartyName,
+                    total: formatSekMinor(review.invoice.totalIncVatMinor),
+                  })
+            }
+            consequences={[
+              t(
+                locale,
+                review.kind === "issue"
+                  ? "actionReview.issue.consequence"
+                  : "actionReview.credit.consequence",
+              ),
+            ]}
+            correction={t(
+              locale,
+              review.kind === "issue"
+                ? "actionReview.issue.correction"
+                : "actionReview.credit.correction",
+            )}
+            confirmLabel={t(
+              locale,
+              review.kind === "issue"
+                ? "actionReview.issue.confirm"
+                : "actionReview.credit.confirm",
+            )}
+            cancelLabel={t(locale, "actionReview.cancel")}
+            busy={busy}
+            onConfirm={confirmReview}
+            onCancel={() => setReview(null)}
+          />
+        ) : null}
       </section>
     </main>
   )

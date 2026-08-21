@@ -1,5 +1,7 @@
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
+import { ActionReviewDialog } from "../components/ActionReviewDialog"
+import { VoucherTraceLink } from "../components/VoucherTraceLink"
 import { useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 import { useWorkspace } from "../context/WorkspaceContext"
@@ -14,6 +16,7 @@ import {
   vatReturnApprove,
   vatReturnDraftCreate,
   vatReturnExport,
+  vatReturnTrace,
   vatThresholdStatusGet,
   workspaceSettingsGet,
   type CashflowOverview,
@@ -24,6 +27,7 @@ import {
 import { resolveExportDirectory } from "../lib/exportDirectory"
 import { formatSekMinor } from "../lib/money"
 import { vatReturnStatusLabel } from "../lib/domainStatus"
+import type { VatReturnTrace } from "../lib/bindings"
 
 function periodKeysForYear(reportingPeriod: string, year: number): string[] {
   if (reportingPeriod === "yearly") return [String(year)]
@@ -65,6 +69,8 @@ export function VatPage() {
   const [status, setStatus] = useState("")
   const [busy, setBusy] = useState(false)
   const [defaultExportDirectory, setDefaultExportDirectory] = useState<string | null>(null)
+  const [approveReviewOpen, setApproveReviewOpen] = useState(false)
+  const [vatTrace, setVatTrace] = useState<VatReturnTrace | null>(null)
   const draftKeyRef = useRef<Record<string, string>>({})
   const approveKeyRef = useRef<Record<string, string>>({})
 
@@ -104,9 +110,17 @@ export function VatPage() {
 
   useEffect(() => {
     setVatReturn(null)
+    setVatTrace(null)
     draftKeyRef.current = {}
     approveKeyRef.current = {}
   }, [periodKey])
+
+  useEffect(() => {
+    if (!vatReturn) return
+    vatReturnTrace({ vatReturnId: vatReturn.id })
+      .then(setVatTrace)
+      .catch(() => setVatTrace(null))
+  }, [vatReturn])
 
   async function handleDraftCreate() {
     if (busy) return
@@ -158,6 +172,17 @@ export function VatPage() {
     }
   }
 
+  function openApproveReview() {
+    if (vatReturn && vatReturn.status !== "approved" && !busy) {
+      setApproveReviewOpen(true)
+    }
+  }
+
+  function confirmApproveReview() {
+    setApproveReviewOpen(false)
+    void handleApprove()
+  }
+
   async function handleExport() {
     if (busy || !vatReturn || vatReturn.status !== "approved") return
     setBusy(true)
@@ -179,6 +204,9 @@ export function VatPage() {
       setBusy(false)
     }
   }
+  const displayedBoxes = vatTrace
+    ? vatTrace.boxes.map(({ boxNumber, amountMinor }) => ({ boxCode: boxNumber, amountMinor }))
+    : vatReturn?.boxes ?? []
 
   return (
     <main className="app-shell">
@@ -271,7 +299,7 @@ export function VatPage() {
               <button
                 type="button"
                 className="secondary"
-                onClick={handleApprove}
+                onClick={openApproveReview}
                 disabled={busy || !vatReturn || vatReturn.status === "approved"}
                 aria-busy={busy}
               >
@@ -303,19 +331,31 @@ export function VatPage() {
                     <dd>{vatReturn.zeroReturn ? t(locale, "vat.yes") : t(locale, "vat.no")}</dd>
                   </div>
                 </dl>
-                {vatReturn.boxes.length > 0 ? (
+                {displayedBoxes.length > 0 ? (
                   <table>
                     <thead>
                       <tr>
                         <th scope="col">{t(locale, "vat.boxColumn")}</th>
                         <th scope="col">{t(locale, "vat.amountColumn")}</th>
+                        <th scope="col">{t(locale, "vat.traceColumn")}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {vatReturn.boxes.map((box) => (
+                      {displayedBoxes.map((box) => (
                         <tr key={box.boxCode}>
                           <td>{box.boxCode}</td>
                           <td>{formatSekMinor(box.amountMinor)}</td>
+                          <td>
+                            {vatTrace?.boxes
+                              .find((trace) => trace.boxNumber === box.boxCode)
+                              ?.voucherIds.map((voucherId) => (
+                                <VoucherTraceLink
+                                  key={voucherId}
+                                  voucherId={voucherId}
+                                  label={t(locale, "vat.traceVoucher")}
+                                />
+                              ))}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -325,6 +365,24 @@ export function VatPage() {
             ) : null}
           </div>
         </section>
+        {vatReturn ? (
+          <ActionReviewDialog
+            open={approveReviewOpen}
+            title={t(locale, "actionReview.vat.title")}
+            summary={tVars(locale, "actionReview.vat.summary", {
+              period: vatReturn.periodKey,
+              amount: formatSekMinor(vatReturn.box49AmountMinor),
+              status: vatReturnStatusLabel(locale, vatReturn.status),
+            })}
+            consequences={[t(locale, "actionReview.vat.consequence")]}
+            correction={null}
+            confirmLabel={t(locale, "actionReview.vat.confirm")}
+            cancelLabel={t(locale, "actionReview.cancel")}
+            busy={busy}
+            onConfirm={confirmApproveReview}
+            onCancel={() => setApproveReviewOpen(false)}
+          />
+        ) : null}
       </section>
     </main>
   )

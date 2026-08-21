@@ -40,13 +40,13 @@ Technical paths (`databasePath`, `dataDir`) move to Settings only (advanced mode
 
 ## M8.3 — First-run dashboard tour
 
-After onboarding, the dashboard shows a lightweight guided tour (5 steps):
-
+After onboarding, the dashboard shows a lightweight guided tour (six steps):
 1. Checklist — nästa steg
-2. Sidebar navigation
+2. Sidebar task navigation
 3. Spendable cash metric
 4. Encrypted backup
 5. Active rules panel
+6. Tax tasks
 
 Persistence: `workspace_settings.dashboard_tour_completed` via `dashboard_tour_mark_complete` command.
 
@@ -67,6 +67,29 @@ Spec IDs: `M8.4-HELP` (`src/lib/helpTopics.ts`)
 - `workspace_settings.simple_mode` — default **on**; hides ledger nav + advanced settings panels
 
 Spec IDs: `M8.5-SIMPLE` (`src/lib/workbenchNav.ts`, `src/context/SimpleModeContext.tsx`)
+
+## Novice task navigation and review boundary
+
+Simple mode is task-led. Its exact navigation order is:
+
+| Key | Swedish | English | Route |
+|---|---|---|---|
+| `dashboard` | Översikt | Overview | `/dashboard` |
+| `invoices` | Fakturor | Invoices | `/invoices` |
+| `documents` | Kvitton och utgifter | Receipts & expenses | `/documents` |
+| `vat` | Redovisa moms | Report VAT | `/vat` |
+| `yearEnd` | Avsluta året | Close the year | `/year-end` |
+| `settings` | Inställningar | Settings | `/settings` |
+
+Full mode retains the existing workbench labels and routes. The ledger is absent from simple navigation, but its existing direct route remains available; simple mode does not add a router guard.
+
+Before issuing or crediting an invoice, matching or recording a payment, posting an expense, approving VAT, or approving a year-end package, the UI presents a localized review panel. It states the action, user-visible facts, permanent consequence, correction path where one exists, Cancel, and the one confirm action. Cancel makes no invoke. Backend validation or lock failures close the panel and show the existing localized error.
+
+## Tax tasks
+
+The dashboard renders a **Skatteuppgifter** / **Tax tasks** section below the existing checklist. Rust decides task necessity, date, status, order, rule version, and source URL; React only formats the returned date and maps the target to an existing route. A card gives a plain-language action, covered period, date/status, and destination (`/vat`, `/year-end`, or `/onboarding`). Detailed calculations stay behind trace/help affordances.
+
+The app prepares or exports packages only. VAT and income-tax submissions happen outside the app at Skatteverket. A missing deadline regime, source schedule, or required profile data produces an undated profile-review task rather than a guessed date.
 
 ## Spec IDs (core)
 

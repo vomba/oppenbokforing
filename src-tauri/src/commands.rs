@@ -37,9 +37,11 @@ use crate::{
     settings::{self, WorkspaceSettings, WorkspaceSettingsSaveInput},
     sie::{self, SieExportCreateInput, SieExportSummary},
     cashflow::{self, CashflowOverview},
+    tax_tasks::{self, TaxTask, TaxTaskListInput},
     vat::{
         self, FiscalPeriodSummary, VatReturnApproveInput, VatReturnDraftCreateInput,
-        VatReturnExportInput, VatReturnGetInput, VatReturnSummary, VatThresholdStatus,
+        VatReturnExportInput, VatReturnGetInput, VatReturnSummary, VatReturnTrace,
+        VatReturnTraceInput, VatThresholdStatus,
     },
     year_end::{
         self, YearEndPackageApproveInput, YearEndPackageCreateInput, YearEndPackageExportInput,
@@ -655,6 +657,26 @@ pub async fn vat_return_get(
 ) -> CommandResult<VatReturnSummary> {
     let workspace = require_workspace(&state).await?;
     let result = vat::vat_return_get(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data: result })
+}
+
+#[tauri::command]
+pub async fn vat_return_trace(
+    state: State<'_, AppState>,
+    input: VatReturnTraceInput,
+) -> CommandResult<VatReturnTrace> {
+    let workspace = require_workspace(&state).await?;
+    let result = vat::vat_return_trace(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data: result })
+}
+
+#[tauri::command]
+pub async fn tax_tasks_list(
+    state: State<'_, AppState>,
+    input: TaxTaskListInput,
+) -> CommandResult<Vec<TaxTask>> {
+    let workspace = require_workspace(&state).await?;
+    let result = tax_tasks::tax_task_list(&workspace.pool, &workspace.id, &input).await?;
     Ok(CommandResponse { data: result })
 }
 

@@ -30,9 +30,11 @@ use crate::{
     },
     reconciliation::{ReconciliationMatchCreateInput, ReconciliationMatchResult, InvoicePaymentRecordInput},
     cashflow::CashflowOverview,
+    tax_tasks::{TaxTask, TaxTaskListInput},
     vat::{
-        FiscalPeriodSummary, VatReturnApproveInput, VatReturnDraftCreateInput, VatReturnExportInput,
-        VatReturnGetInput, VatReturnSummary, VatThresholdStatus, VatReturnBox,
+        FiscalPeriodSummary, VatReturnApproveInput, VatReturnBox, VatReturnBoxTrace,
+        VatReturnDraftCreateInput, VatReturnExportInput, VatReturnGetInput, VatReturnSummary,
+        VatReturnTrace, VatReturnTraceInput, VatThresholdStatus,
     },
     year_end::{
         NeFieldSummary, YearEndPackageApproveInput, YearEndPackageCreateInput,
@@ -143,6 +145,11 @@ pub fn export_types() -> String {
     types.register::<VatReturnGetInput>();
     types.register::<VatReturnApproveInput>();
     types.register::<VatReturnExportInput>();
+    types.register::<VatReturnTraceInput>();
+    types.register::<VatReturnBoxTrace>();
+    types.register::<VatReturnTrace>();
+    types.register::<TaxTaskListInput>();
+    types.register::<TaxTask>();
     types.register::<VatThresholdStatus>();
     types.register::<CashflowOverview>();
     types.register::<NeFieldSummary>();
@@ -190,6 +197,8 @@ pub fn export_types() -> String {
     types.register::<CommandResponse<CsvImportSummary>>();
     types.register::<CommandResponse<ReconciliationMatchResult>>();
     types.register::<CommandResponse<VatReturnSummary>>();
+    types.register::<CommandResponse<VatReturnTrace>>();
+    types.register::<CommandResponse<Vec<TaxTask>>>();
     types.register::<CommandResponse<VatThresholdStatus>>();
     types.register::<CommandResponse<CashflowOverview>>();
     types.register::<CommandResponse<YearEndPackageSummary>>();

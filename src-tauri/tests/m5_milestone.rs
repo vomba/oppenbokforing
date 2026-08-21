@@ -56,12 +56,10 @@ async fn setup_workspace(
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "registered".to_string(),
-            reporting_period: "yearly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "registered".to_string(),
+        reporting_period: "yearly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
     )
     .await
     .expect("vat profile");

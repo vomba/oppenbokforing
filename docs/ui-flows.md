@@ -18,6 +18,14 @@ Constraint: first screen is the app workspace, not a landing page.
 - Year end
 - Settings
 
+### Simple mode
+
+Task navigation is ordered as **Översikt** / Overview, **Fakturor** / Invoices, **Kvitton och utgifter** / Receipts & expenses, **Redovisa moms** / Report VAT, **Avsluta året** / Close the year, and **Inställningar** / Settings. It uses `/dashboard`, `/invoices`, `/documents`, `/vat`, `/year-end`, and `/settings`. Full mode retains the workbench navigation above. Ledger is not listed in simple mode, but remains reachable by its direct `/ledger` route.
+
+### Material-action review
+
+Issue invoice, credit invoice, payment/reconciliation, expense posting, VAT approval, and year-end approval require a localized review panel before their existing command. The panel explains user-visible facts, permanent consequence, a correction path where one exists, Cancel, and one confirm action. Cancel makes no mutation invoke. A backend validation or lock failure closes the panel and leaves its existing localized error visible.
+
 ## Workspace Picker
 
 States:
@@ -35,6 +43,10 @@ Required actions:
 - Reveal workspace location.
 
 ## Dashboard
+
+### Tax tasks
+
+Below the unchanged checklist, a **Skatteuppgifter** / Tax tasks section lists backend-returned tax work ordered by status and due date. Each card gives the next plain-language action, covered period, status/date, a route to VAT, year-end, or onboarding, and an optional official rule source link. The app may prepare or export a package but must say that submission to Skatteverket happens outside the app. Calculations remain in the existing trace/help affordances; React never determines due dates or filing requirements.
 
 Primary content:
 

@@ -20,4 +20,38 @@ describe("i18n", () => {
       "4 invoices awaiting payment",
     )
   })
+
+  it("resolves every novice task and review label in both supported locales", () => {
+    const keys = [
+      "nav.simple.dashboard",
+      "nav.simple.invoices",
+      "nav.simple.documents",
+      "nav.simple.vat",
+      "nav.simple.yearEnd",
+      "nav.simple.settings",
+      "actionReview.cancel",
+      "actionReview.issue.title",
+      "actionReview.issue.confirm",
+      "actionReview.credit.title",
+      "actionReview.credit.confirm",
+      "actionReview.payment.title",
+      "actionReview.payment.confirm",
+      "actionReview.match.title",
+      "actionReview.match.confirm",
+      "actionReview.expense.title",
+      "actionReview.expense.confirm",
+      "actionReview.vat.title",
+      "actionReview.vat.confirm",
+      "actionReview.yearEnd.title",
+      "actionReview.yearEnd.confirm",
+      "tour.taxTasks.title",
+      "tour.taxTasks.body",
+    ] as const
+
+    for (const locale of ["sv", "en"] as const) {
+      for (const key of keys) {
+        expect(t(locale, key)).not.toBe(key)
+      }
+    }
+  })
 })

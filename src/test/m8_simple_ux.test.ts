@@ -71,6 +71,10 @@ describe("M8 guided UX integration (fixture-driven)", () => {
       dashboardTourSteps: string[]
       simpleModeDefault: boolean
       simpleModeHiddenNav: string[]
+      simpleModeNavOrder: string[]
+      simpleModeTaskLabels: Record<"sv" | "en", string[]>
+      criticalReviewActions: string[]
+      calendarTaskOrder: string[]
     }
   }
 
@@ -112,11 +116,34 @@ describe("M8 guided UX integration (fixture-driven)", () => {
     expect(fixture.expected.dashboardTourSteps).toEqual(dashboardTourSteps.map((step) => step.id))
   })
 
-  it("M8.5 — simple mode hides infrastructure navigation by default", () => {
+  it("M8.5 — simple mode uses the fixture's task order and retains VAT/year-end routes", () => {
     expect(fixture.expected.simpleModeDefault).toBe(true)
-    const keys = navItemsForMode(fixture.expected.simpleModeDefault).map((item) => item.key)
+    const items = navItemsForMode(fixture.expected.simpleModeDefault)
+    expect(items.map((item) => item.key)).toEqual(fixture.expected.simpleModeNavOrder)
+    expect(items.find((item) => item.key === "vat")?.to).toBe("/vat")
+    expect(items.find((item) => item.key === "yearEnd")?.to).toBe("/year-end")
     for (const hidden of fixture.expected.simpleModeHiddenNav) {
-      expect(keys).not.toContain(hidden)
+      expect(items.map((item) => item.key)).not.toContain(hidden)
     }
+  })
+
+  it("defines bilingual task labels and critical review boundaries", () => {
+    expect(fixture.expected.simpleModeTaskLabels.sv).toHaveLength(6)
+    expect(fixture.expected.simpleModeTaskLabels.en).toHaveLength(6)
+    expect(fixture.expected.criticalReviewActions).toEqual([
+      "invoice_issue",
+      "invoice_credit",
+      "payment_reconciliation",
+      "expense_post",
+      "vat_approve",
+      "year_end_approve",
+    ])
+    expect(fixture.expected.calendarTaskOrder).toEqual([
+      "overdue",
+      "action_required",
+      "upcoming",
+      "prepared_external_submission_required",
+      "date_unavailable",
+    ])
   })
 })

@@ -32,4 +32,9 @@ export const dashboardTourSteps: DashboardTourStep[] = [
     titleKey: "tour.rules.title",
     bodyKey: "tour.rules.body",
   },
+  {
+    id: "tax-tasks",
+    titleKey: "tour.taxTasks.title",
+    bodyKey: "tour.taxTasks.body",
+  },
 ]

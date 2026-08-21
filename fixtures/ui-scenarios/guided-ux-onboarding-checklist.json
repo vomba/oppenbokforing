@@ -28,10 +28,25 @@
       "sidebar",
       "spendable-cash",
       "backup",
-      "rules"
+      "rules",
+      "tax-tasks"
     ],
     "simpleModeDefault": true,
-    "simpleModeHiddenNav": ["ledger"]
+    "simpleModeHiddenNav": ["ledger"],
+    "simpleModeNavOrder": ["dashboard", "invoices", "documents", "vat", "yearEnd", "settings"],
+    "simpleModeTaskLabels": {
+      "sv": ["Översikt", "Fakturor", "Kvitton och utgifter", "Redovisa moms", "Avsluta året", "Inställningar"],
+      "en": ["Overview", "Invoices", "Receipts & expenses", "Report VAT", "Close the year", "Settings"]
+    },
+    "criticalReviewActions": [
+      "invoice_issue",
+      "invoice_credit",
+      "payment_reconciliation",
+      "expense_post",
+      "vat_approve",
+      "year_end_approve"
+    ],
+    "calendarTaskOrder": ["overdue", "action_required", "upcoming", "prepared_external_submission_required", "date_unavailable"]
   },
   "sources": [
     "https://github.com/vomba/oppenbokforing/blob/main/docs/ux-simple-mode.md"

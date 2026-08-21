@@ -1,5 +1,6 @@
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
+import { ActionReviewDialog } from "../components/ActionReviewDialog"
 import { useEffect, useRef, useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
 import { Link, useSearchParams } from "react-router-dom"
@@ -56,6 +57,7 @@ export function DocumentsPage() {
   const [paymentDate, setPaymentDate] = useState("")
   const [inboxLoaded, setInboxLoaded] = useState(false)
   const [paymentRecorded, setPaymentRecorded] = useState(false)
+  const [reviewKind, setReviewKind] = useState<"payment" | "match" | "expense" | null>(null)
 
   async function refreshInbox() {
     if (!workspace) return
@@ -292,6 +294,50 @@ export function DocumentsPage() {
     }
   }
 
+  function openPaymentReview() {
+    if (
+      !busy &&
+      invoiceIdFromUrl &&
+      paymentDocumentId &&
+      paymentPanelActionable
+    ) {
+      setReviewKind("payment")
+    }
+  }
+
+  function openMatchReview() {
+    if (!busy && selectedStagedId && selectedInvoiceId) {
+      setReviewKind("match")
+    }
+  }
+
+  function openExpenseReview() {
+    const amountMinorExVat = parseSekToMinorUnits(expenseAmountSek)
+    if (amountMinorExVat === null || amountMinorExVat <= 0) {
+      setStatus(t(locale, "documents.invalidAmount"))
+      return
+    }
+    if (!selectedDocumentId && !noDocumentReason.trim()) {
+      setStatus(t(locale, "documents.documentOrReasonRequired"))
+      return
+    }
+    if (!busy && selectedStagedId) {
+      setReviewKind("expense")
+    }
+  }
+
+  function confirmReview() {
+    const kind = reviewKind
+    setReviewKind(null)
+    if (kind === "payment") {
+      void handleRecordInvoicePayment()
+    } else if (kind === "match") {
+      void handleMatchInvoicePayment()
+    } else if (kind === "expense") {
+      void handlePostExpense()
+    }
+  }
+
   const selectedStaged = staged.find((row) => row.id === selectedStagedId) ?? null
   const invoiceFromUrl = invoices.find((row) => row.id === invoiceIdFromUrl) ?? null
   const paymentPanelState = resolveInvoicePaymentPanelState({
@@ -301,6 +347,9 @@ export function DocumentsPage() {
     invoice: invoiceFromUrl,
   })
   const paymentPanelActionable = paymentPanelState === "ready"
+  const selectedInvoice = invoices.find((row) => row.id === selectedInvoiceId) ?? null
+  const selectedExpenseAccount =
+    expenseAccounts.find((account) => account.number === expenseAccountNumber) ?? null
 
   return (
     <main className="app-shell">
@@ -381,7 +430,7 @@ export function DocumentsPage() {
                   <button
                     type="button"
                     disabled={busy || !paymentDocumentId || !paymentPanelActionable}
-                    onClick={() => void handleRecordInvoicePayment()}
+                    onClick={openPaymentReview}
                   >
                     {t(locale, "documents.recordInvoicePayment")}
                   </button>
@@ -475,7 +524,7 @@ export function DocumentsPage() {
               <button
                 type="button"
                 disabled={busy || !selectedInvoiceId}
-                onClick={() => void handleMatchInvoicePayment()}
+                onClick={openMatchReview}
               >
                 {t(locale, "documents.matchAsPayment")}
               </button>
@@ -536,7 +585,7 @@ export function DocumentsPage() {
                   disabled={busy}
                 />
               </label>
-              <button type="button" disabled={busy} onClick={() => void handlePostExpense()}>
+              <button type="button" disabled={busy} onClick={openExpenseReview}>
                 {t(locale, "documents.postExpenseAction")}
               </button>
             </div>
@@ -574,6 +623,52 @@ export function DocumentsPage() {
             </table>
           </div>
         </section>
+          {reviewKind ? (
+            <ActionReviewDialog
+              open
+              title={t(locale, `actionReview.${reviewKind}.title` as const)}
+              summary={
+                reviewKind === "payment" && invoiceFromUrl
+                  ? tVars(locale, "actionReview.payment.summary", {
+                      invoice: invoiceFromUrl.invoiceNumber ?? invoiceFromUrl.id,
+                      amount: formatSekMinor(invoiceFromUrl.totalIncVatMinor),
+                      date: paymentDate || "—",
+                      document: paymentDocumentName,
+                    })
+                  : reviewKind === "match" && selectedStaged && selectedInvoice
+                    ? tVars(locale, "actionReview.match.summary", {
+                        transaction: selectedStaged.transactionDate,
+                        transactionAmount: formatSekMinor(selectedStaged.amountMinor),
+                        invoice: selectedInvoice.invoiceNumber ?? selectedInvoice.id,
+                        invoiceAmount: formatSekMinor(selectedInvoice.totalIncVatMinor),
+                        exactMatch: t(
+                          locale,
+                          selectedStaged.amountMinor === selectedInvoice.totalIncVatMinor
+                            ? "actionReview.match.exact"
+                            : "actionReview.match.notExact",
+                        ),
+                      })
+                    : tVars(locale, "actionReview.expense.summary", {
+                        amount: expenseAmountSek,
+                        vatRate: expenseVatRate,
+                        account: selectedExpenseAccount
+                          ? `${selectedExpenseAccount.number} · ${selectedExpenseAccount.name}`
+                          : expenseAccountNumber,
+                        evidence:
+                          documents.find((document) => document.id === selectedDocumentId)
+                            ?.originalFilename ??
+                          noDocumentReason.trim(),
+                      })
+              }
+              consequences={[t(locale, `actionReview.${reviewKind}.consequence` as const)]}
+              correction={t(locale, `actionReview.${reviewKind}.correction` as const)}
+              confirmLabel={t(locale, `actionReview.${reviewKind}.confirm` as const)}
+              cancelLabel={t(locale, "actionReview.cancel")}
+              busy={busy}
+              onConfirm={confirmReview}
+              onCancel={() => setReviewKind(null)}
+            />
+          ) : null}
       </section>
     </main>
   )

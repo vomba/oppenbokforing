@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { LocaleProvider } from "../context/LocaleContext"
@@ -30,11 +30,13 @@ const draftPackage: YearEndPackageSummary = {
 const {
   taxProfileGetCurrent,
   workspaceSettingsGet,
+  yearEndPackageApprove,
   yearEndPackageFindByFiscalYear,
   yearEndReadinessGet,
 } = vi.hoisted(() => ({
   taxProfileGetCurrent: vi.fn(),
   workspaceSettingsGet: vi.fn(),
+  yearEndPackageApprove: vi.fn(),
   yearEndPackageFindByFiscalYear: vi.fn(),
   yearEndReadinessGet: vi.fn(),
 }))
@@ -60,7 +62,7 @@ vi.mock("../lib/commands", () => ({
   appErrorMessage: (_error: unknown, fallback: string) => fallback,
   taxProfileGetCurrent,
   workspaceSettingsGet,
-  yearEndPackageApprove: vi.fn(),
+  yearEndPackageApprove,
   yearEndPackageCreate: vi.fn(),
   yearEndPackageExport: vi.fn(),
   yearEndPackageFindByFiscalYear,
@@ -102,16 +104,25 @@ describe("YearEndPage", () => {
     })
   })
 
-  it("enables approve when package is draft and readiness passes", async () => {
+  it("reviews approval without using a browser confirm prompt", async () => {
     yearEndReadinessGet.mockResolvedValue({
       readyToApprove: true,
       items: [{ code: "vat_periods_filed", satisfied: true, detail: null }],
     })
+    yearEndPackageApprove.mockResolvedValue({ ...draftPackage, status: "approved" })
 
     renderYearEnd()
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Godkänn och lås år" })).toBeEnabled()
     })
+    fireEvent.click(screen.getByRole("button", { name: "Godkänn och lås år" }))
+
+    expect(yearEndPackageApprove).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }))
+    expect(yearEndPackageApprove).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Godkänn och lås år" }))
+    fireEvent.click(screen.getByRole("button", { name: "Godkänn och lås räkenskapsår" }))
+    await waitFor(() => expect(yearEndPackageApprove).toHaveBeenCalledTimes(1))
   })
 })

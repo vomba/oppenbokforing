@@ -3,13 +3,14 @@ import { dashboardTourSteps } from "./dashboardTour"
 import { helpTopics } from "./helpTopics"
 
 describe("dashboardTourSteps", () => {
-  it("defines five first-run tour stops", () => {
+  it("retains the five established stops and appends tax tasks", () => {
     expect(dashboardTourSteps.map((step) => step.id)).toEqual([
       "checklist",
       "sidebar",
       "spendable-cash",
       "backup",
       "rules",
+      "tax-tasks",
     ])
   })
 })

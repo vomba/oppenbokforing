@@ -197,6 +197,8 @@ export function OnboardingPage() {
       reportingPeriod: draft.reportingPeriod,
       accountingMethod: draft.accountingMethod,
       voluntaryRegistrationDate: null,
+      vatFilingDeadlineRegime:
+        draft.vatStatus === "exempt_low_turnover" ? null : draft.vatFilingDeadlineRegime,
     })
   }, [workspace, draft, activeRuleYear])
 
@@ -478,6 +480,27 @@ export function OnboardingPage() {
                 <option value="yearly">{t(locale, "onboarding.vat.yearly")}</option>
               </select>
             </label>
+            {draft.vatStatus === "registered" ? (
+              <label>
+                {t(locale, "onboarding.vat.deadlineRegime")}
+                <HelpTip label={t(locale, "onboarding.vat.deadlineRegime")}>
+                  {t(locale, "onboarding.vat.deadlineRegimeHelp")}
+                </HelpTip>
+                <select
+                  value={draft.vatFilingDeadlineRegime ?? ""}
+                  onChange={(event) =>
+                    updateDraft("vatFilingDeadlineRegime", event.target.value || null)
+                  }
+                >
+                  <option value="">{t(locale, "onboarding.vat.deadline.none")}</option>
+                  <option value="annual_may_12">{t(locale, "onboarding.vat.deadline.annualMay")}</option>
+                  <option value="annual_feb_26">{t(locale, "onboarding.vat.deadline.annualFebruary")}</option>
+                  <option value="quarterly_12">{t(locale, "onboarding.vat.deadline.quarterly")}</option>
+                  <option value="monthly_12">{t(locale, "onboarding.vat.deadline.monthly12")}</option>
+                  <option value="monthly_26">{t(locale, "onboarding.vat.deadline.monthly26")}</option>
+                </select>
+              </label>
+            ) : null}
             <label>
               {t(locale, "onboarding.vat.method")}
               <select

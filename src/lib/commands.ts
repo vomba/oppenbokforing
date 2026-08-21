@@ -38,11 +38,15 @@ import type {
   TaxProfileSaveInput,
   VatProfile,
   VatProfileSaveInput,
+  TaxTask,
+  TaxTaskListInput,
   VatReturnApproveInput,
   VatReturnDraftCreateInput,
   VatReturnExportInput,
   VatReturnGetInput,
   VatReturnSummary,
+  VatReturnTrace,
+  VatReturnTraceInput,
   VatThresholdStatus,
   VoucherCountInput,
   VoucherDetail,
@@ -354,6 +358,16 @@ export async function vatReturnApprove(input: VatReturnApproveInput) {
 
 export async function vatReturnExport(input: VatReturnExportInput) {
   const response = await invoke<CommandResponse<VatReturnSummary>>("vat_return_export", { input })
+  return response.data
+}
+
+export async function vatReturnTrace(input: VatReturnTraceInput) {
+  const response = await invoke<CommandResponse<VatReturnTrace>>("vat_return_trace", { input })
+  return response.data
+}
+
+export async function taxTasksList(input: TaxTaskListInput) {
+  const response = await invoke<CommandResponse<TaxTask[]>>("tax_tasks_list", { input })
   return response.data
 }
 

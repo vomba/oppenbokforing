@@ -51,6 +51,7 @@ pub struct VatProfile {
     pub reporting_period: String,
     pub accounting_method: String,
     pub voluntary_registration_date: Option<String>,
+    pub vat_filing_deadline_regime: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -60,6 +61,7 @@ pub struct VatProfileSaveInput {
     pub reporting_period: String,
     pub accounting_method: String,
     pub voluntary_registration_date: Option<String>,
+    pub vat_filing_deadline_regime: Option<String>,
 }
 
 pub async fn get_business_profile(
@@ -296,6 +298,32 @@ pub async fn save_vat_profile(
         return Err(AppError::validation("Invalid accounting method", "accountingMethod"));
     }
 
+    let vat_filing_deadline_regime = input
+        .vat_filing_deadline_regime
+        .as_deref()
+        .map(str::trim)
+        .filter(|regime| !regime.is_empty());
+    let registered_for_vat = matches!(vat_status, "registered" | "voluntary_registered");
+    if !registered_for_vat && vat_filing_deadline_regime.is_some() {
+        return Err(AppError::validation(
+            "VAT-exempt profiles cannot have a filing deadline regime",
+            "vatFilingDeadlineRegime",
+        ));
+    }
+    if registered_for_vat
+        && !matches!(
+            (reporting_period, vat_filing_deadline_regime),
+            ("yearly", Some("annual_may_12" | "annual_feb_26"))
+                | ("quarterly", Some("quarterly_12"))
+                | ("monthly", Some("monthly_12" | "monthly_26"))
+        )
+    {
+        return Err(AppError::validation(
+            "VAT filing deadline regime is required and must match the reporting period",
+            "vatFilingDeadlineRegime",
+        ));
+    }
+
     let existing = sqlx::query(
         r#"
         SELECT id FROM vat_profiles WHERE workspace_id = ?1 LIMIT 1
@@ -318,14 +346,16 @@ pub async fn save_vat_profile(
                 reporting_period = ?2,
                 accounting_method = ?3,
                 voluntary_registration_date = ?4,
+                vat_filing_deadline_regime = ?5,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE workspace_id = ?5
+            WHERE workspace_id = ?6
             "#,
         )
         .bind(vat_status)
         .bind(reporting_period)
         .bind(accounting_method)
         .bind(input.voluntary_registration_date.as_deref())
+        .bind(vat_filing_deadline_regime)
         .bind(workspace_id)
         .execute(pool)
         .await?;
@@ -334,8 +364,8 @@ pub async fn save_vat_profile(
             r#"
             INSERT INTO vat_profiles (
               id, workspace_id, vat_status, reporting_period, accounting_method,
-              voluntary_registration_date
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+              voluntary_registration_date, vat_filing_deadline_regime
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             "#,
         )
         .bind(&profile_id)
@@ -344,6 +374,7 @@ pub async fn save_vat_profile(
         .bind(reporting_period)
         .bind(accounting_method)
         .bind(input.voluntary_registration_date.as_deref())
+        .bind(vat_filing_deadline_regime)
         .execute(pool)
         .await?;
     }
@@ -354,6 +385,7 @@ pub async fn save_vat_profile(
         reporting_period: reporting_period.to_string(),
         accounting_method: accounting_method.to_string(),
         voluntary_registration_date: input.voluntary_registration_date.clone(),
+        vat_filing_deadline_regime: vat_filing_deadline_regime.map(str::to_string),
     };
 
     record_event(
@@ -401,7 +433,8 @@ pub async fn get_vat_profile(
 ) -> Result<Option<VatProfile>, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT id, vat_status, reporting_period, accounting_method, voluntary_registration_date
+        SELECT id, vat_status, reporting_period, accounting_method, voluntary_registration_date,
+               vat_filing_deadline_regime
         FROM vat_profiles
         WHERE workspace_id = ?1
         LIMIT 1
@@ -417,5 +450,6 @@ pub async fn get_vat_profile(
         reporting_period: row.get("reporting_period"),
         accounting_method: row.get("accounting_method"),
         voluntary_registration_date: row.get("voluntary_registration_date"),
+        vat_filing_deadline_regime: row.get("vat_filing_deadline_regime"),
     }))
 }

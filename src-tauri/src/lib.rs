@@ -26,6 +26,7 @@ pub mod settings;
 pub mod sie;
 pub mod state;
 pub mod vat;
+pub mod tax_tasks;
 pub mod workspace;
 pub mod year_end;
 
@@ -40,8 +41,8 @@ use commands::{
     workspace_create, workspace_open,
     csv_import_create, document_import, document_reveal, expense_post, invoice_payment_record,
     reconciliation_match_create,
-    vat_return_draft_create, vat_return_get, vat_return_approve, vat_return_export,
-    vat_threshold_status_get, cashflow_overview_get,
+    vat_return_draft_create, vat_return_get, vat_return_trace, vat_return_approve, vat_return_export,
+    tax_tasks_list, vat_threshold_status_get, cashflow_overview_get,
     year_end_package_create, year_end_package_get, year_end_package_find_by_fiscal_year,
     year_end_package_approve,
     year_end_readiness_get,
@@ -99,6 +100,8 @@ pub fn run() {
             vat_return_draft_create,
             vat_return_get,
             vat_return_approve,
+            vat_return_trace,
+            tax_tasks_list,
             vat_return_export,
             vat_threshold_status_get,
             cashflow_overview_get,

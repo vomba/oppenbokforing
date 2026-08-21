@@ -1,0 +1,52 @@
+{
+  "id": "tax-task-calendar",
+  "title": "Rule-versioned tax task calendar for ordinary sole-trader VAT and year-end work",
+  "milestone": 8,
+  "rfcSection": "M8 guided UX",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "vatReportingPeriod": "quarterly",
+    "vatFilingDeadlineRegime": "quarterly_12",
+    "accountingRegime": "k1_simplified_annual_accounts",
+    "ruleYear": 2026
+  },
+  "transactions": [],
+  "expected": {
+    "asOfDate": "2026-05-01",
+    "registeredQuarterlyOpenPeriod": {
+      "kind": "vat_return",
+      "status": "upcoming",
+      "target": "vat",
+      "periodKey": "2026-Q1",
+      "dueOn": "2026-05-12"
+    },
+    "approvedAwaitingExternalSubmission": {
+      "kind": "vat_return",
+      "status": "prepared_external_submission_required",
+      "target": "vat",
+      "periodKey": "2026-Q1",
+      "dueOn": "2026-05-12"
+    },
+    "exemptWorkspaceHasNoVatTask": true,
+    "missingDeadlineRegime": {
+      "kind": "profile_review",
+      "status": "date_unavailable",
+      "dueOn": null
+    },
+    "yearEnd": {
+      "kind": "year_end",
+      "target": "year_end",
+      "periodKey": "2025",
+      "openStatus": "action_required",
+      "blockedStatus": "action_required",
+      "dueOn": "2026-05-04"
+    },
+    "metadata": ["ruleVersionId", "taxYear", "sourceUrl"],
+    "ordering": ["dated_actionable", "prepared_external_submission_required", "date_unavailable"]
+  },
+  "sources": [
+    "https://www.skatteverket.se/foretag/moms/deklareramoms/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html",
+    "https://www.skatteverket.se/privat/deklaration/datumfordeklarationen2026.4.1997e70d1848dabbac95d72.html"
+  ]
+}

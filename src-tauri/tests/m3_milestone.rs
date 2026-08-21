@@ -367,12 +367,10 @@ async fn m3_csv_import_match_invoice_payment_fixture() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "registered".to_string(),
-            reporting_period: "quarterly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "registered".to_string(),
+        reporting_period: "quarterly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("quarterly_12".to_string()) },
     )
     .await
     .expect("vat");
@@ -617,12 +615,10 @@ async fn m3_reconciliation_rejects_mismatched_or_duplicate_payments() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "registered".to_string(),
-            reporting_period: "quarterly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "registered".to_string(),
+        reporting_period: "quarterly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("quarterly_12".to_string()) },
     )
     .await
     .expect("vat");

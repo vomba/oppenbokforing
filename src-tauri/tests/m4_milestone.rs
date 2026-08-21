@@ -60,12 +60,10 @@ async fn setup_workspace(dir: &tempfile::TempDir) -> (sqlx::SqlitePool, String, 
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "registered".to_string(),
-            reporting_period: "quarterly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "registered".to_string(),
+        reporting_period: "quarterly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("quarterly_12".to_string()) },
     )
     .await
     .expect("vat profile");
@@ -120,12 +118,10 @@ async fn m4_no_activity_zero_vat_return_fixture() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "registered".to_string(),
-            reporting_period: "yearly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "registered".to_string(),
+        reporting_period: "yearly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
     )
     .await
     .expect("yearly vat");
@@ -345,12 +341,10 @@ async fn m4_cashflow_overview_exempt_profile() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "exempt_low_turnover".to_string(),
-            reporting_period: "quarterly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "exempt_low_turnover".to_string(),
+        reporting_period: "quarterly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: None },
     )
     .await
     .expect("exempt vat profile");
@@ -381,12 +375,10 @@ async fn m4_cashflow_tax_reserve_from_ledger_profit() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "exempt_low_turnover".to_string(),
-            reporting_period: "quarterly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "exempt_low_turnover".to_string(),
+        reporting_period: "quarterly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: None },
     )
     .await
     .expect("exempt vat profile");
@@ -584,12 +576,10 @@ async fn m4_vat_threshold_monitoring() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "exempt_low_turnover".to_string(),
-            reporting_period: "yearly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "exempt_low_turnover".to_string(),
+        reporting_period: "yearly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: None },
     )
     .await
     .expect("exempt vat");
@@ -813,12 +803,10 @@ async fn m4_vat_draft_rejects_mismatched_reporting_period() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "registered".to_string(),
-            reporting_period: "yearly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "registered".to_string(),
+        reporting_period: "yearly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
     )
     .await
     .expect("yearly vat");
@@ -845,12 +833,10 @@ async fn m4_vat_draft_rejects_exempt_profile() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "exempt_low_turnover".to_string(),
-            reporting_period: "quarterly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "exempt_low_turnover".to_string(),
+        reporting_period: "quarterly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: None },
     )
     .await
     .expect("exempt vat");
@@ -889,12 +875,10 @@ async fn m4_vat_approve_idempotency_rejects_different_return() {
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
-        &VatProfileSaveInput {
-            vat_status: "registered".to_string(),
-            reporting_period: "yearly".to_string(),
-            accounting_method: "invoice_method".to_string(),
-            voluntary_registration_date: None,
-        },
+        &VatProfileSaveInput { vat_status: "registered".to_string(),
+        reporting_period: "yearly".to_string(),
+        accounting_method: "invoice_method".to_string(),
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
     )
     .await
     .expect("yearly");

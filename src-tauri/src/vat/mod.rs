@@ -87,6 +87,29 @@ pub struct VatReturnExportInput {
     pub export_directory: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct VatReturnTraceInput {
+    pub vat_return_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct VatReturnBoxTrace {
+    pub box_number: String,
+    pub amount_minor: i64,
+    pub voucher_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct VatReturnTrace {
+    pub rule_version_id: String,
+    pub tax_year: i32,
+    pub source_url: String,
+    pub boxes: Vec<VatReturnBoxTrace>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VatThresholdStatus {
@@ -946,6 +969,121 @@ pub async fn vat_return_get(
     input: &VatReturnGetInput,
 ) -> Result<VatReturnSummary, AppError> {
     load_vat_return_summary(pool, workspace_id, &input.vat_return_id).await
+}
+
+pub async fn vat_return_trace(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    input: &VatReturnTraceInput,
+) -> Result<VatReturnTrace, AppError> {
+    let return_row = sqlx::query(
+        r#"
+        SELECT vr.rule_version_id, rv.tax_year, rv.source_url, fp.starts_on, fp.ends_on
+        FROM vat_returns vr
+        JOIN fiscal_periods fp ON fp.id = vr.fiscal_period_id
+        JOIN rule_versions rv ON rv.id = vr.rule_version_id
+        WHERE vr.id = ?1 AND vr.workspace_id = ?2
+        LIMIT 1
+        "#,
+    )
+    .bind(&input.vat_return_id)
+    .bind(workspace_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::validation("VAT return not found", "vatReturnId"))?;
+
+    let rule_version_id: String = return_row.get("rule_version_id");
+    let tax_year: i32 = return_row.get("tax_year");
+    let source_url: String = return_row.get("source_url");
+    let starts_on: String = return_row.get("starts_on");
+    let ends_on: String = return_row.get("ends_on");
+
+
+    let rows = sqlx::query(
+        r#"
+        SELECT v.id AS voucher_id,
+               a.number AS account_number,
+               jl.debit_minor,
+               jl.credit_minor,
+               jl.vat_code
+        FROM journal_lines jl
+        JOIN vouchers v ON v.id = jl.voucher_id
+        JOIN accounts a ON a.id = jl.account_id
+        WHERE v.workspace_id = ?1
+          AND v.status = 'posted'
+          AND date(COALESCE(v.accounting_date, v.posted_at)) >= date(?2)
+          AND date(COALESCE(v.accounting_date, v.posted_at)) <= date(?3)
+        ORDER BY v.id ASC, a.number ASC, jl.id ASC
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(&starts_on)
+    .bind(&ends_on)
+    .fetch_all(pool)
+    .await?;
+
+    let mut voucher_lines: std::collections::BTreeMap<String, Vec<LedgerLineRow>> =
+        std::collections::BTreeMap::new();
+    for row in rows {
+        let voucher_id: String = row.get("voucher_id");
+        voucher_lines
+            .entry(voucher_id.clone())
+            .or_default()
+            .push(LedgerLineRow {
+                voucher_id,
+                account_number: row.get("account_number"),
+                debit_minor: row.get("debit_minor"),
+                credit_minor: row.get("credit_minor"),
+                vat_code: row.get("vat_code"),
+            });
+    }
+
+    let voucher_box_amounts: Vec<(String, std::collections::BTreeMap<String, i64>)> =
+        voucher_lines
+            .into_iter()
+            .map(|(voucher_id, lines)| {
+                let amounts = compute_vat_boxes_from_ledger_lines(
+                    workspace_id,
+                    &starts_on,
+                    &ends_on,
+                    &lines,
+                )
+                .into_iter()
+                .map(|vat_box| (vat_box.box_code, vat_box.amount_minor))
+                .collect();
+                (voucher_id, amounts)
+            })
+            .collect();
+    let mut box_amounts = std::collections::BTreeMap::new();
+    for (_, amounts) in &voucher_box_amounts {
+        for (box_number, amount_minor) in amounts {
+            *box_amounts.entry(box_number.clone()).or_insert(0_i64) += amount_minor;
+        }
+    }
+    let boxes = box_amounts
+        .into_iter()
+        .map(|(box_number, amount_minor)| {
+            let voucher_ids = voucher_box_amounts
+                .iter()
+                .filter_map(|(voucher_id, amounts)| {
+                    (amounts.get(&box_number).copied().unwrap_or_default() != 0)
+                        .then(|| voucher_id.clone())
+                })
+                .collect();
+            VatReturnBoxTrace {
+                box_number,
+                amount_minor,
+                voucher_ids,
+            }
+        })
+        .collect();
+
+    Ok(VatReturnTrace {
+        rule_version_id,
+        tax_year,
+        source_url,
+        boxes,
+    })
 }
 
 fn validate_approve_idempotency_match(

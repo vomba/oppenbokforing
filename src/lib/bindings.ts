@@ -76,9 +76,13 @@ export type IntegrationStatusResponse = { openBanking: IntegrationStatus; bankid
 
 export type InvoiceCreateDraftInput = { counterpartyId: string; dueDate: string | null; lines: InvoiceLineInput[] }
 
-export type InvoiceCreditInput = { sourceInvoiceId: string; idempotencyKey: string; reason: string | null }
+export type InvoiceCreditInput = { sourceInvoiceId: string; idempotencyKey: string; reason: string | null; issueDate: string | null }
 
 export type InvoiceIssueInput = { invoiceId: string; idempotencyKey: string; issueDate: string | null }
+
+export type InvoiceIssuePreflight = { invoiceId: string; issueDate: string; currentTurnoverMinor: number; projectedTurnoverMinor: number; thresholdMinor: number | null; requiresVatTreatmentReview: boolean; nextAction: string | null; ruleVersionId: string | null; taxYear: number; sourceUrl: string | null }
+
+export type InvoiceIssuePreflightInput = { invoiceId: string; issueDate: string | null }
 
 export type InvoiceLine = { id: string; lineOrder: number; description: string; quantity: number; unitPriceMinor: number; vatRateBp: number; accountNumber: string; lineExVatMinor: number; lineVatMinor: number }
 
@@ -98,7 +102,15 @@ export type JournalLineRow = { accountNumber: string; accountName: string; debit
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 
+export type LegacyIssuedInvoiceSnapshotRecoveryInput = { invoiceId: string; documentId: string; businessName: string; ownerName: string; taxStatus: string; vatStatus: string; ruleVersionId: string; attestation: string }
+
+export type LegacyIssuedInvoiceSnapshotRecoveryStatus = { invoiceId: string; recoveryRequired: boolean; preservedPdfDocumentId: string | null }
+
 export type NeFieldSummary = { fieldCode: string; amountMinor: number; sourceType: string; sourceRef: string | null }
+
+export type OnboardingProfileSaveInput = { business: BusinessProfileSaveInput; tax: TaxProfileSaveInput; vat: VatProfileSaveInput }
+
+export type OnboardingProfileSaveResult = { business: BusinessProfile; tax: TaxProfile; vat: VatProfile; compliance: ComplianceProfileCheckResult }
 
 export type RecentWorkspaceEntry = { id: string; name: string; databasePath: string; lastOpenedAt: string }
 
@@ -177,6 +189,8 @@ export type YearEndPackageExportInput = { packageId: string; idempotencyKey: str
 export type YearEndPackageFindInput = { fiscalYear: number }
 
 export type YearEndPackageGetInput = { packageId: string }
+
+export type YearEndPackageRegenerateInput = { packageId: string; idempotencyKey: string }
 
 export type YearEndPackageSummary = { id: string; fiscalYearId: string; fiscalYear: number; status: string; ruleVersionId: string; k1Allowed: boolean; neDraftPresent: boolean; storedLocally: boolean; exportPath: string | null; fiscalYearLocked: boolean; neFields: NeFieldSummary[] }
 

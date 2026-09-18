@@ -1,4 +1,5 @@
 import type { MessageKey } from "../i18n"
+import type { ComplianceProfileCheckResult } from "./bindings"
 
 type Outcomes = Record<string, unknown>
 
@@ -28,7 +29,7 @@ export function isCompliancePassing(scenarioId: string, outcomes: Outcomes): boo
 }
 
 export function profileComplianceFailureMessages(
-  result: { scenarioIds: string[]; outcomes: Record<string, unknown> },
+  result: Pick<ComplianceProfileCheckResult, "scenarioIds" | "outcomes">,
 ): MessageKey[] {
   const messages: MessageKey[] = []
   const outcomesByScenario = result.outcomes as Record<string, Record<string, unknown>>

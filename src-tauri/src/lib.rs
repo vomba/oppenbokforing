@@ -33,9 +33,11 @@ pub mod year_end;
 #[cfg(feature = "desktop")]
 use commands::{
     business_profile_get_current, business_profile_save_current, compliance_check_run,
-    compliance_profile_check,
+    compliance_profile_check, onboarding_profiles_save,
     counterparty_create, counterparty_list, invoice_create_draft, invoice_credit, invoice_issue,
-    invoice_list, invoice_open_count, invoice_pdf_refresh, invoice_pdf_status, invoice_update_draft, recent_workspaces_list,
+    invoice_issue_preflight, invoice_legacy_snapshot_recover,
+    invoice_legacy_snapshot_recovery_status, invoice_list, invoice_open_count, invoice_pdf_refresh,
+    invoice_pdf_status, invoice_update_draft, recent_workspaces_list,
     rule_version_get, tax_profile_get_current, tax_profile_save_current, vat_profile_get_current,
     vat_profile_save_current, workspace_backup_create, workspace_backup_restore, workspace_close,
     workspace_create, workspace_open,
@@ -43,9 +45,8 @@ use commands::{
     reconciliation_match_create,
     vat_return_draft_create, vat_return_get, vat_return_trace, vat_return_approve, vat_return_export,
     tax_tasks_list, vat_threshold_status_get, cashflow_overview_get,
-    year_end_package_create, year_end_package_get, year_end_package_find_by_fiscal_year,
-    year_end_package_approve,
-    year_end_readiness_get,
+    year_end_package_create, year_end_package_regenerate, year_end_package_get,
+    year_end_package_find_by_fiscal_year, year_end_package_approve, year_end_readiness_get,
     year_end_package_export,
     workspace_settings_get, workspace_settings_save, dashboard_tour_mark_complete,
     sie_export_create,
@@ -56,12 +57,23 @@ use commands::{
 };
 #[cfg(feature = "desktop")]
 use state::AppState;
+#[cfg(feature = "desktop")]
+use tauri::Manager;
 
 #[cfg(feature = "desktop")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     crate::documents::purge_stale_reveal_staging();
     tauri::Builder::default()
+        .setup(|app| {
+            if let Ok(app_data_dir) = app.path().app_data_dir() {
+                tauri::async_runtime::spawn(async move {
+                    let _ = crate::backup::cleanup_stale_backup_staging_at_startup(&app_data_dir)
+                        .await;
+                });
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::default())
@@ -78,6 +90,7 @@ pub fn run() {
             tax_profile_save_current,
             vat_profile_get_current,
             vat_profile_save_current,
+            onboarding_profiles_save,
             compliance_check_run,
             compliance_profile_check,
             rule_version_get,
@@ -87,10 +100,13 @@ pub fn run() {
             invoice_create_draft,
             invoice_update_draft,
             invoice_issue,
+            invoice_issue_preflight,
             invoice_credit,
             invoice_open_count,
             invoice_pdf_refresh,
             invoice_pdf_status,
+            invoice_legacy_snapshot_recovery_status,
+            invoice_legacy_snapshot_recover,
             document_import,
             document_reveal,
             expense_post,
@@ -106,6 +122,7 @@ pub fn run() {
             vat_threshold_status_get,
             cashflow_overview_get,
             year_end_package_create,
+            year_end_package_regenerate,
             year_end_package_get,
             year_end_package_find_by_fiscal_year,
             year_end_package_approve,

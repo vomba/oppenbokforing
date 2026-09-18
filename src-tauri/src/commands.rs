@@ -1,4 +1,6 @@
 use sqlx::Row;
+use std::time::Duration;
+
 #[cfg(feature = "desktop")]
 use tauri::{AppHandle, Manager, State};
 
@@ -20,14 +22,15 @@ use crate::{
     },
     counterparties::{self, Counterparty, CounterpartyCreateInput},
     db::{connect_workspace, open_existing_workspace},
-    documents::{Document, DocumentGetInput, DocumentImportInput, DocumentListInput},
-    error::{AppError, redacted_storage_from},
+    error::{AppError, redacted_internal_from, redacted_storage_from},
     expenses::{ExpensePostInput, ExpensePostResult},
     imports::{self, CsvImportCreateInput, CsvImportSummary, StagedTransactionsListInput, StagedTransactionSummary},
     integrations::{self, IntegrationStatusResponse},
     invoicing::{
-        self, InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceListInput,
-        InvoicePdfStatusInput, InvoiceSummary, InvoiceUpdateDraftInput,
+        self, InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput,
+        InvoiceIssuePreflight, InvoiceIssuePreflightInput, InvoiceListInput, InvoicePdfStatusInput,
+        InvoiceSummary, InvoiceUpdateDraftInput, LegacyIssuedInvoiceSnapshotRecoveryInput,
+        LegacyIssuedInvoiceSnapshotRecoveryStatus,
     },
     ledger::{
         self, AccountSummary, VoucherCountInput, VoucherDetail, VoucherGetInput, VoucherListInput,
@@ -45,8 +48,8 @@ use crate::{
     },
     year_end::{
         self, YearEndPackageApproveInput, YearEndPackageCreateInput, YearEndPackageExportInput,
-        YearEndPackageFindInput, YearEndPackageGetInput, YearEndPackageSummary,
-        YearEndReadiness, YearEndReadinessInput,
+        YearEndPackageFindInput, YearEndPackageGetInput, YearEndPackageRegenerateInput,
+        YearEndPackageSummary, YearEndReadiness, YearEndReadinessInput,
     },
     profiles::{
         self, BusinessProfile, BusinessProfileSaveInput, TaxProfile, TaxProfileSaveInput,
@@ -59,6 +62,10 @@ use crate::{
 };
 
 type CommandResult<T> = Result<CommandResponse<T>, AppError>;
+
+const BACKUP_CREATE_JOB_TYPE: &str = "workspace_backup_create";
+const BACKUP_CREATE_LEASE_RENEW_INTERVAL: Duration = Duration::from_secs(60);
+
 
 fn spawn_best_effort_invoice_pdf_jobs(pool: sqlx::SqlitePool, workspace_id: String) {
     tauri::async_runtime::spawn(async move {
@@ -82,6 +89,58 @@ fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
     app.path()
         .app_data_dir()
         .map_err(redacted_storage_from)
+}
+
+async fn stage_backup_package_with_lease(
+    workspace: &WorkspaceContext,
+    input: &BackupCreateInput,
+    backup_file: &std::path::Path,
+    lease: &backup::BackupCreateLease,
+) -> Result<backup::StagedBackupPackage, AppError> {
+    let (stop_renewal, mut renewal_stopped) = tokio::sync::oneshot::channel();
+    let renewal_pool = workspace.pool.clone();
+    let renewal_workspace_id = workspace.id.clone();
+    let renewal_idempotency_key = input.idempotency_key.clone();
+    let renewal_lease = lease.clone();
+    let renewal = tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = &mut renewal_stopped => return Ok(()),
+                _ = tokio::time::sleep(BACKUP_CREATE_LEASE_RENEW_INTERVAL) => {
+                    backup::renew_backup_create_lease(
+                        &renewal_pool,
+                        &renewal_workspace_id,
+                        &renewal_idempotency_key,
+                        BACKUP_CREATE_JOB_TYPE,
+                        &renewal_lease,
+                    )
+                    .await?;
+                }
+            }
+        }
+    });
+    let package_result = backup::stage_backup_package_with_claim(
+        &workspace.pool,
+        &workspace.id,
+        &input.idempotency_key,
+        BACKUP_CREATE_JOB_TYPE,
+        &workspace.data_dir,
+        &workspace.database_path,
+        backup_file,
+        &input.passphrase,
+        lease,
+    )
+    .await;
+    let _ = stop_renewal.send(());
+    let renewal_result = renewal.await.map_err(redacted_internal_from);
+
+    match package_result {
+        Err(error) => Err(error),
+        Ok(staged) => {
+            renewal_result??;
+            Ok(staged)
+        }
+    }
 }
 
 #[tauri::command]
@@ -199,6 +258,8 @@ pub async fn workspace_open(
         .map(std::path::Path::to_path_buf)
         .ok_or_else(|| AppError::storage("Invalid workspace documents path"))?;
 
+    backup::cleanup_stale_backup_staging_for_workspace(&pool).await?;
+
     record_event(
         &pool,
         &workspace_id,
@@ -263,11 +324,11 @@ pub async fn workspace_backup_create(
     input: BackupCreateInput,
 ) -> CommandResult<BackupSummary> {
     let workspace = require_workspace(&state).await?;
-    match backup::claim_backup_create(
+    let lease = match backup::claim_backup_create(
         &workspace.pool,
         &workspace.id,
         &input.idempotency_key,
-        "workspace_backup_create",
+        BACKUP_CREATE_JOB_TYPE,
     )
     .await?
     {
@@ -282,43 +343,116 @@ pub async fn workspace_backup_create(
             }
             return Ok(CommandResponse { data: summary });
         }
-        backup::BackupCreateClaim::Proceed => {}
-    }
-
-    let destination = if input.backup_file_path.is_some() {
-        workspace.data_dir.join("exports")
-    } else if let Some(path) = input.destination_path.as_deref() {
-        crate::paths::validate_user_directory(path, "destinationPath")?
-    } else if let Some(path) =
-        crate::paths::resolve_backup_destination(&workspace.pool, &workspace.id, None).await?
-    {
-        path
-    } else {
-        workspace.data_dir.join("exports")
+        backup::BackupCreateClaim::Proceed(lease) => lease,
     };
 
-    let summary = backup::create_backup_package(
-        &workspace.pool,
-        &workspace.id,
-        &workspace.data_dir,
-        &workspace.database_path,
-        &destination,
-        &input.passphrase,
-        input.backup_file_path.as_deref(),
-    )
-    .await?;
+    let result = async {
+        backup::renew_backup_create_lease(
+            &workspace.pool,
+            &workspace.id,
+            &input.idempotency_key,
+            BACKUP_CREATE_JOB_TYPE,
+            &lease,
+        )
+        .await?;
+        if let Some(summary) = backup::recover_backup_create(
+            &workspace.pool,
+            &workspace.id,
+            &input.idempotency_key,
+            BACKUP_CREATE_JOB_TYPE,
+            &lease,
+            &input.passphrase,
+        )
+        .await?
+        {
+            backup::finalize_backup_create(
+                &workspace.pool,
+                &workspace.id,
+                &input.idempotency_key,
+                BACKUP_CREATE_JOB_TYPE,
+                &lease,
+                &summary,
+            )
+            .await?;
+            return Ok(summary);
+        }
+        let default_destination = || {
+            workspace
+                .data_dir
+                .parent()
+                .map(|parent| parent.join("backups"))
+                .ok_or_else(|| AppError::storage("Workspace data directory has no parent"))
+        };
+        let destination = if input.backup_file_path.is_some() {
+            default_destination()?
+        } else if let Some(path) = input.destination_path.as_deref() {
+            crate::paths::validate_user_directory(path, "destinationPath")?
+        } else if let Some(path) =
+            crate::paths::resolve_backup_destination(&workspace.pool, &workspace.id, None).await?
+        {
+            path
+        } else {
+            default_destination()?
+        };
+        let backup_file =
+            backup::resolve_backup_file_path(&destination, input.backup_file_path.as_deref())?;
+        let staged = stage_backup_package_with_lease(&workspace, &input, &backup_file, &lease).await?;
+        if let Err(error) = backup::record_backup_staging(
+            &workspace.pool,
+            &workspace.id,
+            &input.idempotency_key,
+            BACKUP_CREATE_JOB_TYPE,
+            &lease,
+            &staged,
+        )
+        .await
+        {
+            let _ = backup::discard_staged_backup(&staged, &lease);
+            return Err(error);
+        }
+        if let Err(error) = backup::publish_staged_backup(
+            &workspace.pool,
+            &workspace.id,
+            &input.idempotency_key,
+            BACKUP_CREATE_JOB_TYPE,
+            &lease,
+            &staged,
+        )
+        .await
+        {
+            let _ = backup::discard_staged_backup(&staged, &lease);
+            return Err(error);
+        }
+        backup::finalize_backup_create(
+            &workspace.pool,
+            &workspace.id,
+            &input.idempotency_key,
+            BACKUP_CREATE_JOB_TYPE,
+            &lease,
+            &staged.summary,
+        )
+        .await?;
+        Ok(staged.summary)
+    }
+    .await;
 
-    backup::finalize_backup_create(
-        &workspace.pool,
-        &workspace.id,
-        &input.idempotency_key,
-        "workspace_backup_create",
-        &summary,
-    )
-    .await?;
-
-    let _ = app;
-    Ok(CommandResponse { data: summary })
+    match result {
+        Ok(summary) => {
+            let _ = app;
+            Ok(CommandResponse { data: summary })
+        }
+        Err(error) => {
+            let _ = backup::fail_backup_create_claim(
+                &workspace.pool,
+                &workspace.id,
+                &input.idempotency_key,
+                BACKUP_CREATE_JOB_TYPE,
+                &lease,
+            )
+            .await;
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
@@ -390,6 +524,19 @@ pub async fn vat_profile_save_current(
     let workspace = require_workspace(&state).await?;
     let profile = profiles::save_vat_profile(&workspace.pool, &workspace.id, &input).await?;
     Ok(CommandResponse { data: profile })
+}
+
+#[tauri::command]
+pub async fn onboarding_profiles_save(
+    state: State<'_, AppState>,
+    input: profiles::OnboardingProfileSaveInput,
+) -> CommandResult<profiles::OnboardingProfileSaveResult> {
+    let workspace = require_workspace(&state).await?;
+    let saved_profiles =
+        profiles::save_onboarding_profiles(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse {
+        data: saved_profiles,
+    })
 }
 
 #[tauri::command]
@@ -516,6 +663,17 @@ pub async fn invoice_update_draft(
 }
 
 #[tauri::command]
+pub async fn invoice_issue_preflight(
+    state: State<'_, AppState>,
+    input: InvoiceIssuePreflightInput,
+) -> CommandResult<InvoiceIssuePreflight> {
+    let workspace = require_workspace(&state).await?;
+    let preflight =
+        invoicing::invoice_issue_preflight(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data: preflight })
+}
+
+#[tauri::command]
 pub async fn invoice_issue(
     state: State<'_, AppState>,
     input: InvoiceIssueInput,
@@ -570,6 +728,32 @@ pub async fn invoice_pdf_status(
     let status =
         crate::jobs::invoice_pdf_status(&workspace.pool, &workspace.id, &invoice).await?;
     Ok(CommandResponse { data: status })
+}
+
+#[tauri::command]
+pub async fn invoice_legacy_snapshot_recovery_status(
+    state: State<'_, AppState>,
+    input: InvoicePdfStatusInput,
+) -> CommandResult<LegacyIssuedInvoiceSnapshotRecoveryStatus> {
+    let workspace = require_workspace(&state).await?;
+    let status = invoicing::legacy_issued_invoice_snapshot_recovery_status(
+        &workspace.pool,
+        &workspace.id,
+        &input.invoice_id,
+    )
+    .await?;
+    Ok(CommandResponse { data: status })
+}
+
+#[tauri::command]
+pub async fn invoice_legacy_snapshot_recover(
+    state: State<'_, AppState>,
+    input: LegacyIssuedInvoiceSnapshotRecoveryInput,
+) -> CommandResult<bool> {
+    let workspace = require_workspace(&state).await?;
+    invoicing::recover_legacy_issued_invoice_snapshot(&workspace.pool, &workspace.id, &input)
+        .await?;
+    Ok(CommandResponse { data: true })
 }
 
 #[tauri::command]
@@ -731,6 +915,18 @@ pub async fn year_end_package_create(
     let workspace = require_workspace(&state).await?;
     crate::workspace::ensure_workspace_ready(&workspace.pool, &workspace.id).await?;
     let result = year_end::year_end_package_create(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data: result })
+}
+
+#[tauri::command]
+pub async fn year_end_package_regenerate(
+    state: State<'_, AppState>,
+    input: YearEndPackageRegenerateInput,
+) -> CommandResult<YearEndPackageSummary> {
+    let workspace = require_workspace(&state).await?;
+    crate::workspace::ensure_workspace_ready(&workspace.pool, &workspace.id).await?;
+    let result =
+        year_end::year_end_package_regenerate(&workspace.pool, &workspace.id, &input).await?;
     Ok(CommandResponse { data: result })
 }
 

@@ -21,6 +21,7 @@ use crate::{
         ComplianceProfileCheckResult, ScenarioProfile, ScenarioTransaction,
     },
     counterparties::{self, Counterparty, CounterpartyCreateInput},
+    documents::{Document, DocumentGetInput, DocumentImportInput, DocumentListInput},
     db::{connect_workspace, open_existing_workspace},
     error::{AppError, redacted_internal_from, redacted_storage_from},
     expenses::{ExpensePostInput, ExpensePostResult},
@@ -105,7 +106,7 @@ async fn stage_backup_package_with_lease(
     let renewal = tauri::async_runtime::spawn(async move {
         loop {
             tokio::select! {
-                _ = &mut renewal_stopped => return Ok(()),
+                _ = &mut renewal_stopped => return Ok::<(), AppError>(()),
                 _ = tokio::time::sleep(BACKUP_CREATE_LEASE_RENEW_INTERVAL) => {
                     backup::renew_backup_create_lease(
                         &renewal_pool,

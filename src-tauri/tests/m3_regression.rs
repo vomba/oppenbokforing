@@ -5,7 +5,7 @@ use oppenbokforing_desktop_lib::{
     invoicing::{
         self, InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceLineInput,
     },
-    profiles::{self, TaxProfileSaveInput, VatProfileSaveInput},
+    profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
     reconciliation::{self, ReconciliationMatchCreateInput},
     workspace::ensure_workspace_ready,
 };
@@ -41,6 +41,19 @@ async fn setup_workspace() -> (tempfile::TempDir, String, sqlx::SqlitePool) {
         .await
         .expect("bootstrap");
 
+
+    profiles::save_business_profile(
+        &pool,
+        &workspace_id,
+        &BusinessProfileSaveInput {
+            business_name: "M3 Regression Firma".to_string(),
+            owner_name: "Regression Owner".to_string(),
+            residency_country: Some("SE".to_string()),
+            sni_code: Some("62010".to_string()),
+        },
+    )
+    .await
+    .expect("business");
     profiles::save_tax_profile(
         &pool,
         &workspace_id,
@@ -159,6 +172,7 @@ async fn reconciliation_rejects_credited_invoice() {
             source_invoice_id: issued.id.clone(),
             idempotency_key: "credit-regression".to_string(),
             reason: Some("Returned".to_string()),
+            issue_date: Some("2026-02-10".to_string()),
         },
     )
     .await
@@ -439,9 +453,9 @@ async fn invoice_payment_record_links_bank_statement_pdf() {
 
     assert!(result.voucher_id.is_some());
 
-    let voucher_document: Option<String> = sqlx::query_scalar(
+    let voucher: (Option<String>, Option<String>) = sqlx::query_as(
         r#"
-        SELECT document_id FROM vouchers
+        SELECT document_id, accounting_date FROM vouchers
         WHERE workspace_id = ?1 AND id = ?2
         LIMIT 1
         "#,
@@ -452,12 +466,151 @@ async fn invoice_payment_record_links_bank_statement_pdf() {
     .await
     .expect("voucher row");
 
-    assert_eq!(voucher_document.as_deref(), Some(statement.id.as_str()));
+    assert_eq!(voucher.0.as_deref(), Some(statement.id.as_str()));
+    assert_eq!(voucher.1.as_deref(), Some("2026-03-01"));
 
     let refreshed = invoicing::get_invoice(&pool, &workspace_id, &issued.id)
         .await
         .expect("invoice");
     assert!(refreshed.payment_voucher_id.is_some());
+}
+
+#[tokio::test]
+async fn invoice_payment_record_rejects_omitted_and_invalid_payment_dates() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let issued = issue_standard_invoice(&pool, &workspace_id, "issue-for-payment-date-validation").await;
+    let statement = oppenbokforing_desktop_lib::documents::store_document_bytes(
+        &pool,
+        &workspace_id,
+        b"%PDF-1.4 bank statement",
+        "bank-july.pdf",
+        "application/pdf",
+    )
+    .await
+    .expect("bank statement");
+
+    for payment_date in [None, Some("2026-13-01".to_string())] {
+        let error = reconciliation::invoice_payment_record(
+            &pool,
+            &workspace_id,
+            &reconciliation::InvoicePaymentRecordInput {
+                invoice_id: issued.id.clone(),
+                document_id: statement.id.clone(),
+                payment_date,
+                idempotency_key: Uuid::new_v4().to_string(),
+            },
+        )
+        .await
+        .expect_err("payment date must be explicit ISO date");
+
+        assert_eq!(error.code, "validation_error");
+        assert_eq!(
+            error.details.as_ref().and_then(|details| details[0].field.as_deref()),
+            Some("paymentDate")
+        );
+    }
+}
+
+#[tokio::test]
+async fn invoice_payment_record_rejects_payment_before_issued_invoice_without_persistence() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let issued = issue_standard_invoice(&pool, &workspace_id, "issue-before-cross-year-payment").await;
+    let statement = oppenbokforing_desktop_lib::documents::store_document_bytes(
+        &pool,
+        &workspace_id,
+        b"%PDF-1.4 bank statement",
+        "bank-prior-year.pdf",
+        "application/pdf",
+    )
+    .await
+    .expect("bank statement");
+    let idempotency_key = "payment-before-issued-invoice";
+
+    let error = reconciliation::invoice_payment_record(
+        &pool,
+        &workspace_id,
+        &reconciliation::InvoicePaymentRecordInput {
+            invoice_id: issued.id.clone(),
+            document_id: statement.id,
+            payment_date: Some("2025-12-31".to_string()),
+            idempotency_key: idempotency_key.to_string(),
+        },
+    )
+    .await
+    .expect_err("payment before the issued invoice must be rejected");
+
+    assert_eq!(error.code, "validation_error");
+    assert_eq!(
+        error.details.as_ref().and_then(|details| details[0].field.as_deref()),
+        Some("paymentDate")
+    );
+
+    let (staged_count, voucher_count, match_count, idempotency_count): (i64, i64, i64, i64) =
+        sqlx::query_as(
+            r#"
+            SELECT
+              (SELECT COUNT(*) FROM staged_transactions WHERE workspace_id = ?1),
+              (SELECT COUNT(*) FROM vouchers WHERE workspace_id = ?1 AND source_type = 'reconciliation' AND source_id = ?2),
+              (SELECT COUNT(*) FROM reconciliation_matches WHERE workspace_id = ?1 AND invoice_id = ?2),
+              (SELECT COUNT(*) FROM local_jobs WHERE workspace_id = ?1 AND job_type = 'invoice_payment_record' AND idempotency_key = ?3)
+            "#,
+        )
+        .bind(&workspace_id)
+        .bind(&issued.id)
+        .bind(idempotency_key)
+        .fetch_one(&pool)
+        .await
+        .expect("persistence counts");
+
+    assert_eq!((staged_count, voucher_count, match_count, idempotency_count), (0, 0, 0, 0));
+}
+
+#[tokio::test]
+async fn invoice_payment_record_rejects_idempotency_replay_with_changed_payment_date() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let issued = issue_standard_invoice(&pool, &workspace_id, "issue-for-payment-date-idempotency").await;
+    let statement = oppenbokforing_desktop_lib::documents::store_document_bytes(
+        &pool,
+        &workspace_id,
+        b"%PDF-1.4 bank statement",
+        "bank-july.pdf",
+        "application/pdf",
+    )
+    .await
+    .expect("bank statement");
+    let idempotency_key = "payment-date-idempotency";
+
+    reconciliation::invoice_payment_record(
+        &pool,
+        &workspace_id,
+        &reconciliation::InvoicePaymentRecordInput {
+            invoice_id: issued.id.clone(),
+            document_id: statement.id.clone(),
+            payment_date: Some("2026-03-01".to_string()),
+            idempotency_key: idempotency_key.to_string(),
+        },
+    )
+    .await
+    .expect("initial payment");
+
+    let error = reconciliation::invoice_payment_record(
+        &pool,
+        &workspace_id,
+        &reconciliation::InvoicePaymentRecordInput {
+            invoice_id: issued.id,
+            document_id: statement.id,
+            payment_date: Some("2026-03-02".to_string()),
+            idempotency_key: idempotency_key.to_string(),
+        },
+    )
+    .await
+    .expect_err("replayed key with a changed payment date must be rejected");
+
+    assert_eq!(error.code, "validation_error");
+    assert_eq!(
+        error.details.as_ref().and_then(|details| details[0].field.as_deref()),
+        Some("idempotencyKey")
+    );
 }
 
 #[tokio::test]
@@ -571,6 +724,197 @@ async fn invoice_payment_record_rejects_non_pdf_document() {
         "expected PDF requirement message, got: {}",
         error.message
     );
+}
+
+#[tokio::test]
+async fn invoice_payment_record_rejects_missing_or_tampered_statement_without_persistence() {
+    for remove_object in [false, true] {
+        let (_dir, workspace_id, pool) = setup_workspace().await;
+        let issue_key = Uuid::new_v4().to_string();
+        let issued = issue_standard_invoice(&pool, &workspace_id, &issue_key).await;
+        let statement = oppenbokforing_desktop_lib::documents::store_document_bytes(
+            &pool,
+            &workspace_id,
+            b"%PDF-1.4 retained bank statement",
+            "bank-statement.pdf",
+            "application/pdf",
+        )
+        .await
+        .expect("bank statement");
+        let documents_path: String =
+            sqlx::query_scalar("SELECT documents_path FROM workspaces WHERE id = ?1")
+                .bind(&workspace_id)
+                .fetch_one(&pool)
+                .await
+                .expect("documents path");
+        let object_path = std::path::Path::new(&documents_path).join(&statement.object_path);
+        if remove_object {
+            fs::remove_file(&object_path).expect("remove evidence");
+        } else {
+            fs::write(&object_path, b"%PDF-1.4 tampered bank statement")
+                .expect("tamper evidence");
+        }
+        let idempotency_key = Uuid::new_v4().to_string();
+
+        let error = reconciliation::invoice_payment_record(
+            &pool,
+            &workspace_id,
+            &reconciliation::InvoicePaymentRecordInput {
+                invoice_id: issued.id.clone(),
+                document_id: statement.id,
+                payment_date: Some("2026-03-01".to_string()),
+                idempotency_key: idempotency_key.clone(),
+            },
+        )
+        .await
+        .expect_err("missing or tampered statement must prevent voucher posting");
+
+        assert_eq!(error.code, "storage_error");
+        assert_eq!(error.message, "Retained document integrity check failed");
+        let counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            r#"
+            SELECT
+              (SELECT COUNT(*) FROM staged_transactions WHERE workspace_id = ?1),
+              (SELECT COUNT(*) FROM vouchers WHERE workspace_id = ?1 AND source_type = 'reconciliation' AND source_id = ?2),
+              (SELECT COUNT(*) FROM reconciliation_matches WHERE workspace_id = ?1 AND invoice_id = ?2),
+              (SELECT COUNT(*) FROM local_jobs WHERE workspace_id = ?1 AND job_type = 'invoice_payment_record' AND idempotency_key = ?3),
+              (SELECT COUNT(*) FROM audit_events WHERE workspace_id = ?1 AND action = 'invoice_payment_record')
+            "#,
+        )
+        .bind(&workspace_id)
+        .bind(&issued.id)
+        .bind(&idempotency_key)
+        .fetch_one(&pool)
+        .await
+        .expect("persistence counts");
+        assert_eq!(counts, (0, 0, 0, 0, 0));
+    }
+}
+
+#[tokio::test]
+async fn expense_post_rejects_missing_or_tampered_evidence_without_persistence() {
+    for remove_object in [false, true] {
+        let (_dir, workspace_id, pool) = setup_workspace().await;
+        let receipt = oppenbokforing_desktop_lib::documents::store_document_bytes(
+            &pool,
+            &workspace_id,
+            b"%PDF-1.4 retained expense receipt",
+            "expense-receipt.pdf",
+            "application/pdf",
+        )
+        .await
+        .expect("expense receipt");
+        let documents_path: String =
+            sqlx::query_scalar("SELECT documents_path FROM workspaces WHERE id = ?1")
+                .bind(&workspace_id)
+                .fetch_one(&pool)
+                .await
+                .expect("documents path");
+        let object_path = std::path::Path::new(&documents_path).join(&receipt.object_path);
+        if remove_object {
+            fs::remove_file(&object_path).expect("remove evidence");
+        } else {
+            fs::write(&object_path, b"%PDF-1.4 tampered expense receipt")
+                .expect("tamper evidence");
+        }
+        let idempotency_key = Uuid::new_v4().to_string();
+
+        let error = oppenbokforing_desktop_lib::expenses::expense_post(
+            &pool,
+            &workspace_id,
+            &oppenbokforing_desktop_lib::expenses::ExpensePostInput {
+                amount_minor_ex_vat: 10_000,
+                vat_rate: 0.25,
+                expense_account_number: "5610".to_string(),
+                payment_account_number: "1930".to_string(),
+                document_id: Some(receipt.id),
+                no_document_reason: None,
+                staged_transaction_id: None,
+                idempotency_key: idempotency_key.clone(),
+                date: Some("2026-03-01".to_string()),
+            },
+        )
+        .await
+        .expect_err("missing or tampered receipt must prevent voucher posting");
+
+        assert_eq!(error.code, "storage_error");
+        assert_eq!(error.message, "Retained document integrity check failed");
+        let counts: (i64, i64, i64) = sqlx::query_as(
+            r#"
+            SELECT
+              (SELECT COUNT(*) FROM vouchers WHERE workspace_id = ?1 AND source_type = 'expense'),
+              (SELECT COUNT(*) FROM local_jobs WHERE workspace_id = ?1 AND job_type = 'expense_post' AND idempotency_key = ?2),
+              (SELECT COUNT(*) FROM audit_events WHERE workspace_id = ?1 AND action = 'expense_post')
+            "#,
+        )
+        .bind(&workspace_id)
+        .bind(&idempotency_key)
+        .fetch_one(&pool)
+        .await
+        .expect("persistence counts");
+        assert_eq!(counts, (0, 0, 0));
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn expense_post_rejects_documents_root_symlink_outside_workspace() {
+    let (dir, workspace_id, pool) = setup_workspace().await;
+    let receipt = oppenbokforing_desktop_lib::documents::store_document_bytes(
+        &pool,
+        &workspace_id,
+        b"%PDF-1.4 retained expense receipt",
+        "expense-receipt.pdf",
+        "application/pdf",
+    )
+    .await
+    .expect("expense receipt");
+    let documents_path: String =
+        sqlx::query_scalar("SELECT documents_path FROM workspaces WHERE id = ?1")
+            .bind(&workspace_id)
+            .fetch_one(&pool)
+            .await
+            .expect("documents path");
+    let retained_documents = dir.path().join("retained-documents");
+    fs::rename(&documents_path, &retained_documents).expect("move retained documents");
+    let external_documents = dir.path().join("external-documents");
+    fs::create_dir_all(external_documents.join("objects")).expect("external objects");
+    fs::copy(
+        retained_documents.join(&receipt.object_path),
+        external_documents.join(&receipt.object_path),
+    )
+    .expect("copy retained evidence");
+    std::os::unix::fs::symlink(&external_documents, &documents_path)
+        .expect("replace configured documents root with symlink");
+
+    let error = oppenbokforing_desktop_lib::expenses::expense_post(
+        &pool,
+        &workspace_id,
+        &oppenbokforing_desktop_lib::expenses::ExpensePostInput {
+            amount_minor_ex_vat: 10_000,
+            vat_rate: 0.25,
+            expense_account_number: "5610".to_string(),
+            payment_account_number: "1930".to_string(),
+            document_id: Some(receipt.id),
+            no_document_reason: None,
+            staged_transaction_id: None,
+            idempotency_key: "symlinked-documents-root".to_string(),
+            date: Some("2026-03-01".to_string()),
+        },
+    )
+    .await
+    .expect_err("documents root symlink must not be trusted");
+
+    assert_eq!(error.code, "storage_error");
+    assert_eq!(error.message, "Retained document integrity check failed");
+    let voucher_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vouchers WHERE workspace_id = ?1 AND source_type = 'expense'",
+    )
+    .bind(&workspace_id)
+    .fetch_one(&pool)
+    .await
+    .expect("voucher count");
+    assert_eq!(voucher_count, 0);
 }
 
 #[tokio::test]

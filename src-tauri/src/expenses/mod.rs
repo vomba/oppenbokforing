@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     audit::record_event_tx,
+    documents,
     error::AppError,
     workspace::{ensure_fiscal_year_open, fiscal_year_id_for_date},
 };
@@ -313,30 +314,6 @@ pub async fn expense_post(
         ));
     }
 
-    // When a document id is supplied it must refer to an existing document row
-    // in the workspace — empty strings or unknown ids are not accepted as
-    // evidence.
-    if let Some(doc_id) = document_id_trimmed.as_deref() {
-        let exists: Option<String> = sqlx::query_scalar(
-            r#"
-            SELECT id FROM documents
-            WHERE workspace_id = ?1 AND id = ?2
-            LIMIT 1
-            "#,
-        )
-        .bind(workspace_id)
-        .bind(doc_id)
-        .fetch_optional(pool)
-        .await?;
-
-        if exists.is_none() {
-            return Err(AppError::validation(
-                "Document not found in workspace",
-                "documentId",
-            ));
-        }
-    }
-
     let vat_rate_bp = vat_rate_to_bp(input.vat_rate)?;
     let input_vat_minor = compute_vat(input.amount_minor_ex_vat, vat_rate_bp);
     let total_inc = input.amount_minor_ex_vat + input_vat_minor;
@@ -380,6 +357,10 @@ pub async fn expense_post(
 
     let voucher_id = Uuid::new_v4().to_string();
     crate::vat::ensure_fiscal_period_open_tx(&mut tx, workspace_id, &date).await?;
+    if let Some(document_id) = document_id_trimmed.as_deref() {
+        documents::verify_retained_document_tx(&mut tx, workspace_id, document_id).await?;
+    }
+
     sqlx::query(
         r#"
         INSERT INTO vouchers (

@@ -2,7 +2,7 @@ use chrono::{Datelike, NaiveDate};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use specta::Type;
-use sqlx::{Row, SqlitePool};
+use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
     error::AppError,
     ledger::net_revenue_minor_for_fiscal_year,
     profiles::get_vat_profile,
-    rules::{get_active_rule_version, get_rule_i64, require_rule_i64},
+    rules::{get_rule_i64, require_rule_i64},
     workspace::{ensure_fiscal_year_open_tx, fiscal_year_id_for_year},
 };
 
@@ -280,6 +280,42 @@ fn validate_period_key_for_profile(reporting_period: &str, period_key: &str) -> 
     Ok(())
 }
 
+async fn ensure_no_overlapping_vat_return_tx(
+    tx: &mut Transaction<'_, Sqlite>,
+    workspace_id: &str,
+    fiscal_period_id: &str,
+    starts_on: &str,
+    ends_on: &str,
+) -> Result<(), AppError> {
+    let overlap: Option<String> = sqlx::query_scalar(
+        r#"
+        SELECT vr.id
+        FROM vat_returns vr
+        JOIN fiscal_periods fp ON fp.id = vr.fiscal_period_id
+        WHERE vr.workspace_id = ?1
+          AND vr.fiscal_period_id != ?2
+          AND fp.starts_on <= ?3
+          AND fp.ends_on >= ?4
+        LIMIT 1
+        "#,
+    )
+    .bind(workspace_id)
+    .bind(fiscal_period_id)
+    .bind(ends_on)
+    .bind(starts_on)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if overlap.is_some() {
+        return Err(AppError::validation(
+            "VAT return overlaps an existing VAT return",
+            "periodKey",
+        ));
+    }
+
+    Ok(())
+}
+
 pub async fn seed_vat_codes(pool: &SqlitePool, workspace_id: &str) -> Result<(), AppError> {
     let codes = [
         ("VAT25", 2500_i64, Some("05"), Some("10")),
@@ -306,13 +342,13 @@ pub async fn seed_vat_codes(pool: &SqlitePool, workspace_id: &str) -> Result<(),
     Ok(())
 }
 
-async fn ensure_fiscal_period(
-    pool: &SqlitePool,
+async fn ensure_fiscal_period_tx(
+    tx: &mut Transaction<'_, Sqlite>,
     workspace_id: &str,
+    fiscal_year_id: &str,
     period_key: &str,
+    bounds: &PeriodBounds,
 ) -> Result<String, AppError> {
-    let bounds = parse_period_key(period_key)?;
-    let fiscal_year_id = fiscal_year_id_for_year(pool, workspace_id, bounds.fiscal_year).await?;
     let period_id = format!("fp-{workspace_id}-{period_key}");
 
     sqlx::query(
@@ -324,14 +360,26 @@ async fn ensure_fiscal_period(
     )
     .bind(&period_id)
     .bind(workspace_id)
-    .bind(&fiscal_year_id)
+    .bind(fiscal_year_id)
     .bind(period_key)
     .bind(&bounds.starts_on)
     .bind(&bounds.ends_on)
-    .execute(pool)
+    .execute(&mut **tx)
     .await?;
 
-    Ok(period_id)
+    let status: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM fiscal_periods WHERE id = ?1 LIMIT 1",
+    )
+    .bind(&period_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    match status.as_deref() {
+        Some("open") => Ok(period_id),
+        Some("locked") => Err(AppError::locked_period("Fiscal period is already locked")),
+        Some(_) => Err(AppError::validation("Invalid fiscal period status", "periodKey")),
+        None => Err(AppError::internal("Fiscal period was not created")),
+    }
 }
 
 pub async fn ensure_fiscal_period_open(
@@ -801,52 +849,81 @@ pub async fn vat_return_draft_create(
         return load_vat_return_summary(pool, workspace_id, &cached.vat_return_id).await;
     }
 
-    let vat_profile = get_vat_profile(pool, workspace_id).await?;
-    let reporting_period = vat_profile
-        .as_ref()
-        .map(|p| p.reporting_period.as_str())
-        .unwrap_or("quarterly");
-    validate_period_key_for_profile(reporting_period, period_key)?;
+    let bounds = parse_period_key(period_key)?;
+    let fiscal_year_id = fiscal_year_id_for_year(pool, workspace_id, bounds.fiscal_year).await?;
+    seed_vat_codes(pool, workspace_id).await?;
 
-    let status = vat_profile
-        .as_ref()
-        .map(|p| p.vat_status.as_str())
-        .unwrap_or("exempt_low_turnover");
-    if status != "registered" && status != "voluntary_registered" {
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    ensure_fiscal_year_open_tx(&mut *tx, &fiscal_year_id).await?;
+    let vat_profile = sqlx::query(
+        r#"
+        SELECT vat_status, reporting_period
+        FROM vat_profiles
+        WHERE workspace_id = ?1
+        LIMIT 1
+        "#,
+    )
+    .bind(workspace_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let (vat_status, reporting_period) = vat_profile
+        .map(|row| {
+            (
+                row.get::<String, _>("vat_status"),
+                row.get::<String, _>("reporting_period"),
+            )
+        })
+        .unwrap_or_else(|| ("exempt_low_turnover".to_string(), "quarterly".to_string()));
+
+    validate_period_key_for_profile(&reporting_period, period_key)?;
+    if vat_status != "registered" && vat_status != "voluntary_registered" {
         return Err(AppError::validation(
             "VAT return requires a registered VAT profile",
             "vatStatus",
         ));
     }
 
-    seed_vat_codes(pool, workspace_id).await?;
-    let fiscal_period_id = ensure_fiscal_period(pool, workspace_id, period_key).await?;
+    let fiscal_period_id = ensure_fiscal_period_tx(
+        &mut tx,
+        workspace_id,
+        &fiscal_year_id,
+        period_key,
+        &bounds,
+    )
+    .await?;
+    ensure_no_overlapping_vat_return_tx(
+        &mut tx,
+        workspace_id,
+        &fiscal_period_id,
+        &bounds.starts_on,
+        &bounds.ends_on,
+    )
+    .await?;
 
-    let period_locked: Option<String> = sqlx::query_scalar(
+    let rule_version_id: Option<String> = sqlx::query_scalar(
         r#"
-        SELECT status FROM fiscal_periods WHERE id = ?1 LIMIT 1
+        SELECT id
+        FROM rule_versions
+        WHERE status = 'active' AND tax_year = ?1
+        LIMIT 1
         "#,
     )
-    .bind(&fiscal_period_id)
-    .fetch_optional(pool)
+    .bind(bounds.fiscal_year)
+    .fetch_optional(&mut *tx)
     .await?;
-    if period_locked.as_deref() == Some("locked") {
-        return Err(AppError::locked_period("Fiscal period is already locked"));
-    }
-
-    let bounds = parse_period_key(period_key)?;
-    let boxes = aggregate_vat_boxes(pool, workspace_id, &bounds.starts_on, &bounds.ends_on).await?;
-
-    let rule_version = get_active_rule_version(pool)
-        .await?
-        .ok_or_else(|| AppError::internal("No active rule version"))?;
-    let rule_version_id = rule_version.id;
-
-    let mut tx = pool.begin().await?;
-
-    let existing_return: Option<String> = sqlx::query_scalar(
+    let Some(rule_version_id) = rule_version_id else {
+        tx.rollback().await?;
+        return Err(AppError::validation(
+            "No active rule version for VAT return fiscal year",
+            "ruleVersion",
+        ));
+    };
+    let boxes =
+        aggregate_vat_boxes_tx(&mut tx, workspace_id, &bounds.starts_on, &bounds.ends_on).await?;
+    let existing_return = sqlx::query(
         r#"
-        SELECT id FROM vat_returns
+        SELECT id, status
+        FROM vat_returns
         WHERE workspace_id = ?1 AND fiscal_period_id = ?2
         LIMIT 1
         "#,
@@ -856,24 +933,23 @@ pub async fn vat_return_draft_create(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let vat_return_id = if let Some(id) = existing_return {
-        if sqlx::query_scalar::<_, String>(
-            r#"
-            SELECT status FROM vat_returns WHERE id = ?1 LIMIT 1
-            "#,
-        )
-        .bind(&id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .as_deref()
-            == Some("approved")
-        {
+    let vat_return_id = if let Some(existing_return) = existing_return {
+        let id: String = existing_return.get("id");
+        let status: String = existing_return.get("status");
+        if status == "approved" {
             tx.rollback().await?;
             return Err(AppError::validation(
                 "VAT return for this period is already approved",
                 "periodKey",
             ));
         }
+        sqlx::query(
+            "UPDATE vat_returns SET rule_version_id = ?1 WHERE id = ?2",
+        )
+        .bind(&rule_version_id)
+        .bind(&id)
+        .execute(&mut *tx)
+        .await?;
         sqlx::query("DELETE FROM vat_return_boxes WHERE vat_return_id = ?1")
             .bind(&id)
             .execute(&mut *tx)
@@ -896,21 +972,7 @@ pub async fn vat_return_draft_create(
         id
     };
 
-    for b in &boxes {
-        sqlx::query(
-            r#"
-            INSERT INTO vat_return_boxes (id, vat_return_id, box_code, amount_minor, source_query_hash)
-            VALUES (?1, ?2, ?3, ?4, ?5)
-            "#,
-        )
-        .bind(Uuid::new_v4().to_string())
-        .bind(&vat_return_id)
-        .bind(&b.box_code)
-        .bind(b.amount_minor)
-        .bind(b.source_query_hash.as_deref())
-        .execute(&mut *tx)
-        .await?;
-    }
+    persist_vat_return_boxes_tx(&mut tx, &vat_return_id, &boxes).await?;
 
     let payload = IdempotentVatReturnPayload {
         vat_return_id: vat_return_id.clone(),
@@ -1196,7 +1258,14 @@ pub async fn vat_return_approve(
     let ends_on: String = row.get("ends_on");
 
     ensure_fiscal_year_open_tx(&mut *tx, &fiscal_year_id).await?;
-
+    ensure_no_overlapping_vat_return_tx(
+        &mut tx,
+        workspace_id,
+        &fiscal_period_id,
+        &starts_on,
+        &ends_on,
+    )
+    .await?;
     let fresh_boxes =
         aggregate_vat_boxes_tx(&mut tx, workspace_id, &starts_on, &ends_on).await?;
     persist_vat_return_boxes_tx(&mut tx, &input.vat_return_id, &fresh_boxes).await?;

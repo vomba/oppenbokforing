@@ -4,6 +4,7 @@ import { buildDashboardChecklist } from "./dashboardChecklist"
 describe("buildDashboardChecklist", () => {
   it("orders urgent items before routine work", () => {
     const items = buildDashboardChecklist({
+      dataUnavailable: false,
       compliancePassed: false,
       vatWarning: "breached",
       stagedCount: 2,
@@ -25,6 +26,7 @@ describe("buildDashboardChecklist", () => {
 
   it("shows caught-up item when nothing is pending", () => {
     const items = buildDashboardChecklist({
+      dataUnavailable: false,
       compliancePassed: true,
       vatWarning: "none",
       stagedCount: 0,
@@ -35,5 +37,19 @@ describe("buildDashboardChecklist", () => {
 
     expect(items).toHaveLength(1)
     expect(items[0]?.id).toBe("caught-up")
+  })
+
+  it("never reports caught up when required dashboard data is unavailable", () => {
+    const items = buildDashboardChecklist({
+      dataUnavailable: true,
+      compliancePassed: true,
+      vatWarning: "none",
+      stagedCount: 0,
+      openInvoices: 0,
+      yearEndReady: true,
+      unsatisfiedYearEndCodes: [],
+    })
+
+    expect(items.map((item) => item.id)).toEqual(["data-unavailable"])
   })
 })

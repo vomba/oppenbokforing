@@ -15,7 +15,7 @@ import { useWorkspace } from "../context/WorkspaceContext"
 
 export function WorkspacePickerPage() {
   const navigate = useNavigate()
-  const { locale } = useLocale()
+  const { locale, setLocale } = useLocale()
   const { setWorkspace } = useWorkspace()
   const [workspaceName, setWorkspaceName] = useState(t(locale, "workspace.defaultName"))
   const [recent, setRecent] = useState<RecentWorkspaceEntry[]>([])
@@ -107,6 +107,14 @@ export function WorkspacePickerPage() {
         <p className="eyebrow">{t(locale, "app.title")}</p>
         <h1>{t(locale, "workspace.pickerTitle")}</h1>
         <p className="status-line">{status}</p>
+
+        <label className="locale-switcher picker-locale-switcher">
+          {t(locale, "workspace.languageLabel")}
+          <select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>
+            <option value="sv">{t(locale, "settings.locale.sv")}</option>
+            <option value="en">{t(locale, "settings.locale.en")}</option>
+          </select>
+        </label>
 
         <div className="picker-block">
           <h2>{t(locale, "workspace.createTitle")}</h2>

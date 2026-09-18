@@ -61,4 +61,36 @@ describe("ActionReviewDialog", () => {
     fireEvent.keyDown(document, { key: "Tab" })
     expect(cancel).toHaveFocus()
   })
+
+  it("cancels on Escape and returns focus to the trigger after closing", () => {
+    const onCancel = vi.fn()
+    const dialog = (
+      <ActionReviewDialog
+        open
+        title="Review invoice issue"
+        summary="Customer AB: SEK 1,250 including VAT."
+        consequences={[]}
+        correction={null}
+        confirmLabel="Issue invoice"
+        cancelLabel="Cancel"
+        busy={false}
+        onConfirm={vi.fn()}
+        onCancel={onCancel}
+      />
+    )
+    const { rerender } = render(<button type="button">Open review</button>)
+    const trigger = screen.getByRole("button", { name: "Open review" })
+    trigger.focus()
+    rerender(
+      <>
+        <button type="button">Open review</button>
+        {dialog}
+      </>,
+    )
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(onCancel).toHaveBeenCalledOnce()
+    rerender(<button type="button">Open review</button>)
+    expect(screen.getByRole("button", { name: "Open review" })).toHaveFocus()
+  })
 })

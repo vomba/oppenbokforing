@@ -9,12 +9,13 @@ export type OnboardingDraft = {
   businessName: string
   ownerName: string
   sniCode: string
-  taxStatus: "f_skatt" | "fa_skatt"
+  taxStatus: "planning" | "f_skatt" | "fa_skatt"
   salarySek: string
   businessProfitSek: string
-  vatStatus: "exempt_low_turnover" | "registered"
+  vatStatus: "exempt_low_turnover" | "registered" | "voluntary_registered"
   reportingPeriod: "monthly" | "quarterly" | "yearly"
   accountingMethod: "invoice_method" | "cash_method"
+  voluntaryRegistrationDate: string
   vatFilingDeadlineRegime: string | null
 }
 
@@ -29,16 +30,23 @@ export function defaultOnboardingDraft(workspaceName = ""): OnboardingDraft {
     vatStatus: "exempt_low_turnover",
     reportingPeriod: "quarterly",
     accountingMethod: "invoice_method",
+    voluntaryRegistrationDate: "",
     vatFilingDeadlineRegime: null,
   }
 }
 
 function asTaxStatus(value: string): OnboardingDraft["taxStatus"] {
-  return value === "fa_skatt" ? "fa_skatt" : "f_skatt"
+  if (value === "planning" || value === "fa_skatt") {
+    return value
+  }
+  return "f_skatt"
 }
 
 function asVatStatus(value: string): OnboardingDraft["vatStatus"] {
-  return value === "registered" ? "registered" : "exempt_low_turnover"
+  if (value === "registered" || value === "voluntary_registered") {
+    return value
+  }
+  return "exempt_low_turnover"
 }
 
 function asReportingPeriod(value: string): OnboardingDraft["reportingPeriod"] {
@@ -78,6 +86,7 @@ export function onboardingDraftFromProfiles(input: {
     draft.reportingPeriod = asReportingPeriod(input.vat.reportingPeriod)
     draft.accountingMethod = asAccountingMethod(input.vat.accountingMethod)
     draft.vatFilingDeadlineRegime = input.vat.vatFilingDeadlineRegime
+    draft.voluntaryRegistrationDate = input.vat.voluntaryRegistrationDate ?? ""
   }
 
   return { draft, hasSavedProfiles }

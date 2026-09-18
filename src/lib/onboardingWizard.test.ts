@@ -37,6 +37,7 @@ describe("onboardingDraftFromProfiles", () => {
         reportingPeriod: "monthly",
         accountingMethod: "cash_method",
         voluntaryRegistrationDate: null,
+        vatFilingDeadlineRegime: "monthly_12",
       },
       workspaceName: "Min enskilda firma",
     })
@@ -51,5 +52,32 @@ describe("onboardingDraftFromProfiles", () => {
     expect(draft.vatStatus).toBe("registered")
     expect(draft.reportingPeriod).toBe("monthly")
     expect(draft.accountingMethod).toBe("cash_method")
+  })
+
+  it("preserves planning tax and voluntary VAT registration fields", () => {
+    const { draft } = onboardingDraftFromProfiles({
+      business: null,
+      tax: {
+        id: "tp-1",
+        taxStatus: "planning",
+        expectedBusinessProfitMinor: 120_000_00,
+        expectedSalaryIncomeMinor: 48_000_50,
+        activeRuleYear: 2026,
+      },
+      vat: {
+        id: "vp-1",
+        vatStatus: "voluntary_registered",
+        reportingPeriod: "quarterly",
+        accountingMethod: "cash_method",
+        voluntaryRegistrationDate: "2026-01-01",
+        vatFilingDeadlineRegime: "quarterly_12",
+      },
+      workspaceName: "Min enskilda firma",
+    })
+
+    expect(draft.taxStatus).toBe("planning")
+    expect(draft.vatStatus).toBe("voluntary_registered")
+    expect(draft.voluntaryRegistrationDate).toBe("2026-01-01")
+    expect(draft.vatFilingDeadlineRegime).toBe("quarterly_12")
   })
 })

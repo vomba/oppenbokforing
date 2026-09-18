@@ -16,17 +16,70 @@ import {
   invoiceCreateDraft,
   invoiceCredit,
   invoiceIssue,
+  invoiceIssuePreflight,
   invoiceList,
+  taxProfileGetCurrent,
+  invoiceLegacySnapshotRecover,
+  invoiceLegacySnapshotRecoveryStatus,
   invoicePdfRefresh,
   invoicePdfStatus,
-  taxProfileGetCurrent,
   type Counterparty,
   type InvoiceSummary,
 } from "../lib/commands"
+import type { InvoiceIssuePreflight } from "../lib/bindings"
 import { formatSekMinor, parseSekToMinorUnits } from "../lib/money"
-import { invoiceDisplayStatus, invoiceStatusLabel } from "../lib/invoiceStatus"
+import { invoiceDisplayStatus, invoiceStatusLabel, localTodayIsoDate } from "../lib/invoiceStatus"
 
 type StatusFilter = "all" | "draft" | "issued"
+
+type InvoiceReview = {
+  kind: "issue" | "credit"
+  invoice: InvoiceSummary
+  preflight: InvoiceIssuePreflight | null
+}
+
+type LegacySnapshotRecoveryReview = {
+  invoice: InvoiceSummary
+  preservedPdfDocumentId: string
+}
+
+type LegacySnapshotRecoveryForm = {
+  businessName: string
+  ownerName: string
+  taxStatus: string
+  vatStatus: string
+  ruleVersionId: string
+}
+
+const LEGACY_SNAPSHOT_ATTESTATION =
+  "I attest that the business identity and displayed tax/VAT wording were transcribed from the retained original invoice PDF, and that any status distinctions and the rule version were checked against contemporaneous records."
+
+const emptyLegacySnapshotRecoveryForm: LegacySnapshotRecoveryForm = {
+  businessName: "",
+  ownerName: "",
+  taxStatus: "",
+  vatStatus: "",
+  ruleVersionId: "",
+}
+
+function isTaxStatusValidationError(error: unknown): boolean {
+  if (
+    !error ||
+    typeof error !== "object" ||
+    !("details" in error) ||
+    !Array.isArray(error.details)
+  ) {
+    return false
+  }
+  return error.details.some(
+    (detail) =>
+      typeof detail === "object" &&
+      detail !== null &&
+      "field" in detail &&
+      detail.field === "taxStatus",
+  )
+}
+
 
 export function InvoicesPage() {
   const { workspace } = useWorkspace()
@@ -41,10 +94,22 @@ export function InvoicesPage() {
   const [vatRate, setVatRate] = useState("0.25")
   const [status, setStatus] = useState("")
   const [taxStatus, setTaxStatus] = useState<string | null>(null)
+  const [creditIssueDate, setCreditIssueDate] = useState(localTodayIsoDate)
   const [busy, setBusy] = useState(false)
-  const [review, setReview] = useState<
-    { kind: "issue" | "credit"; invoice: InvoiceSummary } | null
-  >(null)
+  const [legacyRecoveryStatuses, setLegacyRecoveryStatuses] = useState<
+    Record<string, { recoveryRequired: boolean; preservedPdfDocumentId: string | null }>
+  >({})
+  const [legacyRecoveryReview, setLegacyRecoveryReview] =
+    useState<LegacySnapshotRecoveryReview | null>(null)
+  const [legacyRecoveryForm, setLegacyRecoveryForm] = useState<LegacySnapshotRecoveryForm>(
+    emptyLegacySnapshotRecoveryForm,
+  )
+  const [legacyRecoveryAttested, setLegacyRecoveryAttested] = useState(false)
+  const [reviewedLegacyPdfDocumentIds, setReviewedLegacyPdfDocumentIds] = useState<
+    Record<string, true>
+  >({})
+  const [legacyRecoveryError, setLegacyRecoveryError] = useState("")
+  const [review, setReview] = useState<InvoiceReview | null>(null)
   const issueKeysRef = useRef<Record<string, string>>({})
   const creditKeysRef = useRef<Record<string, string>>({})
 
@@ -65,6 +130,18 @@ export function InvoicesPage() {
     const customerOnly = customerRows.filter((row) => row.kind === "customer")
     setCustomers(customerOnly)
     setInvoices(invoiceRows)
+    const legacyRecoveryStatusRows = await Promise.allSettled(
+      invoiceRows
+        .filter((invoice) => invoice.status === "issued" || invoice.status === "credited")
+        .map((invoice) => invoiceLegacySnapshotRecoveryStatus({ invoiceId: invoice.id })),
+    )
+    setLegacyRecoveryStatuses(
+      Object.fromEntries(
+        legacyRecoveryStatusRows.flatMap((result) =>
+          result.status === "fulfilled" ? [[result.value.invoiceId, result.value] as const] : [],
+        ),
+      ),
+    )
     if (!selectedCustomerId && customerOnly.length > 0) {
       setSelectedCustomerId(customerOnly[0].id)
     }
@@ -151,7 +228,11 @@ export function InvoicesPage() {
         tVars(locale, "invoices.issued", { number: issued.invoiceNumber ?? issued.id }),
       )
     } catch (error) {
-      setStatus(appErrorMessage(error, t(locale, "invoices.issueFailed")))
+      setStatus(
+        isTaxStatusValidationError(error)
+          ? t(locale, "invoices.taxStatusRequired")
+          : appErrorMessage(error, t(locale, "invoices.issueFailed")),
+      )
     } finally {
       setBusy(false)
     }
@@ -167,6 +248,7 @@ export function InvoicesPage() {
         sourceInvoiceId,
         idempotencyKey,
         reason: "Customer correction",
+        issueDate: creditIssueDate,
       })
       delete creditKeysRef.current[sourceInvoiceId]
       await refresh()
@@ -185,7 +267,7 @@ export function InvoicesPage() {
     setBusy(true)
     try {
       const pdfStatus =
-        invoice.status === "issued"
+        invoice.status === "issued" || invoice.status === "credited"
           ? await invoicePdfRefresh({ invoiceId: invoice.id })
           : await invoicePdfStatus({ invoiceId: invoice.id })
       if (pdfStatus !== "succeeded") {
@@ -208,17 +290,109 @@ export function InvoicesPage() {
     }
   }
 
-  function openReview(kind: "issue" | "credit", invoice: InvoiceSummary) {
-    if (!busy) {
-      setReview({ kind, invoice })
+
+  function updateLegacyRecoveryForm(
+    field: keyof LegacySnapshotRecoveryForm,
+    value: string,
+  ) {
+    setLegacyRecoveryForm((current) => ({ ...current, [field]: value }))
+  }
+
+  async function handleOpenPreservedPdf(documentId: string) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await documentReveal({ documentId })
+      setReviewedLegacyPdfDocumentIds((current) => ({ ...current, [documentId]: true }))
+      setStatus(t(locale, "invoices.pdfOpened"))
+    } catch (error) {
+      setStatus(appErrorMessage(error, t(locale, "invoices.pdfFailed")))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function openLegacyRecoveryReview(invoice: InvoiceSummary, preservedPdfDocumentId: string) {
+    if (busy) return
+    setLegacyRecoveryForm(emptyLegacySnapshotRecoveryForm)
+    setLegacyRecoveryAttested(false)
+    setLegacyRecoveryError("")
+    setLegacyRecoveryReview({ invoice, preservedPdfDocumentId })
+  }
+
+  async function confirmLegacyRecovery() {
+    if (!legacyRecoveryReview || busy) return
+    const { invoice, preservedPdfDocumentId } = legacyRecoveryReview
+    const hasReviewedPreservedPdf = reviewedLegacyPdfDocumentIds[preservedPdfDocumentId] === true
+    const hasRequiredValues = Object.values(legacyRecoveryForm).every((value) => value.trim())
+    if (!hasReviewedPreservedPdf) {
+      setLegacyRecoveryError(t(locale, "invoices.legacyRecoveryPdfReviewRequired"))
+      return
+    }
+    if (!hasRequiredValues || !legacyRecoveryAttested) {
+      setLegacyRecoveryError(t(locale, "invoices.legacyRecoveryAttestationRequired"))
+      return
+    }
+
+    setBusy(true)
+    setLegacyRecoveryError("")
+    try {
+      await invoiceLegacySnapshotRecover({
+        invoiceId: invoice.id,
+        documentId: preservedPdfDocumentId,
+        ...legacyRecoveryForm,
+        attestation: LEGACY_SNAPSHOT_ATTESTATION,
+      })
+      await refresh()
+      setLegacyRecoveryReview(null)
+      setStatus(t(locale, "invoices.legacyRecoveryComplete"))
+    } catch (error) {
+      setLegacyRecoveryError(
+        appErrorMessage(error, t(locale, "invoices.legacyRecoveryFailed")),
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function openReview(kind: "issue" | "credit", invoice: InvoiceSummary) {
+    if (busy) return
+    if (kind === "credit") {
+      setReview({ kind, invoice, preflight: null })
+      return
+    }
+    if (taxStatus !== "f_skatt" && taxStatus !== "fa_skatt") {
+      setStatus(t(locale, "invoices.taxStatusRequired"))
+      return
+    }
+
+
+    setBusy(true)
+    try {
+      const preflight = await invoiceIssuePreflight({
+        invoiceId: invoice.id,
+        issueDate: null,
+      })
+      setReview({ kind, invoice, preflight })
+    } catch (error) {
+      setStatus(
+        isTaxStatusValidationError(error)
+          ? t(locale, "invoices.taxStatusRequired")
+          : appErrorMessage(error, t(locale, "invoices.issueFailed")),
+      )
+    } finally {
+      setBusy(false)
     }
   }
 
   function confirmReview() {
     if (!review) return
-    const { kind, invoice } = review
+    const { kind, invoice, preflight } = review
     setReview(null)
     if (kind === "issue") {
+      if (preflight?.requiresVatTreatmentReview) {
+        setStatus(t(locale, "invoices.thresholdReviewAction"))
+        return
+      }
       void handleIssue(invoice.id)
       return
     }
@@ -309,6 +483,16 @@ export function InvoicesPage() {
                 <option value="issued">{t(locale, "invoices.status.issued")}</option>
               </select>
             </label>
+            <label className="inline-filter">
+              {t(locale, "invoices.creditIssueDate")}
+              <input
+                type="date"
+                aria-label={t(locale, "invoices.creditIssueDate")}
+                value={creditIssueDate}
+                onChange={(event) => setCreditIssueDate(event.target.value)}
+                disabled={busy}
+              />
+            </label>
           </div>
           {taxStatus === "fa_skatt" ? (
             <p className="muted">{t(locale, "invoices.faSkattPdfNote")}</p>
@@ -329,6 +513,11 @@ export function InvoicesPage() {
               <tbody>
                 {invoices.map((invoice) => {
                   const displayStatus = invoiceDisplayStatus(invoice)
+                  const legacyRecoveryStatus = legacyRecoveryStatuses[invoice.id]
+                  const preservedPdfDocumentId =
+                    legacyRecoveryStatus?.recoveryRequired
+                      ? legacyRecoveryStatus.preservedPdfDocumentId
+                      : null
                   const canMarkPaid =
                     displayStatus === "issued" || displayStatus === "overdue"
                   return (
@@ -359,7 +548,37 @@ export function InvoicesPage() {
                             {t(locale, "invoices.credit")}
                           </button>
                         ) : null}
-                        {(invoice.status === "issued" || invoice.status === "credited") ? (
+                        {legacyRecoveryStatus?.recoveryRequired ? (
+                          <div className="muted">
+                            <p>
+                              <strong>{t(locale, "invoices.legacyRecoveryRequired")}</strong>
+                            </p>
+                            <p>{t(locale, "invoices.legacyRecoveryExplanation")}</p>
+                            {preservedPdfDocumentId ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="secondary"
+                                  onClick={() => void handleOpenPreservedPdf(preservedPdfDocumentId)}
+                                  disabled={busy}
+                                >
+                                  {t(locale, "invoices.openPreservedPdf")}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openLegacyRecoveryReview(invoice, preservedPdfDocumentId)
+                                  }
+                                  disabled={busy}
+                                >
+                                  {t(locale, "invoices.legacyRecoveryAction")}
+                                </button>
+                              </>
+                            ) : (
+                              <p>{t(locale, "invoices.legacyRecoveryPdfUnavailable")}</p>
+                            )}
+                          </div>
+                        ) : invoice.status === "issued" || invoice.status === "credited" ? (
                           <button
                             type="button"
                             className="secondary"
@@ -415,36 +634,154 @@ export function InvoicesPage() {
                         ? Math.round((review.invoice.totalVatMinor / review.invoice.totalExVatMinor) * 100)
                         : 0,
                   })
-                : tVars(locale, "actionReview.credit.summary", {
+                : `${tVars(locale, "actionReview.credit.summary", {
                     customer: review.invoice.counterpartyName,
                     total: formatSekMinor(review.invoice.totalIncVatMinor),
-                  })
+                  })} ${tVars(locale, "invoices.creditAccountingDate", {
+                    date: creditIssueDate,
+                  })}`
             }
-            consequences={[
-              t(
-                locale,
-                review.kind === "issue"
-                  ? "actionReview.issue.consequence"
-                  : "actionReview.credit.consequence",
-              ),
-            ]}
-            correction={t(
-              locale,
-              review.kind === "issue"
-                ? "actionReview.issue.correction"
-                : "actionReview.credit.correction",
-            )}
-            confirmLabel={t(
-              locale,
-              review.kind === "issue"
-                ? "actionReview.issue.confirm"
-                : "actionReview.credit.confirm",
-            )}
+            consequences={
+              review.kind === "issue" && review.preflight?.requiresVatTreatmentReview
+                ? [
+                    t(locale, "invoices.thresholdReviewAction"),
+                    tVars(locale, "invoices.thresholdProjectedTurnover", {
+                      projected: formatSekMinor(review.preflight.projectedTurnoverMinor),
+                      threshold: formatSekMinor(review.preflight.thresholdMinor ?? 0),
+                    }),
+                    tVars(locale, "invoices.thresholdRule", {
+                      year: review.preflight.taxYear,
+                      sourceUrl: review.preflight.sourceUrl ?? "",
+                    }),
+                  ]
+                : [
+                    t(
+                      locale,
+                      review.kind === "issue"
+                        ? "actionReview.issue.consequence"
+                        : "actionReview.credit.consequence",
+                    ),
+                  ]
+            }
+            correction={
+              review.kind === "issue" && review.preflight?.requiresVatTreatmentReview
+                ? t(locale, "invoices.thresholdReviewAction")
+                : t(
+                    locale,
+                    review.kind === "issue"
+                      ? "actionReview.issue.correction"
+                      : "actionReview.credit.correction",
+                  )
+            }
+            confirmLabel={
+              review.kind === "issue" && review.preflight?.requiresVatTreatmentReview
+                ? t(locale, "invoices.closeReview")
+                : t(
+                    locale,
+                    review.kind === "issue"
+                      ? "actionReview.issue.confirm"
+                      : "actionReview.credit.confirm",
+                  )
+            }
             cancelLabel={t(locale, "actionReview.cancel")}
             busy={busy}
             onConfirm={confirmReview}
             onCancel={() => setReview(null)}
           />
+        ) : null}
+        {legacyRecoveryReview ? (
+          <ActionReviewDialog
+            open
+            title={t(locale, "invoices.legacyRecoveryReviewTitle")}
+            summary={tVars(locale, "invoices.legacyRecoveryReviewSummary", {
+              invoice: legacyRecoveryReview.invoice.invoiceNumber ?? legacyRecoveryReview.invoice.id,
+            })}
+            consequences={[
+              t(locale, "invoices.legacyRecoveryConsequence"),
+              t(locale, "invoices.legacyRecoveryNotCorrection"),
+            ]}
+            correction={t(locale, "invoices.legacyRecoveryCorrection")}
+            confirmLabel={t(locale, "invoices.legacyRecoveryConfirm")}
+            cancelLabel={t(locale, "actionReview.cancel")}
+            busy={busy}
+            onConfirm={() => void confirmLegacyRecovery()}
+            onCancel={() => setLegacyRecoveryReview(null)}
+          >
+            <p>{t(locale, "invoices.legacyRecoveryInputGuidance")}</p>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() =>
+                void handleOpenPreservedPdf(legacyRecoveryReview.preservedPdfDocumentId)
+              }
+              disabled={busy}
+            >
+              {t(locale, "invoices.openPreservedPdf")}
+            </button>
+            <label>
+              {t(locale, "invoices.legacyRecoveryBusinessName")}
+              <input
+                value={legacyRecoveryForm.businessName}
+                onChange={(event) => updateLegacyRecoveryForm("businessName", event.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <label>
+              {t(locale, "invoices.legacyRecoveryOwnerName")}
+              <input
+                value={legacyRecoveryForm.ownerName}
+                onChange={(event) => updateLegacyRecoveryForm("ownerName", event.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <label>
+              {t(locale, "invoices.legacyRecoveryTaxStatus")}
+              <select
+                value={legacyRecoveryForm.taxStatus}
+                onChange={(event) => updateLegacyRecoveryForm("taxStatus", event.target.value)}
+                disabled={busy}
+              >
+                <option value="">{t(locale, "invoices.legacyRecoverySelect")}</option>
+                <option value="f_skatt">F-skatt</option>
+                <option value="fa_skatt">FA-skatt</option>
+              </select>
+            </label>
+            <label>
+              {t(locale, "invoices.legacyRecoveryVatStatus")}
+              <select
+                value={legacyRecoveryForm.vatStatus}
+                onChange={(event) => updateLegacyRecoveryForm("vatStatus", event.target.value)}
+                disabled={busy}
+              >
+                <option value="">{t(locale, "invoices.legacyRecoverySelect")}</option>
+                <option value="registered">{t(locale, "invoices.legacyRecoveryVatRegistered")}</option>
+                <option value="voluntary_registered">
+                  {t(locale, "invoices.legacyRecoveryVatVoluntaryRegistered")}
+                </option>
+                <option value="exempt_low_turnover">
+                  {t(locale, "invoices.legacyRecoveryVatExempt")}
+                </option>
+              </select>
+            </label>
+            <label>
+              {t(locale, "invoices.legacyRecoveryRuleVersion")}
+              <input
+                value={legacyRecoveryForm.ruleVersionId}
+                onChange={(event) => updateLegacyRecoveryForm("ruleVersionId", event.target.value)}
+                disabled={busy}
+              />
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={legacyRecoveryAttested}
+                onChange={(event) => setLegacyRecoveryAttested(event.target.checked)}
+                disabled={busy}
+              />
+              {t(locale, "invoices.legacyRecoveryAttestation")}
+            </label>
+            {legacyRecoveryError ? <p role="alert">{legacyRecoveryError}</p> : null}
+          </ActionReviewDialog>
         ) : null}
       </section>
     </main>

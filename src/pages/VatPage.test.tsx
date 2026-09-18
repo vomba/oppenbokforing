@@ -27,14 +27,18 @@ vi.mock("../context/WorkspaceContext", async () => {
 vi.mock("../components/AppSidebar", () => ({ AppSidebar: () => <nav aria-label="sidebar" /> }))
 vi.mock("../lib/commands", () => ({
   appErrorMessage: (_error: unknown, fallback: string) => fallback,
-  cashflowOverviewGet: vi.fn().mockResolvedValue(null),
+  cashflowOverviewGet: vi.fn().mockResolvedValue({
+    vatPeriodKey: "2026-Q1",
+    vatReserveMinor: 0,
+    spendableCashMinor: 0,
+  }),
   taxProfileGetCurrent: vi.fn().mockResolvedValue({ activeRuleYear: 2026 }),
   vatProfileGetCurrent: vi.fn().mockResolvedValue({ vatStatus: "registered", reportingPeriod: "quarterly" }),
   vatReturnApprove,
   vatReturnDraftCreate,
   vatReturnExport: vi.fn(),
   vatReturnTrace: vi.fn().mockResolvedValue({ boxes: [] }),
-  vatThresholdStatusGet: vi.fn().mockResolvedValue(null),
+  vatThresholdStatusGet: vi.fn().mockResolvedValue({ warning: "none", annualTurnoverMinor: 0 }),
   workspaceSettingsGet: vi.fn().mockResolvedValue({ defaultExportDirectory: null }),
 }))
 
@@ -71,13 +75,39 @@ describe("VatPage", () => {
       expect(screen.getByRole("button", { name: "Godkänn period" })).toBeEnabled()
     })
     fireEvent.click(screen.getByRole("button", { name: "Godkänn period" }))
-
     expect(vatReturnApprove).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }))
     expect(vatReturnApprove).not.toHaveBeenCalled()
-
     fireEvent.click(screen.getByRole("button", { name: "Godkänn period" }))
     fireEvent.click(screen.getByRole("button", { name: "Godkänn momsrapport" }))
     await waitFor(() => expect(vatReturnApprove).toHaveBeenCalledTimes(1))
+  })
+
+  it("uses the backend-selected tax-task period from the route", async () => {
+    vatReturnDraftCreate.mockResolvedValue({
+      id: "vat-2",
+      periodKey: "2026-Q2",
+      status: "draft",
+      box49AmountMinor: 0,
+      zeroReturn: true,
+      boxes: [],
+    })
+    render(
+      <MemoryRouter initialEntries={["/vat?periodKey=2026-Q2"]}>
+        <WorkspaceProvider>
+          <LocaleProvider initialLocale="sv">
+            <VatPage />
+          </LocaleProvider>
+        </WorkspaceProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Skapa utkast" })).toBeEnabled())
+    fireEvent.click(screen.getByRole("button", { name: "Skapa utkast" }))
+    await waitFor(() =>
+      expect(vatReturnDraftCreate).toHaveBeenLastCalledWith(
+        expect.objectContaining({ periodKey: "2026-Q2" }),
+      ),
+    )
   })
 })

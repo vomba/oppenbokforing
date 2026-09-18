@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 
 export type ActionReviewDialogProps = {
   open: boolean
@@ -32,13 +33,29 @@ export function ActionReviewDialog({
   const cancelRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const dialogRef = useRef<HTMLElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const onCancelRef = useRef(onCancel)
+
+  useEffect(() => {
+    onCancelRef.current = onCancel
+  }, [onCancel])
+
 
   useEffect(() => {
     if (!open) return
     previousFocusRef.current = document.activeElement as HTMLElement | null
     cancelRef.current?.focus()
+    const hiddenBackground = Array.from(document.body.children)
+      .filter((element) => !element.contains(overlayRef.current))
+      .map((element) => ({ element, ariaHidden: element.getAttribute("aria-hidden") }))
+    hiddenBackground.forEach(({ element }) => element.setAttribute("aria-hidden", "true"))
 
     function trapFocus(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        onCancelRef.current()
+        return
+      }
       if (event.key !== "Tab") return
       const dialog = dialogRef.current
       if (!dialog) return
@@ -60,14 +77,18 @@ export function ActionReviewDialog({
     document.addEventListener("keydown", trapFocus)
     return () => {
       document.removeEventListener("keydown", trapFocus)
+      hiddenBackground.forEach(({ element, ariaHidden }) => {
+        if (ariaHidden === null) element.removeAttribute("aria-hidden")
+        else element.setAttribute("aria-hidden", ariaHidden)
+      })
       previousFocusRef.current?.focus()
     }
   }, [open])
 
   if (!open) return null
 
-  return (
-    <div className="guided-tour-overlay" role="presentation">
+  return createPortal(
+    <div ref={overlayRef} className="guided-tour-overlay" role="presentation">
       <section
         className="guided-tour-card"
         role="dialog"
@@ -94,6 +115,7 @@ export function ActionReviewDialog({
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }

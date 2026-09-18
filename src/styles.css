@@ -586,3 +586,65 @@ button:disabled {
   background: #eef4ff;
 }
 
+
+:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 3px;
+}
+
+.picker-locale-switcher {
+  max-width: 220px;
+  margin-top: 16px;
+  color: #18322b;
+}
+
+@media (max-width: 959px) {
+  body {
+    min-width: 0;
+  }
+
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .sidebar nav {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  }
+
+  .workspace {
+    padding: 16px;
+  }
+
+  .topbar,
+  .workspace-create,
+  .guided-tour-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-create input {
+    width: 100%;
+  }
+
+  .dashboard-grid,
+  .workbench {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .dashboard-grid {
+    margin: 16px 0;
+  }
+
+  .picker-shell {
+    padding: 16px;
+  }
+
+  .picker-panel {
+    padding: 20px;
+  }
+}

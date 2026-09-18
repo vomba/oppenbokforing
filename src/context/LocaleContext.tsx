@@ -10,7 +10,7 @@ const LocaleContext = createContext<LocaleContextValue | null>(null)
 
 export function LocaleProvider({
   children,
-  initialLocale = "en",
+  initialLocale = "sv",
 }: {
   children: ReactNode
   initialLocale?: Locale
@@ -30,5 +30,5 @@ export function useLocale() {
 
 export function localeFromSettings(value: string | undefined): Locale {
   if (value && isLocale(value)) return value
-  return "en"
+  return "sv"
 }

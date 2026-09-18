@@ -1,6 +1,6 @@
 use oppenbokforing_desktop_lib::{
     db::connect_workspace,
-    profiles::{self, TaxProfileSaveInput, VatProfileSaveInput},
+    profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
     state::load_golden_scenario,
     workspace::ensure_workspace_ready,
 };
@@ -351,6 +351,19 @@ async fn m3_csv_import_match_invoice_payment_fixture() {
         .await
         .expect("bootstrap");
 
+    profiles::save_business_profile(
+        &pool,
+        &workspace_id,
+        &BusinessProfileSaveInput {
+            business_name: "M3 CSV Fixture Firma".to_string(),
+            owner_name: "Fixture Owner".to_string(),
+            residency_country: Some("SE".to_string()),
+            sni_code: Some("62010".to_string()),
+        },
+    )
+    .await
+    .expect("business");
+
     profiles::save_tax_profile(
         &pool,
         &workspace_id,
@@ -598,6 +611,19 @@ async fn m3_reconciliation_rejects_mismatched_or_duplicate_payments() {
     ensure_workspace_ready(&pool, &workspace_id)
         .await
         .expect("bootstrap");
+
+    profiles::save_business_profile(
+        &pool,
+        &workspace_id,
+        &BusinessProfileSaveInput {
+            business_name: "M3 Reconciliation Firma".to_string(),
+            owner_name: "Fixture Owner".to_string(),
+            residency_country: Some("SE".to_string()),
+            sni_code: Some("62010".to_string()),
+        },
+    )
+    .await
+    .expect("business");
 
     profiles::save_tax_profile(
         &pool,

@@ -8,6 +8,8 @@ import type {
   BusinessProfileSaveInput,
   ComplianceCheckInput,
   ComplianceCheckResult,
+  ComplianceProfileCheckInput,
+  ComplianceProfileCheckResult,
   Counterparty,
   CounterpartyCreateInput,
   CsvImportCreateInput,
@@ -23,11 +25,17 @@ import type {
   InvoiceCreateDraftInput,
   InvoiceCreditInput,
   InvoiceIssueInput,
+  InvoiceIssuePreflight,
+  InvoiceIssuePreflightInput,
   InvoiceListInput,
   InvoicePaymentRecordInput,
   InvoicePdfStatusInput,
   InvoiceSummary,
   InvoiceUpdateDraftInput,
+  LegacyIssuedInvoiceSnapshotRecoveryInput,
+  LegacyIssuedInvoiceSnapshotRecoveryStatus,
+  OnboardingProfileSaveInput,
+  OnboardingProfileSaveResult,
   RecentWorkspaceEntry,
   ReconciliationMatchCreateInput,
   ReconciliationMatchResult,
@@ -56,6 +64,7 @@ import type {
   CashflowOverview,
   YearEndPackageApproveInput,
   YearEndPackageCreateInput,
+  YearEndPackageRegenerateInput,
   YearEndPackageExportInput,
   YearEndPackageFindInput,
   YearEndPackageGetInput,
@@ -86,6 +95,8 @@ export type {
   BusinessProfileSaveInput,
   ComplianceCheckInput,
   ComplianceCheckResult,
+  ComplianceProfileCheckInput,
+  ComplianceProfileCheckResult,
   Counterparty,
   CounterpartyCreateInput,
   CsvImportCreateInput,
@@ -130,6 +141,7 @@ export type {
   CashflowOverview,
   YearEndPackageApproveInput,
   YearEndPackageCreateInput,
+  YearEndPackageRegenerateInput,
   YearEndPackageExportInput,
   YearEndPackageFindInput,
   YearEndPackageGetInput,
@@ -198,6 +210,14 @@ export async function businessProfileSaveCurrent(input: BusinessProfileSaveInput
   return response.data
 }
 
+export async function onboardingProfilesSave(input: OnboardingProfileSaveInput) {
+  const response = await invoke<CommandResponse<OnboardingProfileSaveResult>>(
+    "onboarding_profiles_save",
+    { input },
+  )
+  return response.data
+}
+
 export async function taxProfileGetCurrent() {
   const response = await invoke<CommandResponse<TaxProfile>>("tax_profile_get_current")
   return response.data
@@ -216,21 +236,6 @@ export async function taxProfileSaveCurrent(input: TaxProfileSaveInput) {
 export async function vatProfileSaveCurrent(input: VatProfileSaveInput) {
   const response = await invoke<CommandResponse<VatProfile>>("vat_profile_save_current", { input })
   return response.data
-}
-
-export type ComplianceProfileCheckInput = {
-  taxStatus: string
-  vatStatus: string
-  expectedSalaryIncomeMinor: number | null
-  expectedBusinessProfitMinor: number | null
-  ruleYear: number | null
-}
-
-export type ComplianceProfileCheckResult = {
-  scenarioIds: string[]
-  passed: boolean
-  outcomes: Record<string, unknown>
-  ruleYear: number
 }
 
 export async function complianceProfileCheck(input: ComplianceProfileCheckInput) {
@@ -288,6 +293,14 @@ export async function invoiceIssue(input: InvoiceIssueInput) {
   return response.data
 }
 
+export async function invoiceIssuePreflight(input: InvoiceIssuePreflightInput) {
+  const response = await invoke<CommandResponse<InvoiceIssuePreflight>>(
+    "invoice_issue_preflight",
+    { input },
+  )
+  return response.data
+}
+
 export async function invoiceCredit(input: InvoiceCreditInput) {
   const response = await invoke<CommandResponse<InvoiceSummary>>("invoice_credit", { input })
   return response.data
@@ -305,6 +318,19 @@ export async function invoicePdfRefresh(input: InvoicePdfStatusInput) {
 
 export async function invoicePdfStatus(input: InvoicePdfStatusInput) {
   const response = await invoke<CommandResponse<string>>("invoice_pdf_status", { input })
+  return response.data
+}
+
+export async function invoiceLegacySnapshotRecoveryStatus(input: InvoicePdfStatusInput) {
+  const response = await invoke<CommandResponse<LegacyIssuedInvoiceSnapshotRecoveryStatus>>(
+    "invoice_legacy_snapshot_recovery_status",
+    { input },
+  )
+  return response.data
+}
+
+export async function invoiceLegacySnapshotRecover(input: LegacyIssuedInvoiceSnapshotRecoveryInput) {
+  const response = await invoke<CommandResponse<boolean>>("invoice_legacy_snapshot_recover", { input })
   return response.data
 }
 
@@ -384,6 +410,14 @@ export async function cashflowOverviewGet() {
 export async function yearEndPackageCreate(input: YearEndPackageCreateInput) {
   const response = await invoke<CommandResponse<YearEndPackageSummary>>(
     "year_end_package_create",
+    { input },
+  )
+  return response.data
+}
+
+export async function yearEndPackageRegenerate(input: YearEndPackageRegenerateInput) {
+  const response = await invoke<CommandResponse<YearEndPackageSummary>>(
+    "year_end_package_regenerate",
     { input },
   )
   return response.data

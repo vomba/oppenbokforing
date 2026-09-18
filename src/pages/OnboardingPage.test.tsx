@@ -65,9 +65,7 @@ vi.mock("../lib/commands", () => ({
   businessProfileGetCurrent: vi.fn().mockRejectedValue(profileNotFoundError("businessProfile")),
   taxProfileGetCurrent: vi.fn().mockRejectedValue(profileNotFoundError("taxProfile")),
   vatProfileGetCurrent: vi.fn().mockRejectedValue(profileNotFoundError("vatProfile")),
-  businessProfileSaveCurrent: vi.fn().mockResolvedValue({}),
-  taxProfileSaveCurrent: vi.fn().mockResolvedValue({}),
-  vatProfileSaveCurrent: vi.fn().mockResolvedValue({}),
+  onboardingProfilesSave: vi.fn().mockResolvedValue({}),
   workspaceSettingsSave: vi.fn().mockResolvedValue(workspaceSettingsFixture),
   complianceProfileCheck: vi.fn().mockResolvedValue({
     scenarioIds: ["vat-exempt-below-threshold"],
@@ -219,6 +217,46 @@ describe("OnboardingPage", () => {
     )
   })
 
+
+  it("opens the VAT step from a tax-task query when saved prerequisites permit it", async () => {
+    const commands = await import("../lib/commands")
+    vi.mocked(commands.businessProfileGetCurrent).mockResolvedValue({
+      id: "bp-1",
+      businessName: "Konsult AB",
+      ownerName: "Anna",
+      residencyCountry: "SE",
+      sniCode: "62010",
+    })
+    vi.mocked(commands.taxProfileGetCurrent).mockResolvedValue({
+      id: "tp-1",
+      taxStatus: "f_skatt",
+      expectedBusinessProfitMinor: 0,
+      expectedSalaryIncomeMinor: 0,
+      activeRuleYear: 2026,
+    })
+    vi.mocked(commands.vatProfileGetCurrent).mockResolvedValue({
+      id: "vp-1",
+      vatStatus: "exempt_low_turnover",
+      reportingPeriod: "quarterly",
+      accountingMethod: "invoice_method",
+      voluntaryRegistrationDate: null,
+      vatFilingDeadlineRegime: null,
+    })
+
+    render(
+      <MemoryRouter initialEntries={["/onboarding?step=vat"]}>
+        <WorkspaceProvider>
+          <LocaleProvider initialLocale="sv">
+            <OnboardingPage />
+          </LocaleProvider>
+        </WorkspaceProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Momsstatus" })).toBeInTheDocument()
+    })
+  })
   it("switches onboarding language and persists workspace locale", async () => {
     const user = userEvent.setup()
     const commands = await import("../lib/commands")
@@ -260,6 +298,61 @@ describe("OnboardingPage", () => {
       expect(commands.complianceProfileCheck).toHaveBeenCalled()
     })
     expect(screen.getByRole("heading", { name: "Granska och spara" })).toBeInTheDocument()
+  })
+
+  it("reviews every persisted planning and voluntary VAT decision and edits the VAT step", async () => {
+    const user = userEvent.setup()
+    const commands = await import("../lib/commands")
+    vi.mocked(commands.businessProfileGetCurrent).mockResolvedValue({
+      id: "bp-1",
+      businessName: "Konsult AB",
+      ownerName: "Anna",
+      residencyCountry: "SE",
+      sniCode: "62010",
+    })
+    vi.mocked(commands.taxProfileGetCurrent).mockResolvedValue({
+      id: "tp-1",
+      taxStatus: "planning",
+      expectedBusinessProfitMinor: 120_000_00,
+      expectedSalaryIncomeMinor: 48_000_50,
+      activeRuleYear: 2026,
+    })
+    vi.mocked(commands.vatProfileGetCurrent).mockResolvedValue({
+      id: "vp-1",
+      vatStatus: "voluntary_registered",
+      reportingPeriod: "quarterly",
+      accountingMethod: "cash_method",
+      voluntaryRegistrationDate: "2026-01-01",
+      vatFilingDeadlineRegime: null,
+    })
+
+    renderOnboarding()
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Granska" })).toBeEnabled()
+    })
+    await user.click(screen.getByRole("button", { name: "Granska" }))
+
+    expect(screen.getByText("Planering")).toBeInTheDocument()
+    expect(screen.getByText("Momsregistrerad frivilligt")).toBeInTheDocument()
+    expect(screen.getByText("48000,50")).toBeInTheDocument()
+    expect(screen.getByText("120000")).toBeInTheDocument()
+    expect(screen.getByText("2026-01-01")).toBeInTheDocument()
+    expect(screen.getByText(/Inget deklarationsdatum är valt/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Redigera momsprofil" }))
+
+    expect(screen.getByRole("combobox", { name: "Momsstatus" })).toHaveValue(
+      "voluntary_registered",
+    )
+    expect(
+      screen.getByRole("combobox", {
+        name: "Vilket schema för momsens förfallodag visar Skatteverket för dig?",
+      }),
+    ).toHaveValue("")
+    expect(screen.getByLabelText("Datum för frivillig momsregistrering")).toHaveValue(
+      "2026-01-01",
+    )
   })
 
   it("explains F-skatt on invoices when FA-skatt is selected", async () => {

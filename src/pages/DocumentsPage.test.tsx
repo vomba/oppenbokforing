@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { LocaleProvider } from "../context/LocaleContext"
@@ -206,8 +206,16 @@ describe("DocumentsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Välj bankutdrag (PDF)" }))
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Markera faktura betald" })).toBeEnabled()
+      expect(within(screen.getByRole("note")).getByText(/statement\.pdf/)).toBeInTheDocument()
     })
+
+    const paymentDateInput = screen.getByLabelText("Betalningsdatum")
+    expect(paymentDateInput).toHaveValue("")
+    expect(screen.getByRole("button", { name: "Markera faktura betald" })).toBeDisabled()
+
+    fireEvent.change(paymentDateInput, { target: { value: "2026-03-02" } })
+
+    expect(screen.getByRole("button", { name: "Markera faktura betald" })).toBeEnabled()
 
     fireEvent.click(screen.getByRole("button", { name: "Markera faktura betald" }))
 
@@ -223,6 +231,9 @@ describe("DocumentsPage", () => {
     })
     expect(screen.queryByRole("button", { name: "Markera faktura betald" })).not.toBeInTheDocument()
     expect(invoicePaymentRecord).toHaveBeenCalledTimes(1)
+    expect(invoicePaymentRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentDate: "2026-03-02" }),
+    )
   })
 
   it("shows not payable after inbox load failure", async () => {

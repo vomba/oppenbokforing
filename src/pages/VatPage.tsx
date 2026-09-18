@@ -3,7 +3,7 @@ import { HelpTip } from "../components/HelpTip"
 import { ActionReviewDialog } from "../components/ActionReviewDialog"
 import { VoucherTraceLink } from "../components/VoucherTraceLink"
 import { useEffect, useRef, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { useLocale } from "../context/LocaleContext"
 import { t, tVars } from "../i18n"
@@ -26,7 +26,11 @@ import {
 } from "../lib/commands"
 import { resolveExportDirectory } from "../lib/exportDirectory"
 import { formatSekMinor } from "../lib/money"
-import { vatReturnStatusLabel } from "../lib/domainStatus"
+import {
+  vatProfileStatusLabel,
+  vatReportingPeriodLabel,
+  vatReturnStatusLabel,
+} from "../lib/domainStatus"
 import type { VatReturnTrace } from "../lib/bindings"
 
 function periodKeysForYear(reportingPeriod: string, year: number): string[] {
@@ -37,29 +41,12 @@ function periodKeysForYear(reportingPeriod: string, year: number): string[] {
   return [`${year}-Q1`, `${year}-Q2`, `${year}-Q3`, `${year}-Q4`]
 }
 
-function defaultPeriodKey(reportingPeriod: string, year: number) {
-  if (reportingPeriod === "yearly") return String(year)
-  if (reportingPeriod === "monthly") return `${year}-M01`
-  return `${year}-Q1`
-}
-
-function currentPeriodKey(reportingPeriod: string, year: number) {
-  if (reportingPeriod === "yearly") return String(year)
-  const now = new Date()
-  if (now.getFullYear() !== year) {
-    return defaultPeriodKey(reportingPeriod, year)
-  }
-  if (reportingPeriod === "monthly") {
-    return `${year}-M${String(now.getMonth() + 1).padStart(2, "0")}`
-  }
-  const quarter = Math.floor(now.getMonth() / 3) + 1
-  return `${year}-Q${quarter}`
-}
 
 export function VatPage() {
   const { workspace } = useWorkspace()
   const { locale } = useLocale()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const [vatProfile, setVatProfile] = useState<VatProfile | null>(null)
   const [periodKey, setPeriodKey] = useState("")
   const [periodOptions, setPeriodOptions] = useState<string[]>([])
@@ -71,6 +58,8 @@ export function VatPage() {
   const [defaultExportDirectory, setDefaultExportDirectory] = useState<string | null>(null)
   const [approveReviewOpen, setApproveReviewOpen] = useState(false)
   const [vatTrace, setVatTrace] = useState<VatReturnTrace | null>(null)
+  const [vatDataAvailable, setVatDataAvailable] = useState(false)
+  const [vatReload, setVatReload] = useState(0)
   const draftKeyRef = useRef<Record<string, string>>({})
   const approveKeyRef = useRef<Record<string, string>>({})
 
@@ -83,30 +72,52 @@ export function VatPage() {
   }, [locale])
 
   useEffect(() => {
-    if (!workspace) return
-    Promise.all([
-      taxProfileGetCurrent().catch(() => null),
-      vatProfileGetCurrent().catch(() => null),
-      vatThresholdStatusGet().catch(() => null),
-      cashflowOverviewGet().catch(() => null),
-    ]).then(([taxProfile, profile, thresholdStatus, overview]) => {
-      setVatProfile(profile)
-      const reportingPeriod = profile?.reportingPeriod ?? "quarterly"
-      const year = taxProfile?.activeRuleYear ?? new Date().getFullYear()
-      const options = periodKeysForYear(reportingPeriod, year)
-      const key = currentPeriodKey(reportingPeriod, year)
-      setPeriodOptions(options)
-      setPeriodKey(key)
-      setThreshold(thresholdStatus)
-      setCashflow(overview)
-      if (profile && profile.vatStatus !== "registered" && profile.vatStatus !== "voluntary_registered") {
-        setStatus(t(locale, "vat.notRegistered"))
-      }
-    })
+    if (!workspace) {
+      setVatDataAvailable(false)
+      setStatus(t(locale, "yearEnd.noWorkspace"))
+      return
+    }
+    let active = true
+    void Promise.all([
+      taxProfileGetCurrent(),
+      vatProfileGetCurrent(),
+      vatThresholdStatusGet(),
+      cashflowOverviewGet(),
+    ])
+      .then(([taxProfile, profile, thresholdStatus, overview]) => {
+        if (!taxProfile || !taxProfile.activeRuleYear || !profile || !thresholdStatus || !overview) {
+          throw new Error("Required VAT data is unavailable")
+        }
+        const options = periodKeysForYear(profile.reportingPeriod, taxProfile.activeRuleYear)
+        const requestedPeriodKey = searchParams.get("periodKey")
+        if (requestedPeriodKey && !options.includes(requestedPeriodKey)) {
+          throw new Error("Requested VAT period is not available for the profile")
+        }
+        if (!active) return
+        setVatProfile(profile)
+        setPeriodOptions(options)
+        setPeriodKey(requestedPeriodKey ?? options[0] ?? "")
+        setThreshold(thresholdStatus)
+        setCashflow(overview)
+        setVatDataAvailable(true)
+        setStatus(
+          profile.vatStatus === "registered" || profile.vatStatus === "voluntary_registered"
+            ? t(locale, "vat.status")
+            : t(locale, "vat.notRegistered"),
+        )
+      })
+      .catch(() => {
+        if (!active) return
+        setVatDataAvailable(false)
+        setStatus(t(locale, "vat.dataUnavailable"))
+      })
     workspaceSettingsGet()
       .then((settings) => setDefaultExportDirectory(settings.defaultExportDirectory))
       .catch(() => setDefaultExportDirectory(null))
-  }, [workspace, location.key, locale])
+    return () => {
+      active = false
+    }
+  }, [workspace, location.key, locale, searchParams, vatReload])
 
   useEffect(() => {
     setVatReturn(null)
@@ -229,35 +240,54 @@ export function VatPage() {
         </header>
 
         <section className="dashboard-grid" aria-label={t(locale, "vat.title")}>
-          <article className="metric metric-neutral">
+          <article className={`metric metric-${vatDataAvailable ? "neutral" : "amber"}`}>
             <span>{t(locale, "vat.period")}</span>
-            <strong>{cashflow?.vatPeriodKey ?? "—"}</strong>
+            <strong>{vatDataAvailable && cashflow ? cashflow.vatPeriodKey : t(locale, "vat.dataUnavailable")}</strong>
           </article>
-          <article className="metric metric-neutral">
+          <article className={`metric metric-${vatDataAvailable ? "neutral" : "amber"}`}>
             <span>{t(locale, "vat.turnoverYear")}</span>
-            <strong>{threshold ? formatSekMinor(threshold.annualTurnoverMinor) : "—"}</strong>
+            <strong>{vatDataAvailable && threshold ? formatSekMinor(threshold.annualTurnoverMinor) : t(locale, "vat.dataUnavailable")}</strong>
           </article>
           <article
-            className={`metric metric-${threshold?.warning === "breached" ? "red" : threshold?.warning === "approaching" ? "amber" : "neutral"}`}
+            className={`metric metric-${!vatDataAvailable ? "amber" : threshold?.warning === "breached" ? "red" : threshold?.warning === "approaching" ? "amber" : "neutral"}`}
           >
             <span>{t(locale, "vat.threshold")}</span>
             <strong>
-              {threshold
-                ? threshold.warning === "none"
+              {!vatDataAvailable
+                ? t(locale, "vat.dataUnavailable")
+                : threshold?.warning === "none"
                   ? t(locale, "vat.thresholdBelow")
-                  : threshold.warning
-                : "—"}
+                  : threshold?.warning === "breached"
+                    ? t(locale, "vat.threshold.breached")
+                    : t(locale, "vat.threshold.approaching")}
             </strong>
           </article>
-          <article className="metric metric-neutral">
+          <article className={`metric metric-${vatDataAvailable ? "neutral" : "amber"}`}>
             <span>{t(locale, "vat.vatReserve")}</span>
-            <strong>{cashflow ? formatSekMinor(cashflow.vatReserveMinor) : "—"}</strong>
+            <strong>{vatDataAvailable && cashflow ? formatSekMinor(cashflow.vatReserveMinor) : t(locale, "vat.dataUnavailable")}</strong>
           </article>
-          <article className="metric metric-neutral">
+          <article className={`metric metric-${vatDataAvailable ? "neutral" : "amber"}`}>
             <span>{t(locale, "vat.spendableCash")}</span>
-            <strong>{cashflow ? formatSekMinor(cashflow.spendableCashMinor) : "—"}</strong>
+            <strong>{vatDataAvailable && cashflow ? formatSekMinor(cashflow.spendableCashMinor) : t(locale, "vat.dataUnavailable")}</strong>
           </article>
         </section>
+
+        {!vatDataAvailable ? (
+          <section className="panel">
+            <p>{t(locale, "vat.dataUnavailable")}</p>
+            <button type="button" className="secondary" onClick={() => setVatReload((value) => value + 1)}>
+              {t(locale, "vat.retry")}
+            </button>
+          </section>
+        ) : null}
+
+        {vatProfile?.vatStatus === "exempt_low_turnover" && threshold?.warning === "breached" ? (
+          <section className="panel profile-review-panel">
+            <h3>{t(locale, "vat.reviewRequired.title")}</h3>
+            <p>{t(locale, "vat.reviewRequired.body")}</p>
+            <Link to="/onboarding?step=vat">{t(locale, "vat.reviewRequired.action")}</Link>
+          </section>
+        ) : null}
 
         <section className="workbench">
           <div className="panel">
@@ -270,7 +300,7 @@ export function VatPage() {
               <select
                 value={periodKey}
                 onChange={(e) => setPeriodKey(e.target.value)}
-                disabled={periodOptions.length === 0}
+                disabled={!vatDataAvailable || periodOptions.length === 0}
               >
                 {periodOptions.map((key) => (
                   <option key={key} value={key}>
@@ -279,11 +309,11 @@ export function VatPage() {
                 ))}
               </select>
             </label>
-            {vatProfile ? (
+            {vatDataAvailable && vatProfile ? (
               <p className="status-line">
                 {tVars(locale, "vat.reportingStatus", {
-                  period: vatProfile.reportingPeriod,
-                  status: vatProfile.vatStatus,
+                  period: vatReportingPeriodLabel(locale, vatProfile.reportingPeriod),
+                  status: vatProfileStatusLabel(locale, vatProfile.vatStatus),
                 })}
               </p>
             ) : null}
@@ -291,7 +321,7 @@ export function VatPage() {
               <button
                 type="button"
                 onClick={handleDraftCreate}
-                disabled={busy || !periodKey.trim() || !vatRegistered}
+                disabled={!vatDataAvailable || busy || !periodKey.trim() || !vatRegistered}
                 aria-busy={busy}
               >
                 {t(locale, "vat.createDraft")}
@@ -300,8 +330,7 @@ export function VatPage() {
                 type="button"
                 className="secondary"
                 onClick={openApproveReview}
-                disabled={busy || !vatReturn || vatReturn.status === "approved"}
-                aria-busy={busy}
+                disabled={!vatDataAvailable || busy || !vatReturn || vatReturn.status === "approved"}
               >
                 {t(locale, "vat.approve")}
               </button>
@@ -309,8 +338,7 @@ export function VatPage() {
                 type="button"
                 className="secondary"
                 onClick={handleExport}
-                disabled={busy || !vatReturn || vatReturn.status !== "approved"}
-                aria-busy={busy}
+                disabled={!vatDataAvailable || busy || !vatReturn || vatReturn.status !== "approved"}
               >
                 {t(locale, "vat.export")}
               </button>

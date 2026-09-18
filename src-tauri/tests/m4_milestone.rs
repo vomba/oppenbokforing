@@ -6,7 +6,7 @@ use oppenbokforing_desktop_lib::{
     invoicing::{
         self, InvoiceCreateDraftInput, InvoiceIssueInput, InvoiceLineInput,
     },
-    profiles::{self, TaxProfileSaveInput, VatProfileSaveInput},
+    profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
     state::load_golden_scenario,
     vat::{
         self, VatReturnApproveInput, VatReturnDraftCreateInput, VatReturnExportInput,
@@ -43,6 +43,19 @@ async fn setup_workspace(dir: &tempfile::TempDir) -> (sqlx::SqlitePool, String, 
     ensure_workspace_ready(&pool, &workspace_id)
         .await
         .expect("bootstrap");
+
+    profiles::save_business_profile(
+        &pool,
+        &workspace_id,
+        &BusinessProfileSaveInput {
+            business_name: "M4 Fixture Firma".to_string(),
+            owner_name: "Fixture Owner".to_string(),
+            residency_country: Some("SE".to_string()),
+            sni_code: Some("62010".to_string()),
+        },
+    )
+    .await
+    .expect("business profile");
 
     profiles::save_tax_profile(
         &pool,
@@ -282,6 +295,7 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
             source_invoice_id: issued_invoice.id,
             idempotency_key: "credit-in-locked".to_string(),
             reason: None,
+            issue_date: Some("2026-02-15".to_string()),
         },
     )
     .await
@@ -548,6 +562,7 @@ async fn m4_vat_boxes_net_credit_reversal() {
             source_invoice_id: issued.id,
             idempotency_key: "vat-net-credit".to_string(),
             reason: None,
+            issue_date: Some("2026-02-10".to_string()),
         },
     )
     .await
@@ -597,43 +612,122 @@ async fn m4_vat_threshold_monitoring() {
     .await
     .expect("customer");
 
-    for (idx, amount) in [(0, 11_000_000_i64), (1, 1_500_000_i64)].iter() {
-        let draft = invoicing::create_draft(
-            &pool,
-            &workspace_id,
-            &InvoiceCreateDraftInput {
-                counterparty_id: customer.id.clone(),
-                due_date: None,
-                lines: vec![InvoiceLineInput {
-                    description: format!("Sale {idx}"),
-                    quantity: 1,
-                    unit_price_minor: *amount,
-                    vat_rate: 0.0,
-                    account_number: Some("3041".to_string()),
-                }],
-            },
-        )
-        .await
-        .expect("draft");
+    let first_sale = invoicing::create_draft(
+        &pool,
+        &workspace_id,
+        &InvoiceCreateDraftInput {
+            counterparty_id: customer.id.clone(),
+            due_date: None,
+            lines: vec![InvoiceLineInput {
+                description: "Sale below threshold".to_string(),
+                quantity: 1,
+                unit_price_minor: 11_000_000,
+                vat_rate: 0.0,
+                account_number: Some("3041".to_string()),
+            }],
+        },
+    )
+    .await
+    .expect("first draft");
 
-        invoicing::issue_invoice(
-            &pool,
-            &workspace_id,
-            &InvoiceIssueInput {
-                invoice_id: draft.id,
-                idempotency_key: format!("thresh-{idx}"),
-                issue_date: Some("2026-06-01".to_string()),
-            },
-        )
-        .await
-        .expect("issue");
-    }
+    invoicing::issue_invoice(
+        &pool,
+        &workspace_id,
+        &InvoiceIssueInput {
+            invoice_id: first_sale.id,
+            idempotency_key: "thresh-first".to_string(),
+            issue_date: Some("2026-06-01".to_string()),
+        },
+    )
+    .await
+    .expect("issue first sale");
+
+    let exempt_breach_draft = invoicing::create_draft(
+        &pool,
+        &workspace_id,
+        &InvoiceCreateDraftInput {
+            counterparty_id: customer.id.clone(),
+            due_date: None,
+            lines: vec![InvoiceLineInput {
+                description: "Exempt breach sale".to_string(),
+                quantity: 1,
+                unit_price_minor: 1_500_000,
+                vat_rate: 0.0,
+                account_number: Some("3041".to_string()),
+            }],
+        },
+    )
+    .await
+    .expect("exempt breach draft");
+
+    let err = invoicing::issue_invoice(
+        &pool,
+        &workspace_id,
+        &InvoiceIssueInput {
+            invoice_id: exempt_breach_draft.id,
+            idempotency_key: "thresh-exempt-breach".to_string(),
+            issue_date: Some("2026-06-01".to_string()),
+        },
+    )
+    .await
+    .expect_err("exempt breach sale must be blocked");
+    assert_eq!(err.code, "validation_error");
+    assert_eq!(
+        err.message,
+        "VAT treatment review is required before issuing this invoice"
+    );
+
+    profiles::save_vat_profile(
+        &pool,
+        &workspace_id,
+        &VatProfileSaveInput {
+            vat_status: "registered".to_string(),
+            reporting_period: "yearly".to_string(),
+            accounting_method: "invoice_method".to_string(),
+            voluntary_registration_date: None,
+            vat_filing_deadline_regime: Some("annual_may_12".to_string()),
+        },
+    )
+    .await
+    .expect("registered vat profile");
+
+    let registered_breach_sale = invoicing::create_draft(
+        &pool,
+        &workspace_id,
+        &InvoiceCreateDraftInput {
+            counterparty_id: customer.id,
+            due_date: None,
+            lines: vec![InvoiceLineInput {
+                description: "Registered VAT-charging breach sale".to_string(),
+                quantity: 1,
+                unit_price_minor: 1_500_000,
+                vat_rate: 0.25,
+                account_number: Some("3041".to_string()),
+            }],
+        },
+    )
+    .await
+    .expect("registered breach draft");
+
+    invoicing::issue_invoice(
+        &pool,
+        &workspace_id,
+        &InvoiceIssueInput {
+            invoice_id: registered_breach_sale.id,
+            idempotency_key: "thresh-registered-breach".to_string(),
+            issue_date: Some("2026-06-01".to_string()),
+        },
+    )
+    .await
+    .expect("issue registered VAT-charging sale");
 
     let status = vat::vat_threshold_status(&pool, &workspace_id, 2026)
         .await
         .expect("threshold");
-    assert!(status.must_register_for_vat);
     assert_eq!(status.annual_turnover_minor, 12_500_000);
+    assert_eq!(status.warning, "breached");
+    assert!(!status.must_register_for_vat);
+    assert!(status.must_charge_vat);
 }
 
 #[tokio::test]
@@ -872,27 +966,16 @@ async fn m4_vat_approve_idempotency_rejects_different_return() {
     .await
     .expect("q1");
 
-    profiles::save_vat_profile(
-        &pool,
-        &workspace_id,
-        &VatProfileSaveInput { vat_status: "registered".to_string(),
-        reporting_period: "yearly".to_string(),
-        accounting_method: "invoice_method".to_string(),
-        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
-    )
-    .await
-    .expect("yearly");
-
-    let yearly = vat::vat_return_draft_create(
+    let q2 = vat::vat_return_draft_create(
         &pool,
         &workspace_id,
         &VatReturnDraftCreateInput {
-            period_key: "2026".to_string(),
-            idempotency_key: "idem-year".to_string(),
+            period_key: "2026-Q2".to_string(),
+            idempotency_key: "idem-q2".to_string(),
         },
     )
     .await
-    .expect("year");
+    .expect("q2");
 
     vat::vat_return_approve(
         &pool,
@@ -909,7 +992,7 @@ async fn m4_vat_approve_idempotency_rejects_different_return() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
-            vat_return_id: yearly.id,
+            vat_return_id: q2.id,
             idempotency_key: "shared-approve".to_string(),
         },
     )

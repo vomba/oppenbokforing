@@ -11,7 +11,7 @@ export function WorkspaceLocaleHydrator() {
 
   useEffect(() => {
     if (!workspace) {
-      setLocale("en")
+      setLocale("sv")
       return
     }
 
@@ -29,7 +29,7 @@ export function WorkspaceLocaleHydrator() {
         if (!active || workspaceRef.current?.id !== workspaceId) {
           return
         }
-        setLocale("en")
+        setLocale("sv")
       })
 
     return () => {

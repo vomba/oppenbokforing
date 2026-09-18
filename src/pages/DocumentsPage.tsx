@@ -97,14 +97,6 @@ export function DocumentsPage() {
     setStatus(t(locale, "documents.invoicePaymentHint"))
   }, [invoiceIdFromUrl, locale])
 
-  useEffect(() => {
-    if (!invoiceIdFromUrl) return
-    const invoice = invoices.find((row) => row.id === invoiceIdFromUrl)
-    if (invoice?.issueDate) {
-      setPaymentDate((current) => current || invoice.issueDate!)
-    }
-  }, [invoiceIdFromUrl, invoices])
-
   async function handlePickBankStatement() {
     if (!workspace || busy) return
     setBusy(true)
@@ -139,17 +131,19 @@ export function DocumentsPage() {
 
   async function handleRecordInvoicePayment() {
     if (busy || !invoiceIdFromUrl || paymentRecorded) return
+    const explicitPaymentDate = paymentDate.trim()
     if (!paymentDocumentId) {
       setStatus(t(locale, "documents.invoicePaymentNeedsStatement"))
       return
     }
+    if (!explicitPaymentDate) return
     setBusy(true)
     const idempotencyKey = paymentKeysRef.current[invoiceIdFromUrl] ??= crypto.randomUUID()
     try {
       const result = await invoicePaymentRecord({
         invoiceId: invoiceIdFromUrl,
         documentId: paymentDocumentId,
-        paymentDate: paymentDate.trim() || null,
+        paymentDate: explicitPaymentDate,
         idempotencyKey,
       })
       delete paymentKeysRef.current[invoiceIdFromUrl]
@@ -299,6 +293,7 @@ export function DocumentsPage() {
       !busy &&
       invoiceIdFromUrl &&
       paymentDocumentId &&
+      paymentDate.trim() &&
       paymentPanelActionable
     ) {
       setReviewKind("payment")
@@ -425,11 +420,17 @@ export function DocumentsPage() {
                       value={paymentDate}
                       onChange={(event) => setPaymentDate(event.target.value)}
                       disabled={busy}
+                      required
                     />
                   </label>
                   <button
                     type="button"
-                    disabled={busy || !paymentDocumentId || !paymentPanelActionable}
+                    disabled={
+                      busy ||
+                      !paymentDocumentId ||
+                      !paymentDate.trim() ||
+                      !paymentPanelActionable
+                    }
                     onClick={openPaymentReview}
                   >
                     {t(locale, "documents.recordInvoicePayment")}

@@ -17,8 +17,28 @@ describe("presentTaxTask", () => {
       }),
     ).toEqual({
       route: "/vat",
+      search: "?periodKey=2026-Q1",
       actionKey: "taxTasks.action.vatReturn",
       statusKey: "taxTasks.status.overdue",
+    })
+  })
+
+  it("routes an unavailable VAT date directly to the VAT onboarding step", () => {
+    expect(
+      presentTaxTask({
+        id: "profile_review:vat_filing_deadline_regime",
+        kind: "profile_review",
+        status: "date_unavailable",
+        target: "onboarding",
+        periodKey: "2026",
+        dueOn: null,
+        ruleVersionId: "rv-2026-active",
+        taxYear: 2026,
+        sourceUrl: "https://www.skatteverket.se/example",
+      }),
+    ).toMatchObject({
+      route: "/onboarding",
+      search: "?step=vat",
     })
   })
 })

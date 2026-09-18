@@ -12,6 +12,7 @@ export type DashboardChecklistItem = {
 }
 
 export type DashboardChecklistInput = {
+  dataUnavailable: boolean
   compliancePassed: boolean | null
   vatWarning: string | null | undefined
   stagedCount: number
@@ -22,6 +23,18 @@ export type DashboardChecklistInput = {
 
 export function buildDashboardChecklist(input: DashboardChecklistInput): DashboardChecklistItem[] {
   const items: DashboardChecklistItem[] = []
+  if (input.dataUnavailable) {
+    return [
+      {
+        id: "data-unavailable",
+        labelKey: "dashboard.checklist.dataUnavailable",
+        href: "/dashboard",
+        tone: "amber",
+        priority: 0,
+      },
+    ]
+  }
+
 
   if (input.compliancePassed === false) {
     items.push({

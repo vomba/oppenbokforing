@@ -1,4 +1,4 @@
-import { useLocation } from "react-router-dom"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { useEffect, useRef, useState } from "react"
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
@@ -15,6 +15,7 @@ import {
   yearEndPackageExport,
   yearEndPackageFindByFiscalYear,
   yearEndPackageGet,
+  yearEndPackageRegenerate,
   yearEndReadinessGet,
   workspaceSettingsGet,
   type TaxProfile,
@@ -23,30 +24,47 @@ import {
 } from "../lib/commands"
 import { resolveExportDirectory } from "../lib/exportDirectory"
 import { formatSekMinor } from "../lib/money"
-import { yearEndPackageStatusLabel } from "../lib/domainStatus"
+import {
+  yearEndPackageStatusLabel,
+  yearEndReadinessDestination,
+  yearEndReadinessLabel,
+} from "../lib/domainStatus"
 
 export function YearEndPage() {
   const { workspace } = useWorkspace()
   const { locale } = useLocale()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const requestedFiscalYear = searchParams.get("fiscalYear")
+  const taxTaskFiscalYear =
+    requestedFiscalYear && /^\d{4}$/.test(requestedFiscalYear) ? Number(requestedFiscalYear) : null
   const [taxProfile, setTaxProfile] = useState<TaxProfile | null>(null)
-  const [fiscalYear, setFiscalYear] = useState(new Date().getFullYear())
+  const [fiscalYear, setFiscalYear] = useState(taxTaskFiscalYear ?? new Date().getFullYear())
   const [yearPackage, setYearPackage] = useState<YearEndPackageSummary | null>(null)
   const [readiness, setReadiness] = useState<YearEndReadiness | null>(null)
+  const [yearEndDataAvailable, setYearEndDataAvailable] = useState(false)
   const [status, setStatus] = useState(t(locale, "yearEnd.status"))
   const [busy, setBusy] = useState(false)
   const [defaultExportDirectory, setDefaultExportDirectory] = useState<string | null>(null)
   const [approveReviewOpen, setApproveReviewOpen] = useState(false)
+  const [regenerateReviewOpen, setRegenerateReviewOpen] = useState(false)
   const createKeyRef = useRef<Record<number, string>>({})
   const exportKeyRef = useRef<Record<string, string>>({})
+
+  useEffect(() => {
+    if (taxTaskFiscalYear !== null) {
+      setFiscalYear(taxTaskFiscalYear)
+    }
+  }, [taxTaskFiscalYear])
   const approveKeyRef = useRef<Record<string, string>>({})
+  const regenerateKeyRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     if (!workspace) return
     taxProfileGetCurrent()
       .then((profile) => {
         setTaxProfile(profile)
-        if (profile?.activeRuleYear) {
+        if (profile?.activeRuleYear && taxTaskFiscalYear === null) {
           setFiscalYear(profile.activeRuleYear)
         }
       })
@@ -54,33 +72,42 @@ export function YearEndPage() {
     workspaceSettingsGet()
       .then((settings) => setDefaultExportDirectory(settings.defaultExportDirectory))
       .catch(() => setDefaultExportDirectory(null))
-  }, [workspace, location.key])
+  }, [workspace, location.key, taxTaskFiscalYear])
 
   useEffect(() => {
     if (!workspace) {
-      setYearPackage(null)
+      setYearEndDataAvailable(false)
+      setStatus(t(locale, "yearEnd.noWorkspace"))
       return
     }
-    yearEndPackageFindByFiscalYear({ fiscalYear })
-      .then((existing) => {
+    let active = true
+    void Promise.all([
+      yearEndPackageFindByFiscalYear({ fiscalYear }),
+      yearEndReadinessGet({ fiscalYear }),
+    ])
+      .then(([existing, nextReadiness]) => {
+        if (!active) return
         setYearPackage(existing)
-        if (existing) {
-          setStatus(
-            `${t(locale, "yearEnd.packageStatus")}: ${yearEndPackageStatusLabel(locale, existing.status)}`,
-          )
-        } else {
-          setStatus(t(locale, "yearEnd.status"))
-        }
+        setReadiness(nextReadiness)
+        setYearEndDataAvailable(true)
+        setStatus(
+          existing
+            ? `${t(locale, "yearEnd.packageStatus")}: ${yearEndPackageStatusLabel(locale, existing.status)}`
+            : t(locale, "yearEnd.status"),
+        )
       })
-      .catch(() => setYearPackage(null))
-
-    yearEndReadinessGet({ fiscalYear })
-      .then(setReadiness)
-      .catch(() => setReadiness(null))
+      .catch(() => {
+        if (!active) return
+        setYearEndDataAvailable(false)
+        setStatus(t(locale, "yearEnd.dataUnavailable"))
+      })
+    return () => {
+      active = false
+    }
   }, [workspace, fiscalYear, location.key, locale])
 
   async function handleCreate() {
-    if (busy) return
+    if (busy || !yearEndDataAvailable) return
     setBusy(true)
     const idempotencyKey = createKeyRef.current[fiscalYear] ??= crypto.randomUUID()
     try {
@@ -103,7 +130,7 @@ export function YearEndPage() {
   }
 
   async function handleExport() {
-    if (busy || !yearPackage) return
+    if (busy || !yearEndDataAvailable || !yearPackage) return
     setBusy(true)
     try {
       const exportDirectory = await resolveExportDirectory(
@@ -131,7 +158,7 @@ export function YearEndPage() {
   }
 
   async function handleRefresh() {
-    if (!yearPackage) return
+    if (!yearEndDataAvailable || !yearPackage) return
     try {
       const refreshed = await yearEndPackageGet({ packageId: yearPackage.id })
       setYearPackage(refreshed)
@@ -140,8 +167,29 @@ export function YearEndPage() {
     }
   }
 
+  async function handleRegenerate() {
+    if (busy || !yearEndDataAvailable || !yearPackage || yearPackage.status !== "draft") return
+    setBusy(true)
+    const idempotencyKey = regenerateKeyRef.current[yearPackage.id] ??= crypto.randomUUID()
+    try {
+      const regenerated = await yearEndPackageRegenerate({
+        packageId: yearPackage.id,
+        idempotencyKey,
+      })
+      delete regenerateKeyRef.current[yearPackage.id]
+      setYearPackage(regenerated)
+      const nextReadiness = await yearEndReadinessGet({ fiscalYear })
+      setReadiness(nextReadiness)
+      setStatus(t(locale, "yearEnd.regenerateDone"))
+    } catch (error) {
+      setStatus(appErrorMessage(error, t(locale, "yearEnd.regenerateFailed")))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleApprove() {
-    if (busy || !yearPackage || yearPackage.status === "approved") return
+    if (busy || !yearEndDataAvailable || !yearPackage || yearPackage.status === "approved") return
     setBusy(true)
     const idempotencyKey = approveKeyRef.current[yearPackage.id] ??= crypto.randomUUID()
     try {
@@ -162,7 +210,13 @@ export function YearEndPage() {
   }
 
   function openApproveReview() {
-    if (yearPackage && yearPackage.status !== "approved" && readiness?.readyToApprove && !busy) {
+    if (
+      yearEndDataAvailable &&
+      yearPackage &&
+      yearPackage.status !== "approved" &&
+      readiness?.readyToApprove &&
+      !busy
+    ) {
       setApproveReviewOpen(true)
     }
   }
@@ -170,6 +224,21 @@ export function YearEndPage() {
   function confirmApproveReview() {
     setApproveReviewOpen(false)
     void handleApprove()
+  }
+
+  function openRegenerateReview() {
+    if (
+      yearEndDataAvailable &&
+      yearPackage?.status === "draft" &&
+      !busy
+    ) {
+      setRegenerateReviewOpen(true)
+    }
+  }
+
+  function confirmRegenerateReview() {
+    setRegenerateReviewOpen(false)
+    void handleRegenerate()
   }
 
   const yearOptions = [fiscalYear - 1, fiscalYear, fiscalYear + 1].filter(
@@ -196,42 +265,53 @@ export function YearEndPage() {
           </div>
         </header>
 
+        {!yearEndDataAvailable ? (
+          <section className="panel">
+            <p>{t(locale, "yearEnd.dataUnavailable")}</p>
+          </section>
+        ) : null}
+
         <section className="dashboard-grid" aria-label={t(locale, "yearEnd.overview")}>
-          <article className={`metric metric-${yearPackage?.k1Allowed ? "neutral" : "amber"}`}>
+          <article className={`metric metric-${yearEndDataAvailable && yearPackage?.k1Allowed ? "neutral" : "amber"}`}>
             <span>{t(locale, "yearEnd.k1Framework")}</span>
             <strong>
-              {yearPackage?.k1Allowed === true
-                ? t(locale, "yearEnd.allowed")
-                : yearPackage?.k1Allowed === false
-                  ? t(locale, "yearEnd.notAllowed")
-                  : "—"}
+              {!yearEndDataAvailable
+                ? t(locale, "yearEnd.dataUnavailable")
+                : yearPackage?.k1Allowed === true
+                  ? t(locale, "yearEnd.allowed")
+                  : yearPackage?.k1Allowed === false
+                    ? t(locale, "yearEnd.notAllowed")
+                    : t(locale, "yearEnd.dataUnavailable")}
             </strong>
           </article>
           <article className="metric metric-neutral">
             <span>{t(locale, "yearEnd.neDraft")}</span>
             <strong>
-              {yearPackage?.neDraftPresent
+              {yearEndDataAvailable && yearPackage?.neDraftPresent
                 ? t(locale, "yearEnd.present")
-                : "—"}
+                : t(locale, "yearEnd.dataUnavailable")}
             </strong>
           </article>
           <article className="metric metric-neutral">
             <span>{t(locale, "yearEnd.localStorage")}</span>
             <strong>
-              {yearPackage?.storedLocally ? t(locale, "yearEnd.yes") : "—"}
+              {yearEndDataAvailable && yearPackage?.storedLocally
+                ? t(locale, "yearEnd.yes")
+                : t(locale, "yearEnd.dataUnavailable")}
             </strong>
           </article>
-          <article
-            className={`metric metric-${yearPackage?.fiscalYearLocked ? "amber" : "neutral"}`}
-          >
+          <article className={`metric metric-${yearEndDataAvailable && yearPackage?.fiscalYearLocked ? "amber" : "neutral"}`}>
             <span>{t(locale, "yearEnd.fiscalYear")}</span>
             <strong>
-              {yearPackage?.fiscalYearLocked
-                ? t(locale, "yearEnd.locked")
-                : t(locale, "yearEnd.open")}
+              {!yearEndDataAvailable
+                ? t(locale, "yearEnd.dataUnavailable")
+                : yearPackage?.fiscalYearLocked
+                  ? t(locale, "yearEnd.locked")
+                  : t(locale, "yearEnd.open")}
             </strong>
           </article>
         </section>
+        <p className="status-line">{t(locale, "yearEnd.preparationOnly")}</p>
 
         <section className="workbench">
           <div className="panel">
@@ -244,7 +324,7 @@ export function YearEndPage() {
               <select
                 value={fiscalYear}
                 onChange={(e) => setFiscalYear(Number(e.target.value))}
-                disabled={busy || Boolean(yearPackage?.fiscalYearLocked)}
+                disabled={!yearEndDataAvailable || busy || Boolean(yearPackage?.fiscalYearLocked)}
               >
                 {yearOptions.map((year) => (
                   <option key={year} value={year}>
@@ -254,7 +334,7 @@ export function YearEndPage() {
               </select>
             </label>
             <div className="button-row">
-              <button type="button" onClick={handleCreate} disabled={busy || Boolean(yearPackage)}>
+              <button type="button" onClick={handleCreate} disabled={!yearEndDataAvailable || busy || Boolean(yearPackage)}>
                 {t(locale, "yearEnd.createPackage")}
               </button>
               {yearPackage ? (
@@ -263,6 +343,7 @@ export function YearEndPage() {
                     type="button"
                     onClick={openApproveReview}
                     disabled={
+                      !yearEndDataAvailable ||
                       busy ||
                       yearPackage.status === "approved" ||
                       readiness?.readyToApprove === false
@@ -270,10 +351,15 @@ export function YearEndPage() {
                   >
                     {t(locale, "yearEnd.approve")}
                   </button>
-                  <button type="button" onClick={handleExport} disabled={busy}>
+                  {yearPackage.status === "draft" ? (
+                    <button type="button" onClick={openRegenerateReview} disabled={!yearEndDataAvailable || busy}>
+                      {t(locale, "yearEnd.regenerate")}
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={handleExport} disabled={!yearEndDataAvailable || busy}>
                     {t(locale, "yearEnd.reexport")}
                   </button>
-                  <button type="button" onClick={handleRefresh} disabled={busy}>
+                  <button type="button" onClick={handleRefresh} disabled={!yearEndDataAvailable || busy}>
                     {t(locale, "yearEnd.refresh")}
                   </button>
                 </>
@@ -288,12 +374,21 @@ export function YearEndPage() {
                 <h3>{t(locale, "yearEnd.readiness")}</h3>
               </header>
               <ul>
-                {readiness.items.map((item) => (
-                  <li key={item.code}>
-                    {item.satisfied ? "✓" : "○"} {item.code}
-                    {item.detail ? ` — ${item.detail}` : ""}
-                  </li>
-                ))}
+                {readiness.items.map((item) => {
+                  const destination = yearEndReadinessDestination(item.code)
+                  return (
+                    <li key={item.code}>
+                      {item.satisfied ? "✓" : "○"} {yearEndReadinessLabel(locale, item.code)}
+                      {!item.satisfied && destination ? <Link to={destination}>{t(locale, "yearEnd.readiness")}</Link> : null}
+                      {item.detail ? (
+                        <details>
+                          <summary>{t(locale, "yearEnd.trace")}</summary>
+                          <code>{item.code}: {item.detail}</code>
+                        </details>
+                      ) : null}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ) : null}
@@ -332,6 +427,7 @@ export function YearEndPage() {
                   {t(locale, "yearEnd.exportPath")}: {yearPackage.exportPath}
                 </p>
               ) : null}
+              <p className="status-line">{t(locale, "yearEnd.preparationOnly")}</p>
             </div>
           ) : null}
         </section>
@@ -357,9 +453,10 @@ export function YearEndPage() {
             })}
             consequences={[
               t(locale, "actionReview.yearEnd.consequence"),
+              t(locale, "yearEnd.preparationOnly"),
               ...(readiness?.items
                 .filter((item) => !item.satisfied)
-                .map((item) => item.detail ?? item.code) ?? []),
+                .map((item) => yearEndReadinessLabel(locale, item.code)) ?? []),
             ]}
             correction={null}
             confirmLabel={t(locale, "actionReview.yearEnd.confirm")}
@@ -367,6 +464,23 @@ export function YearEndPage() {
             busy={busy}
             onConfirm={confirmApproveReview}
             onCancel={() => setApproveReviewOpen(false)}
+          />
+        ) : null}
+        {yearPackage?.status === "draft" ? (
+          <ActionReviewDialog
+            open={regenerateReviewOpen}
+            title={t(locale, "yearEnd.regenerateReviewTitle")}
+            summary={t(locale, "yearEnd.regenerateReviewSummary")}
+            consequences={[
+              t(locale, "yearEnd.regenerateReviewConsequence"),
+              t(locale, "yearEnd.preparationOnly"),
+            ]}
+            correction={null}
+            confirmLabel={t(locale, "yearEnd.regenerateReviewConfirm")}
+            cancelLabel={t(locale, "actionReview.cancel")}
+            busy={busy}
+            onConfirm={confirmRegenerateReview}
+            onCancel={() => setRegenerateReviewOpen(false)}
           />
         ) : null}
     </main>

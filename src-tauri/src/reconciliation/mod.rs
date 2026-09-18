@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use sqlx::{Row, SqlitePool};
@@ -5,6 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     audit::record_event_tx,
+    documents,
     error::{AppError, redacted_internal_from},
     workspace::{ensure_fiscal_year_open_tx, year_from_date},
 };
@@ -306,6 +308,9 @@ async fn post_invoice_payment_voucher_tx(
     let receivable_account_id = lookup_account_id_tx(tx, workspace_id, "1510").await?;
 
     assert_invoice_payable_tx(tx, workspace_id, invoice_id).await?;
+    if let Some(document_id) = document_id {
+        documents::verify_retained_document_tx(tx, workspace_id, document_id).await?;
+    }
 
     let voucher_id = Uuid::new_v4().to_string();
     match sqlx::query(
@@ -572,7 +577,30 @@ struct IdempotentInvoicePaymentPayload {
     idempotency_key: String,
     invoice_id: String,
     document_id: String,
+    payment_date: Option<String>,
     result: ReconciliationMatchResult,
+}
+
+fn validated_invoice_payment_date(input: &InvoicePaymentRecordInput) -> Result<String, AppError> {
+    let payment_date = input
+        .payment_date
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::validation("Payment date is required", "paymentDate"))?;
+    let parsed = NaiveDate::parse_from_str(payment_date, "%Y-%m-%d").map_err(|_| {
+        AppError::validation(
+            "Payment date must use ISO format YYYY-MM-DD",
+            "paymentDate",
+        )
+    })?;
+    if parsed.format("%Y-%m-%d").to_string() != payment_date {
+        return Err(AppError::validation(
+            "Payment date must use ISO format YYYY-MM-DD",
+            "paymentDate",
+        ));
+    }
+    Ok(payment_date.to_string())
 }
 
 async fn check_invoice_payment_idempotency(
@@ -606,6 +634,7 @@ async fn check_invoice_payment_idempotency(
 
 fn validate_invoice_payment_idempotency_inputs(
     input: &InvoicePaymentRecordInput,
+    payment_date: &str,
     cached: &IdempotentInvoicePaymentPayload,
 ) -> Result<(), AppError> {
     if cached.invoice_id != input.invoice_id.trim() {
@@ -620,6 +649,12 @@ fn validate_invoice_payment_idempotency_inputs(
             "idempotencyKey",
         ));
     }
+    if cached.payment_date.as_deref() != Some(payment_date) {
+        return Err(AppError::validation(
+            "Idempotency key was already used for a different payment date",
+            "idempotencyKey",
+        ));
+    }
     Ok(())
 }
 
@@ -627,6 +662,7 @@ async fn record_invoice_payment_idempotency_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     workspace_id: &str,
     input: &InvoicePaymentRecordInput,
+    payment_date: &str,
     result: &ReconciliationMatchResult,
 ) -> Result<(), AppError> {
     let key = normalize_idempotency_key(&input.idempotency_key)?;
@@ -634,6 +670,7 @@ async fn record_invoice_payment_idempotency_tx(
         idempotency_key: key.to_string(),
         invoice_id: input.invoice_id.trim().to_string(),
         document_id: input.document_id.trim().to_string(),
+        payment_date: Some(payment_date.to_string()),
         result: result.clone(),
     };
     let payload_json =
@@ -660,10 +697,11 @@ pub async fn invoice_payment_record(
     input: &InvoicePaymentRecordInput,
 ) -> Result<ReconciliationMatchResult, AppError> {
     let idempotency_key = normalize_idempotency_key(&input.idempotency_key)?;
+    let payment_date = validated_invoice_payment_date(input)?;
     if let Some(existing) =
         check_invoice_payment_idempotency(pool, workspace_id, idempotency_key).await?
     {
-        validate_invoice_payment_idempotency_inputs(input, &existing)?;
+        validate_invoice_payment_idempotency_inputs(input, &payment_date, &existing)?;
         return Ok(existing.result);
     }
 
@@ -695,16 +733,23 @@ pub async fn invoice_payment_record(
 
     let amount_minor: i64 = invoice_row.get("total_inc_vat_minor");
     let issue_date: Option<String> = invoice_row.get("issue_date");
-    let payment_date = input
-        .payment_date
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .or(issue_date)
-        .ok_or_else(|| {
-            AppError::validation("Payment date is required when invoice has no issue date", "paymentDate")
-        })?;
+    let issue_date = issue_date.ok_or_else(|| {
+        AppError::validation("Issued invoice is missing issue date", "invoiceId")
+    })?;
+    let issue_date = NaiveDate::parse_from_str(&issue_date, "%Y-%m-%d")
+        .map_err(|_| AppError::validation("Issued invoice has an invalid issue date", "invoiceId"))?;
+    let parsed_payment_date = NaiveDate::parse_from_str(&payment_date, "%Y-%m-%d").map_err(|_| {
+        AppError::validation(
+            "Payment date must use ISO format YYYY-MM-DD",
+            "paymentDate",
+        )
+    })?;
+    if parsed_payment_date < issue_date {
+        return Err(AppError::validation(
+            "Payment date cannot be earlier than invoice issue date",
+            "paymentDate",
+        ));
+    }
 
     crate::vat::ensure_fiscal_period_open_tx(&mut tx, workspace_id, &payment_date).await?;
     let fiscal_year_id = format!(
@@ -789,14 +834,22 @@ pub async fn invoice_payment_record(
         voucher_id: Some(voucher_id.clone()),
     };
 
-    match record_invoice_payment_idempotency_tx(&mut tx, workspace_id, input, &result).await {
+    match record_invoice_payment_idempotency_tx(
+        &mut tx,
+        workspace_id,
+        input,
+        &payment_date,
+        &result,
+    )
+    .await
+    {
         Ok(()) => {}
         Err(error) if error.is_unique_violation() => {
             tx.rollback().await?;
             let cached = check_invoice_payment_idempotency(pool, workspace_id, idempotency_key)
                 .await?
                 .ok_or_else(|| AppError::internal("Idempotent invoice payment replay failed"))?;
-            validate_invoice_payment_idempotency_inputs(input, &cached)?;
+            validate_invoice_payment_idempotency_inputs(input, &payment_date, &cached)?;
             return Ok(cached.result);
         }
         Err(error) => {

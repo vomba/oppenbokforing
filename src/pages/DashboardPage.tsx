@@ -55,12 +55,17 @@ export function DashboardPage() {
   const [defaultBackupDirectory, setDefaultBackupDirectory] = useState<string | null>(null)
   const [tourActive, setTourActive] = useState(false)
   const [taxTasks, setTaxTasks] = useState<TaxTask[]>([])
+  const [dashboardDataAvailable, setDashboardDataAvailable] = useState(false)
+  const [dashboardReload, setDashboardReload] = useState(0)
   const backupIdempotencyKey = useRef<string | null>(null)
   const backupDestinationPath = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!workspace) return
-    setStatus(t(locale, "dashboard.status.open"))
+    if (!workspace) {
+      setDashboardDataAvailable(false)
+      setStatus(t(locale, "yearEnd.noWorkspace"))
+      return
+    }
     workspaceSettingsGet()
       .then((settings) => {
         setDefaultBackupDirectory(settings.defaultBackupDirectory)
@@ -69,57 +74,74 @@ export function DashboardPage() {
         }
       })
       .catch(() => setDefaultBackupDirectory(null))
-  }, [workspace, locale])
 
-  useEffect(() => {
-    if (!workspace) return
-    ruleVersionGet()
-      .then(setRuleVersion)
-      .catch(() => setRuleVersion(null))
-
-    Promise.all([
-      taxProfileGetCurrent().catch(() => null),
-      vatProfileGetCurrent().catch(() => null),
+    let active = true
+    void Promise.all([
+      ruleVersionGet(),
+      taxProfileGetCurrent(),
+      vatProfileGetCurrent(),
+      invoiceOpenCount(),
+      stagedTransactionsCount("staged"),
+      cashflowOverviewGet(),
+      vatThresholdStatusGet(),
+      yearEndReadinessGet({ fiscalYear }),
+      taxTasksList({ asOfDate: new Date().toISOString().slice(0, 10) }),
     ])
-      .then(([taxProfile, vatProfile]) =>
-        complianceProfileCheck({
-          taxStatus: taxProfile?.taxStatus ?? "f_skatt",
-          vatStatus: vatProfile?.vatStatus ?? "exempt_low_turnover",
-          expectedSalaryIncomeMinor: taxProfile?.expectedSalaryIncomeMinor ?? null,
-          expectedBusinessProfitMinor: taxProfile?.expectedBusinessProfitMinor ?? null,
-          ruleYear: taxProfile?.activeRuleYear ?? null,
-        }),
+      .then(
+        ([
+          nextRuleVersion,
+          taxProfile,
+          vatProfile,
+          nextOpenInvoices,
+          nextStagedCount,
+          nextCashflow,
+          nextThreshold,
+          nextYearEndReadiness,
+          nextTaxTasks,
+        ]) =>
+          complianceProfileCheck({
+            taxStatus: taxProfile?.taxStatus ?? "f_skatt",
+            vatStatus: vatProfile?.vatStatus ?? "exempt_low_turnover",
+            expectedSalaryIncomeMinor: taxProfile?.expectedSalaryIncomeMinor ?? null,
+            expectedBusinessProfitMinor: taxProfile?.expectedBusinessProfitMinor ?? null,
+            ruleYear: taxProfile?.activeRuleYear ?? null,
+          }).then((nextCompliance) => ({
+            nextRuleVersion,
+            nextCompliance,
+            nextOpenInvoices,
+            nextStagedCount,
+            nextCashflow,
+            nextThreshold,
+            nextYearEndReadiness,
+            nextTaxTasks,
+          })),
       )
-      .then(setCompliance)
-      .catch(() => setCompliance(null))
-
-    invoiceOpenCount()
-      .then(setOpenInvoices)
-      .catch(() => setOpenInvoices(0))
-
-    stagedTransactionsCount("staged")
-      .then(setStagedCount)
-      .catch(() => setStagedCount(0))
-
-    cashflowOverviewGet()
-      .then(setCashflow)
-      .catch(() => setCashflow(null))
-
-    vatThresholdStatusGet()
-      .then(setThreshold)
-      .catch(() => setThreshold(null))
-
-    yearEndReadinessGet({ fiscalYear })
-      .then(setYearEndReadiness)
-      .catch(() => setYearEndReadiness(null))
-
-    taxTasksList({ asOfDate: new Date().toISOString().slice(0, 10) })
-      .then(setTaxTasks)
-      .catch(() => setTaxTasks([]))
-  }, [workspace, location.key, fiscalYear])
+      .then((data) => {
+        if (!active) return
+        setRuleVersion(data.nextRuleVersion)
+        setCompliance(data.nextCompliance)
+        setOpenInvoices(data.nextOpenInvoices)
+        setStagedCount(data.nextStagedCount)
+        setCashflow(data.nextCashflow)
+        setThreshold(data.nextThreshold)
+        setYearEndReadiness(data.nextYearEndReadiness)
+        setTaxTasks(data.nextTaxTasks)
+        setDashboardDataAvailable(true)
+        setStatus("")
+      })
+      .catch(() => {
+        if (!active) return
+        setDashboardDataAvailable(false)
+        setStatus(t(locale, "dashboard.dataUnavailable"))
+      })
+    return () => {
+      active = false
+    }
+  }, [workspace, location.key, fiscalYear, locale, dashboardReload])
 
   const checklistInput = useMemo(
     () => ({
+      dataUnavailable: !dashboardDataAvailable,
       compliancePassed: compliance?.passed ?? null,
       vatWarning: threshold?.warning,
       stagedCount,
@@ -128,7 +150,7 @@ export function DashboardPage() {
       unsatisfiedYearEndCodes:
         yearEndReadiness?.items.filter((item) => !item.satisfied).map((item) => item.code) ?? [],
     }),
-    [compliance, threshold, stagedCount, openInvoices, yearEndReadiness],
+    [dashboardDataAvailable, compliance, threshold, stagedCount, openInvoices, yearEndReadiness],
   )
 
   const checklist = useMemo(() => buildDashboardChecklist(checklistInput), [checklistInput])
@@ -249,10 +271,12 @@ export function DashboardPage() {
         </header>
 
         <section className="dashboard-grid" aria-label={t(locale, "dashboard.title")}>
-          <article className="metric metric-neutral" data-tour="spendable-cash">
+          <article className={`metric metric-${dashboardDataAvailable ? "neutral" : "amber"}`} data-tour="spendable-cash">
             <span>{t(locale, "dashboard.spendableCash")}</span>
             <strong>
-              {cashflow ? formatSekMinor(cashflow.spendableCashMinor) : "—"}
+              {dashboardDataAvailable && cashflow
+                ? formatSekMinor(cashflow.spendableCashMinor)
+                : t(locale, "dashboard.dataUnavailable")}
             </strong>
           </article>
         </section>
@@ -263,6 +287,11 @@ export function DashboardPage() {
               <p className="eyebrow">{t(locale, "dashboard.checklist.title")}</p>
               <h3>{t(locale, "dashboard.title")}</h3>
             </header>
+            {!dashboardDataAvailable ? (
+              <button type="button" className="secondary" onClick={() => setDashboardReload((value) => value + 1)}>
+                {t(locale, "dashboard.retry")}
+              </button>
+            ) : null}
             <ul className="checklist">
               {checklist.map((item) => {
                 const detail = checklistItemDetail(locale, item, checklistInput)
@@ -276,7 +305,7 @@ export function DashboardPage() {
             </ul>
           </div>
 
-          {taxTasks.length > 0 ? (
+          {dashboardDataAvailable && taxTasks.length > 0 ? (
             <div className="panel" data-tour="tax-tasks">
               <header>
                 <p className="eyebrow">{t(locale, "taxTasks.title")}</p>
@@ -288,7 +317,9 @@ export function DashboardPage() {
                   const presentation = presentTaxTask(task)
                   return (
                     <li key={task.id} className="checklist-item checklist-amber">
-                      <Link to={presentation.route}>{t(locale, presentation.actionKey)}</Link>
+                      <Link to={`${presentation.route}${presentation.search}`}>
+                        {t(locale, presentation.actionKey)}
+                      </Link>
                       <span className="muted">
                         {task.periodKey} · {t(locale, presentation.statusKey)}
                         {task.dueOn ? ` · ${formatIsoDate(locale, task.dueOn)}` : ""}
@@ -306,18 +337,16 @@ export function DashboardPage() {
           <div className="panel" data-tour="rules">
             <header>
               <p className="eyebrow">{t(locale, "dashboard.rules")}</p>
-              <h3>{ruleVersion ? String(ruleVersion.taxYear) : "—"}</h3>
+              <h3>{dashboardDataAvailable && ruleVersion ? String(ruleVersion.taxYear) : t(locale, "dashboard.dataUnavailable")}</h3>
             </header>
-            {ruleVersion ? (
+            {dashboardDataAvailable && ruleVersion ? (
               <p>
                 <a href={ruleVersion.sourceUrl} target="_blank" rel="noreferrer">
                   {t(locale, "dashboard.rulesSource")}
                 </a>
               </p>
-            ) : (
-              <p className="muted">{t(locale, "yearEnd.noWorkspace")}</p>
-            )}
-            {compliance ? (
+            ) : null}
+            {dashboardDataAvailable && compliance ? (
               <p>
                 {compliance.passed
                   ? t(locale, "dashboard.compliance.passed")

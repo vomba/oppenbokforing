@@ -3,6 +3,7 @@ import type { TaxTask } from "./bindings"
 
 export type TaxTaskPresentation = Readonly<{
   route: "/vat" | "/year-end" | "/onboarding"
+  search: string
   actionKey: MessageKey
   statusKey: MessageKey
 }>
@@ -27,5 +28,20 @@ export function presentTaxTask(task: TaxTask): TaxTaskPresentation {
   if (!target || !statusKey) {
     throw new Error(`Unsupported tax task presentation: ${task.target}/${task.status}`)
   }
-  return { ...target, statusKey }
+  if (task.target === "vat") {
+    if (!/^\d{4}(?:-(?:M(?:0[1-9]|1[0-2])|Q[1-4]))?$/.test(task.periodKey)) {
+      throw new Error(`Invalid VAT task period: ${task.periodKey}`)
+    }
+    return { ...target, search: `?periodKey=${encodeURIComponent(task.periodKey)}`, statusKey }
+  }
+  if (task.target === "year_end") {
+    if (!/^\d{4}$/.test(task.periodKey)) {
+      throw new Error(`Invalid year-end task period: ${task.periodKey}`)
+    }
+    return { ...target, search: `?fiscalYear=${encodeURIComponent(task.periodKey)}`, statusKey }
+  }
+  if (task.status !== "date_unavailable") {
+    throw new Error(`Unsupported onboarding task status: ${task.status}`)
+  }
+  return { ...target, search: "?step=vat", statusKey }
 }

@@ -116,7 +116,10 @@ describe("DashboardPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Skatteuppgifter" })).toBeInTheDocument()
     })
-    expect(screen.getByRole("link", { name: "Redovisa moms" })).toHaveAttribute("href", "/vat")
+    expect(screen.getByRole("link", { name: "Redovisa moms" })).toHaveAttribute(
+      "href",
+      "/vat?periodKey=2026-Q1",
+    )
     expect(screen.getByText(/12 maj 2026/)).toBeInTheDocument()
   })
 

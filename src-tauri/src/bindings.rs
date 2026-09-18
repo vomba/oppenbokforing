@@ -20,8 +20,10 @@ use crate::{
     imports::{CsvImportCreateInput, CsvImportSummary, StagedTransactionSummary, StagedTransactionsListInput},
     integrations::IntegrationStatusResponse,
     invoicing::{
-        InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceLine,
-        InvoiceLineInput, InvoiceListInput, InvoicePdfStatusInput, InvoiceSummary, InvoiceUpdateDraftInput,
+        InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceIssuePreflight,
+        InvoiceIssuePreflightInput, InvoiceLine, InvoiceLineInput, InvoiceListInput,
+        InvoicePdfStatusInput, InvoiceSummary, InvoiceUpdateDraftInput,
+        LegacyIssuedInvoiceSnapshotRecoveryInput, LegacyIssuedInvoiceSnapshotRecoveryStatus,
     },
     ledger::{
         AccountSummary, JournalLineRow, VoucherCountInput, VoucherDetail, VoucherGetInput,
@@ -39,10 +41,12 @@ use crate::{
     year_end::{
         NeFieldSummary, YearEndPackageApproveInput, YearEndPackageCreateInput,
         YearEndPackageExportInput, YearEndPackageFindInput, YearEndPackageGetInput,
-        YearEndPackageSummary, YearEndReadiness, YearEndReadinessInput, YearEndReadinessItem,
+        YearEndPackageRegenerateInput, YearEndPackageSummary, YearEndReadiness,
+        YearEndReadinessInput, YearEndReadinessItem,
     },
     profiles::{
-        BusinessProfile, BusinessProfileSaveInput, TaxProfile, TaxProfileSaveInput, VatProfile,
+        BusinessProfile, BusinessProfileSaveInput, OnboardingProfileSaveInput,
+        OnboardingProfileSaveResult, TaxProfile, TaxProfileSaveInput, VatProfile,
         VatProfileSaveInput,
     },
     recent::RecentWorkspaceEntry,
@@ -96,6 +100,8 @@ pub fn export_types() -> String {
     types.register::<RuleVersionSummary>();
     types.register::<BusinessProfile>();
     types.register::<BusinessProfileSaveInput>();
+    types.register::<OnboardingProfileSaveInput>();
+    types.register::<OnboardingProfileSaveResult>();
     types.register::<TaxProfile>();
     types.register::<TaxProfileSaveInput>();
     types.register::<VatProfile>();
@@ -115,9 +121,13 @@ pub fn export_types() -> String {
     types.register::<InvoiceCreateDraftInput>();
     types.register::<InvoiceUpdateDraftInput>();
     types.register::<InvoiceIssueInput>();
+    types.register::<InvoiceIssuePreflightInput>();
+    types.register::<InvoiceIssuePreflight>();
     types.register::<InvoiceCreditInput>();
     types.register::<InvoiceListInput>();
     types.register::<InvoicePdfStatusInput>();
+    types.register::<LegacyIssuedInvoiceSnapshotRecoveryInput>();
+    types.register::<LegacyIssuedInvoiceSnapshotRecoveryStatus>();
     types.register::<VoucherListInput>();
     types.register::<VoucherCountInput>();
     types.register::<VoucherGetInput>();
@@ -155,6 +165,7 @@ pub fn export_types() -> String {
     types.register::<NeFieldSummary>();
     types.register::<YearEndPackageSummary>();
     types.register::<YearEndPackageCreateInput>();
+    types.register::<YearEndPackageRegenerateInput>();
     types.register::<YearEndPackageGetInput>();
     types.register::<YearEndPackageFindInput>();
     types.register::<YearEndPackageApproveInput>();
@@ -184,6 +195,7 @@ pub fn export_types() -> String {
     types.register::<CommandResponse<BusinessProfile>>();
     types.register::<CommandResponse<TaxProfile>>();
     types.register::<CommandResponse<VatProfile>>();
+    types.register::<CommandResponse<OnboardingProfileSaveResult>>();
     types.register::<CommandResponse<BackupSummary>>();
     types.register::<CommandResponse<BackupRestoreSummary>>();
     types.register::<CommandResponse<Vec<RecentWorkspaceEntry>>>();
@@ -191,6 +203,8 @@ pub fn export_types() -> String {
     types.register::<CommandResponse<Counterparty>>();
     types.register::<CommandResponse<Vec<InvoiceSummary>>>();
     types.register::<CommandResponse<InvoiceSummary>>();
+    types.register::<CommandResponse<InvoiceIssuePreflight>>();
+    types.register::<CommandResponse<LegacyIssuedInvoiceSnapshotRecoveryStatus>>();
     types.register::<CommandResponse<i64>>();
     types.register::<CommandResponse<Document>>();
     types.register::<CommandResponse<ExpensePostResult>>();

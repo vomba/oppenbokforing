@@ -31,12 +31,14 @@ const {
   taxProfileGetCurrent,
   workspaceSettingsGet,
   yearEndPackageApprove,
+  yearEndPackageRegenerate,
   yearEndPackageFindByFiscalYear,
   yearEndReadinessGet,
 } = vi.hoisted(() => ({
   taxProfileGetCurrent: vi.fn(),
   workspaceSettingsGet: vi.fn(),
   yearEndPackageApprove: vi.fn(),
+  yearEndPackageRegenerate: vi.fn(),
   yearEndPackageFindByFiscalYear: vi.fn(),
   yearEndReadinessGet: vi.fn(),
 }))
@@ -65,6 +67,7 @@ vi.mock("../lib/commands", () => ({
   yearEndPackageApprove,
   yearEndPackageCreate: vi.fn(),
   yearEndPackageExport: vi.fn(),
+  yearEndPackageRegenerate,
   yearEndPackageFindByFiscalYear,
   yearEndPackageGet: vi.fn(),
   yearEndReadinessGet,
@@ -124,5 +127,42 @@ describe("YearEndPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Godkänn och lås år" }))
     fireEvent.click(screen.getByRole("button", { name: "Godkänn och lås räkenskapsår" }))
     await waitFor(() => expect(yearEndPackageApprove).toHaveBeenCalledTimes(1))
+  })
+
+  it("offers reviewed regeneration after a stale approval failure", async () => {
+    yearEndReadinessGet.mockResolvedValue({
+      readyToApprove: true,
+      items: [{ code: "vat_periods_filed", satisfied: true, detail: null }],
+    })
+    yearEndPackageApprove.mockRejectedValue(
+      new Error("Ledger changed since this year-end package was generated"),
+    )
+    yearEndPackageRegenerate.mockResolvedValue(draftPackage)
+
+    renderYearEnd()
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Godkänn och lås år" })).toBeEnabled()
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Godkänn och lås år" }))
+    fireEvent.click(screen.getByRole("button", { name: "Godkänn och lås räkenskapsår" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Kunde inte godkänna bokslutspaket.")).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Återskapa bokslutspaket" }))
+
+    expect(yearEndPackageRegenerate).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("Återskapandet uppdaterar huvudbokssammanställningen och NE-utkastet."),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Återskapa och granska igen" }))
+
+    await waitFor(() => expect(yearEndPackageRegenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ packageId: draftPackage.id }),
+    ))
+    expect(
+      screen.getByText("Bokslutspaketet är återskapat. Granska det innan du godkänner och låser året."),
+    ).toBeInTheDocument()
   })
 })

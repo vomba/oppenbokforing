@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { HelpTip } from "../components/HelpTip"
 import { useLocale } from "../context/LocaleContext"
 import { useWorkspace } from "../context/WorkspaceContext"
@@ -7,17 +7,15 @@ import { isLocale, t } from "../i18n"
 import { profileComplianceFailureMessages } from "../lib/compliancePresentation"
 import {
   businessProfileGetCurrent,
-  businessProfileSaveCurrent,
   complianceProfileCheck,
+  onboardingProfilesSave,
   ruleVersionGet,
   taxProfileGetCurrent,
-  taxProfileSaveCurrent,
   vatProfileGetCurrent,
-  vatProfileSaveCurrent,
   workspaceSettingsSave,
-  type ComplianceProfileCheckResult,
   type RuleVersionSummary,
 } from "../lib/commands"
+import type { ComplianceProfileCheckResult } from "../lib/bindings"
 import { humanAppError } from "../lib/errorPresentation"
 import { loadOptionalProfile } from "../lib/profileLoad"
 import { parseSekToMinorUnits } from "../lib/money"
@@ -37,6 +35,8 @@ export function OnboardingPage() {
   const navigate = useNavigate()
   const { workspace } = useWorkspace()
   const { locale, setLocale } = useLocale()
+  const [searchParams] = useSearchParams()
+  const requestedStep = searchParams.get("step")
   const [step, setStep] = useState<OnboardingStep>("business")
   const [draft, setDraft] = useState<OnboardingDraft>(() => defaultOnboardingDraft())
   const [hasSavedProfiles, setHasSavedProfiles] = useState(false)
@@ -96,6 +96,15 @@ export function OnboardingPage() {
         })
         setDraft(hydrated.draft)
         setHasSavedProfiles(hydrated.hasSavedProfiles)
+        if (requestedStep === "vat") {
+          const hydratedSekValid = {
+            salary: parseSekToMinorUnits(hydrated.draft.salarySek) !== null,
+            profit: parseSekToMinorUnits(hydrated.draft.businessProfitSek) !== null,
+          }
+          if (canVisitOnboardingStep("vat", hydrated.draft, hydratedSekValid)) {
+            setStep("vat")
+          }
+        }
       })
       .finally(() => {
         if (active) {
@@ -106,7 +115,7 @@ export function OnboardingPage() {
     return () => {
       active = false
     }
-  }, [workspace])
+  }, [workspace, requestedStep])
 
   useEffect(() => {
     if (!workspace && !profilesLoading) {
@@ -171,7 +180,7 @@ export function OnboardingPage() {
 
   const persistProfiles = useCallback(async () => {
     if (!workspace) {
-      return
+      return null
     }
 
     const businessProfit = parseSekToMinorUnits(draft.businessProfitSek)
@@ -180,25 +189,27 @@ export function OnboardingPage() {
       throw new Error("invalid amounts")
     }
 
-    await businessProfileSaveCurrent({
-      businessName: draft.businessName,
-      ownerName: draft.ownerName,
-      residencyCountry: "SE",
-      sniCode: draft.sniCode || null,
-    })
-    await taxProfileSaveCurrent({
-      taxStatus: draft.taxStatus,
-      expectedBusinessProfitMinor: businessProfit,
-      expectedSalaryIncomeMinor: salaryIncome,
-      activeRuleYear,
-    })
-    await vatProfileSaveCurrent({
-      vatStatus: draft.vatStatus,
-      reportingPeriod: draft.reportingPeriod,
-      accountingMethod: draft.accountingMethod,
-      voluntaryRegistrationDate: null,
-      vatFilingDeadlineRegime:
-        draft.vatStatus === "exempt_low_turnover" ? null : draft.vatFilingDeadlineRegime,
+    return onboardingProfilesSave({
+      business: {
+        businessName: draft.businessName,
+        ownerName: draft.ownerName,
+        residencyCountry: "SE",
+        sniCode: draft.sniCode || null,
+      },
+      tax: {
+        taxStatus: draft.taxStatus,
+        expectedBusinessProfitMinor: businessProfit,
+        expectedSalaryIncomeMinor: salaryIncome,
+        activeRuleYear,
+      },
+      vat: {
+        vatStatus: draft.vatStatus,
+        reportingPeriod: draft.reportingPeriod,
+        accountingMethod: draft.accountingMethod,
+        voluntaryRegistrationDate: draft.voluntaryRegistrationDate || null,
+        vatFilingDeadlineRegime:
+          draft.vatStatus === "exempt_low_turnover" ? null : draft.vatFilingDeadlineRegime,
+      },
     })
   }, [workspace, draft, activeRuleYear])
 
@@ -242,14 +253,13 @@ export function OnboardingPage() {
     setBusy(true)
     setStatus(t(locale, "onboarding.status.saving"))
     try {
-      await persistProfiles()
-      const result = await previewCompliance()
-      if (!result) {
-        setStatus(t(locale, "onboarding.status.invalidAmounts"))
+      const saved = await persistProfiles()
+      if (!saved) {
         return
       }
+      setCompliance(saved.compliance)
 
-      if (result.passed) {
+      if (saved.compliance.passed) {
         setStatus(t(locale, "onboarding.status.saved"))
         navigate("/dashboard")
       } else {
@@ -295,6 +305,36 @@ export function OnboardingPage() {
     : busy
       ? t(locale, "onboarding.action.saving")
       : t(locale, "onboarding.action.save")
+
+  const taxStatusLabel = {
+    planning: t(locale, "onboarding.tax.planning"),
+    f_skatt: t(locale, "onboarding.tax.fSkatt"),
+    fa_skatt: t(locale, "onboarding.tax.faSkatt"),
+  }[draft.taxStatus]
+  const vatStatusLabel = {
+    exempt_low_turnover: t(locale, "onboarding.vat.exempt"),
+    registered: t(locale, "onboarding.vat.registered"),
+    voluntary_registered: t(locale, "onboarding.vat.voluntaryRegistered"),
+  }[draft.vatStatus]
+  const reportingPeriodLabel = {
+    monthly: t(locale, "onboarding.vat.monthly"),
+    quarterly: t(locale, "onboarding.vat.quarterly"),
+    yearly: t(locale, "onboarding.vat.yearly"),
+  }[draft.reportingPeriod]
+  const accountingMethodLabel = {
+    invoice_method: t(locale, "onboarding.vat.invoiceMethod"),
+    cash_method: t(locale, "onboarding.vat.cashMethod"),
+  }[draft.accountingMethod]
+  const deadlineRegimeLabels: Record<string, string> = {
+    annual_may_12: t(locale, "onboarding.vat.deadline.annualMay"),
+    annual_feb_26: t(locale, "onboarding.vat.deadline.annualFebruary"),
+    quarterly_12: t(locale, "onboarding.vat.deadline.quarterly"),
+    monthly_12: t(locale, "onboarding.vat.deadline.monthly12"),
+    monthly_26: t(locale, "onboarding.vat.deadline.monthly26"),
+  }
+  const deadlineRegimeLabel = draft.vatFilingDeadlineRegime
+    ? deadlineRegimeLabels[draft.vatFilingDeadlineRegime] ?? draft.vatFilingDeadlineRegime
+    : t(locale, "onboarding.review.deadlineMissing")
 
   return (
     <main className="app-shell">
@@ -415,6 +455,7 @@ export function OnboardingPage() {
                   updateDraft("taxStatus", event.target.value as OnboardingDraft["taxStatus"])
                 }
               >
+                <option value="planning">{t(locale, "onboarding.tax.planning")}</option>
                 <option value="f_skatt">{t(locale, "onboarding.tax.fSkatt")}</option>
                 <option value="fa_skatt">{t(locale, "onboarding.tax.faSkatt")}</option>
               </select>
@@ -455,6 +496,7 @@ export function OnboardingPage() {
                 {t(locale, "onboarding.vat.statusHelp")}
               </HelpTip>
               <select
+                aria-label={t(locale, "onboarding.vat.status")}
                 value={draft.vatStatus}
                 onChange={(event) =>
                   updateDraft("vatStatus", event.target.value as OnboardingDraft["vatStatus"])
@@ -462,6 +504,9 @@ export function OnboardingPage() {
               >
                 <option value="exempt_low_turnover">{t(locale, "onboarding.vat.exempt")}</option>
                 <option value="registered">{t(locale, "onboarding.vat.registered")}</option>
+                <option value="voluntary_registered">
+                  {t(locale, "onboarding.vat.voluntaryRegistered")}
+                </option>
               </select>
             </label>
             <label>
@@ -480,13 +525,24 @@ export function OnboardingPage() {
                 <option value="yearly">{t(locale, "onboarding.vat.yearly")}</option>
               </select>
             </label>
-            {draft.vatStatus === "registered" ? (
+            {draft.vatStatus === "voluntary_registered" ? (
+              <label>
+                {t(locale, "onboarding.vat.voluntaryRegistrationDate")}
+                <input
+                  type="date"
+                  value={draft.voluntaryRegistrationDate}
+                  onChange={(event) => updateDraft("voluntaryRegistrationDate", event.target.value)}
+                />
+              </label>
+            ) : null}
+            {draft.vatStatus !== "exempt_low_turnover" ? (
               <label>
                 {t(locale, "onboarding.vat.deadlineRegime")}
                 <HelpTip label={t(locale, "onboarding.vat.deadlineRegime")}>
                   {t(locale, "onboarding.vat.deadlineRegimeHelp")}
                 </HelpTip>
                 <select
+                  aria-label={t(locale, "onboarding.vat.deadlineRegime")}
                   value={draft.vatFilingDeadlineRegime ?? ""}
                   onChange={(event) =>
                     updateDraft("vatFilingDeadlineRegime", event.target.value || null)
@@ -529,22 +585,62 @@ export function OnboardingPage() {
                   <dd>{draft.businessName}</dd>
                 </div>
                 <div>
+                  <dt>{t(locale, "onboarding.business.owner")}</dt>
+                  <dd>{draft.ownerName}</dd>
+                </div>
+                <div>
+                  <dt>{t(locale, "onboarding.business.sni")}</dt>
+                  <dd>{draft.sniCode || t(locale, "onboarding.review.notProvided")}</dd>
+                </div>
+                <div>
                   <dt>{t(locale, "onboarding.tax.status")}</dt>
-                  <dd>
-                    {draft.taxStatus === "fa_skatt"
-                      ? t(locale, "onboarding.tax.faSkatt")
-                      : t(locale, "onboarding.tax.fSkatt")}
-                  </dd>
+                  <dd>{taxStatusLabel}</dd>
+                </div>
+                <div>
+                  <dt>{t(locale, "onboarding.tax.salary")}</dt>
+                  <dd>{draft.salarySek}</dd>
+                </div>
+                <div>
+                  <dt>{t(locale, "onboarding.tax.profit")}</dt>
+                  <dd>{draft.businessProfitSek}</dd>
                 </div>
                 <div>
                   <dt>{t(locale, "onboarding.vat.status")}</dt>
-                  <dd>
-                    {draft.vatStatus === "registered"
-                      ? t(locale, "onboarding.vat.registered")
-                      : t(locale, "onboarding.vat.exempt")}
-                  </dd>
+                  <dd>{vatStatusLabel}</dd>
+                </div>
+                <div>
+                  <dt>{t(locale, "onboarding.vat.period")}</dt>
+                  <dd>{reportingPeriodLabel}</dd>
+                </div>
+                <div>
+                  <dt>{t(locale, "onboarding.vat.method")}</dt>
+                  <dd>{accountingMethodLabel}</dd>
+                </div>
+                {draft.vatStatus === "voluntary_registered" ? (
+                  <div>
+                    <dt>{t(locale, "onboarding.vat.voluntaryRegistrationDate")}</dt>
+                    <dd>
+                      {draft.voluntaryRegistrationDate ||
+                        t(locale, "onboarding.review.notProvided")}
+                    </dd>
+                  </div>
+                ) : null}
+                <div>
+                  <dt>{t(locale, "onboarding.vat.deadlineRegime")}</dt>
+                  <dd>{deadlineRegimeLabel}</dd>
                 </div>
               </dl>
+              <div className="form-row">
+                <button type="button" className="secondary" onClick={() => setStep("business")}>
+                  {t(locale, "onboarding.review.editBusiness")}
+                </button>
+                <button type="button" className="secondary" onClick={() => setStep("tax")}>
+                  {t(locale, "onboarding.review.editTax")}
+                </button>
+                <button type="button" className="secondary" onClick={() => setStep("vat")}>
+                  {t(locale, "onboarding.review.editVat")}
+                </button>
+              </div>
               {ruleVersion ? (
                 <p className="muted">
                   {t(locale, "onboarding.review.rules")}: {ruleVersion.taxYear} ·{" "}

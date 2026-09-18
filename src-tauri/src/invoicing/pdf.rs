@@ -12,6 +12,9 @@ pub struct InvoicePdfContext {
     pub owner_name: String,
     pub tax_status: String,
     pub vat_status: String,
+    pub rule_version_id: String,
+    pub tax_year: i32,
+    pub source_url: String,
 }
 
 const PAGE_HEIGHT_MM: f32 = 297.0;
@@ -513,10 +516,24 @@ fn draw_totals_table(
     top_mm + rows as f32 * ROW_HEIGHT_MM + 12.0
 }
 
+fn validate_rule_provenance(context: &InvoicePdfContext) -> Result<(), AppError> {
+    if context.rule_version_id.trim().is_empty()
+        || context.source_url.trim().is_empty()
+        || context.tax_year < 1
+    {
+        return Err(AppError::validation(
+            "Issued invoice rule provenance is missing",
+            "ruleVersion",
+        ));
+    }
+    Ok(())
+}
+
 pub fn render_invoice_pdf(
     invoice: &InvoiceSummary,
     context: &InvoicePdfContext,
 ) -> Result<Vec<u8>, AppError> {
+    validate_rule_provenance(context)?;
     let title = invoice_title(invoice);
     let (doc, page1, layer1) = PdfDocument::new(&title, Mm(PAGE_WIDTH_MM), Mm(PAGE_HEIGHT_MM), "Layer 1");
     let font = doc
@@ -632,6 +649,9 @@ mod tests {
             owner_name: "Anna".to_string(),
             tax_status: "f_skatt".to_string(),
             vat_status: "exempt_low_turnover".to_string(),
+            rule_version_id: "rv-2026-active".to_string(),
+            tax_year: 2026,
+            source_url: "https://example.test/rules".to_string(),
         };
         let lines = compliance_footer_lines(&context);
         assert!(lines.iter().any(|line| line.contains("F-skatt")));
@@ -646,6 +666,9 @@ mod tests {
             owner_name: "Anna Svensson".to_string(),
             tax_status: "f_skatt".to_string(),
             vat_status: "exempt_low_turnover".to_string(),
+            rule_version_id: "rv-2026-active".to_string(),
+            tax_year: 2026,
+            source_url: "https://example.test/rules".to_string(),
         };
         let bytes = super::render_invoice_pdf(&invoice, &context).expect("render pdf");
         assert!(bytes.starts_with(b"%PDF"));

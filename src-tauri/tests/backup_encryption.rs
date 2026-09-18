@@ -62,7 +62,7 @@ async fn encrypted_backup_rejects_wrong_passphrase() {
         &workspace_id,
         &data_dir,
         &database_path,
-        &data_dir.join("exports"),
+        &dir.path().join("backup-destination"),
         PASSPHRASE,
         None,
     )
@@ -143,7 +143,7 @@ async fn encrypted_backup_round_trip_preserves_profiles() {
         &workspace_id,
         &data_dir,
         &database_path,
-        &data_dir.join("exports"),
+        &dir.path().join("backup-destination"),
         PASSPHRASE,
         None,
     )
@@ -171,4 +171,100 @@ async fn encrypted_backup_round_trip_preserves_profiles() {
         .await
         .expect("profiles");
     assert!(preserved);
+}
+
+#[tokio::test]
+async fn encrypted_backup_round_trip_preserves_nested_evidence_and_exports() {
+    let dir = tempdir().expect("tempdir");
+    let workspace_id = Uuid::new_v4().to_string();
+    let data_dir = dir.path().join(&workspace_id);
+    let documents_dir = data_dir.join("documents").join("2026").join("receipts");
+    let exports_dir = data_dir.join("exports").join("reports").join("quarterly");
+    std::fs::create_dir_all(&documents_dir).expect("nested documents");
+    std::fs::create_dir_all(&exports_dir).expect("nested exports");
+    std::fs::write(documents_dir.join("receipt.pdf"), b"evidence-bytes").expect("evidence");
+    std::fs::write(exports_dir.join("report.sie"), b"export-bytes").expect("export");
+    let database_path = data_dir.join("workspace.sqlite");
+    let pool = connect_workspace(&database_path).await.expect("connect");
+
+    sqlx::query(
+        "INSERT INTO workspaces (id, name, database_path, documents_path, exports_path) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+    .bind(&workspace_id)
+    .bind("Nested backup workspace")
+    .bind(database_path.to_string_lossy().to_string())
+    .bind(data_dir.join("documents").to_string_lossy().to_string())
+    .bind(data_dir.join("exports").to_string_lossy().to_string())
+    .execute(&pool)
+    .await
+    .expect("workspace row");
+
+    profiles::save_tax_profile(
+        &pool,
+        &workspace_id,
+        &TaxProfileSaveInput {
+            tax_status: "fa_skatt".to_string(),
+            expected_business_profit_minor: Some(1_000_000),
+            expected_salary_income_minor: Some(2_000_000),
+            active_rule_year: Some(2026),
+        },
+    )
+    .await
+    .expect("tax");
+
+    let destination = dir.path().join("backups");
+    std::fs::create_dir_all(&destination).expect("backup destination");
+    let backup = backup::create_backup_package(
+        &pool,
+        &workspace_id,
+        &data_dir,
+        &database_path,
+        &destination,
+        PASSPHRASE,
+        None,
+    )
+    .await
+    .expect("backup");
+
+    assert!(
+        backup
+            .manifest
+            .entries
+            .iter()
+            .any(|entry| entry.relative_path == "documents/2026/receipts/receipt.pdf"),
+        "manifest includes nested evidence"
+    );
+    assert!(
+        backup
+            .manifest
+            .entries
+            .iter()
+            .any(|entry| entry.relative_path == "exports/reports/quarterly/report.sie"),
+        "manifest includes nested export"
+    );
+
+    let restored = backup::restore_backup_package(
+        &BackupRestoreInput {
+            backup_path: backup.backup_path,
+            confirm_overwrite: true,
+            passphrase: PASSPHRASE.to_string(),
+        },
+        &dir.path().join("restored"),
+    )
+    .await
+    .expect("restore");
+
+    let restored_root = std::path::Path::new(&restored.database_path)
+        .parent()
+        .expect("restored workspace root");
+    assert_eq!(
+        std::fs::read(restored_root.join("documents/2026/receipts/receipt.pdf"))
+            .expect("restored evidence"),
+        b"evidence-bytes"
+    );
+    assert_eq!(
+        std::fs::read(restored_root.join("exports/reports/quarterly/report.sie"))
+            .expect("restored export"),
+        b"export-bytes"
+    );
 }

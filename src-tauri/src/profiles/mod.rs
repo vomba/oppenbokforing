@@ -1,9 +1,14 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
-use crate::{audit::record_event, error::AppError};
+use crate::{
+    audit::{record_event, record_event_tx},
+    compliance::{self, ComplianceProfileCheckInput, ComplianceProfileCheckResult},
+    error::AppError,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -62,6 +67,350 @@ pub struct VatProfileSaveInput {
     pub accounting_method: String,
     pub voluntary_registration_date: Option<String>,
     pub vat_filing_deadline_regime: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingProfileSaveInput {
+    pub business: BusinessProfileSaveInput,
+    pub tax: TaxProfileSaveInput,
+    pub vat: VatProfileSaveInput,
+}
+
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingProfileSaveResult {
+    pub business: BusinessProfile,
+    pub tax: TaxProfile,
+    pub vat: VatProfile,
+    pub compliance: ComplianceProfileCheckResult,
+}
+
+pub async fn save_onboarding_profiles(
+    pool: &SqlitePool,
+    workspace_id: &str,
+    input: &OnboardingProfileSaveInput,
+) -> Result<OnboardingProfileSaveResult, AppError> {
+    let business_name = input.business.business_name.trim();
+    let owner_name = input.business.owner_name.trim();
+    if business_name.is_empty() {
+        return Err(AppError::validation("Business name is required", "businessName"));
+    }
+    if owner_name.is_empty() {
+        return Err(AppError::validation("Owner name is required", "ownerName"));
+    }
+    let residency_country = input
+        .business
+        .residency_country
+        .as_deref()
+        .unwrap_or("SE")
+        .trim()
+        .to_uppercase();
+    if residency_country.len() != 2 {
+        return Err(AppError::validation(
+            "Residency country must be a 2-letter code",
+            "residencyCountry",
+        ));
+    }
+
+    let tax_status = input.tax.tax_status.trim();
+    if !matches!(tax_status, "planning" | "f_skatt" | "fa_skatt") {
+        return Err(AppError::validation("Invalid tax status", "taxStatus"));
+    }
+    let expected_business_profit_minor = input.tax.expected_business_profit_minor.unwrap_or(0);
+    let expected_salary_income_minor = input.tax.expected_salary_income_minor.unwrap_or(0);
+    let active_rule_year = input.tax.active_rule_year.unwrap_or(2026);
+    if tax_status == "fa_skatt" && expected_salary_income_minor <= 0 {
+        return Err(AppError::validation(
+            "FA-skatt profile requires expected salary income",
+            "expectedSalaryIncomeMinor",
+        ));
+    }
+
+    let vat_status = input.vat.vat_status.trim();
+    if !matches!(
+        vat_status,
+        "registered" | "exempt_low_turnover" | "voluntary_registered"
+    ) {
+        return Err(AppError::validation("Invalid VAT status", "vatStatus"));
+    }
+    let reporting_period = input.vat.reporting_period.trim();
+    if !matches!(reporting_period, "monthly" | "quarterly" | "yearly") {
+        return Err(AppError::validation("Invalid reporting period", "reportingPeriod"));
+    }
+    let accounting_method = input.vat.accounting_method.trim();
+    if !matches!(accounting_method, "invoice_method" | "cash_method") {
+        return Err(AppError::validation("Invalid accounting method", "accountingMethod"));
+    }
+    let voluntary_registration_date = input
+        .vat
+        .voluntary_registration_date
+        .as_deref()
+        .map(str::trim)
+        .filter(|date| !date.is_empty())
+        .map(str::to_string);
+    if vat_status == "voluntary_registered"
+        && voluntary_registration_date
+            .as_deref()
+            .map(|date| NaiveDate::parse_from_str(date, "%Y-%m-%d").is_err())
+            .unwrap_or(true)
+    {
+        return Err(AppError::validation(
+            "Voluntary VAT registration requires a valid registration date",
+            "voluntaryRegistrationDate",
+        ));
+    }
+    let vat_filing_deadline_regime = input
+        .vat
+        .vat_filing_deadline_regime
+        .as_deref()
+        .map(str::trim)
+        .filter(|regime| !regime.is_empty())
+        .map(str::to_string);
+    let registered_for_vat = matches!(vat_status, "registered" | "voluntary_registered");
+    if !registered_for_vat && vat_filing_deadline_regime.is_some() {
+        return Err(AppError::validation(
+            "VAT-exempt profiles cannot have a filing deadline regime",
+            "vatFilingDeadlineRegime",
+        ));
+    }
+    if registered_for_vat
+        && !matches!(
+            (reporting_period, vat_filing_deadline_regime.as_deref()),
+            ("yearly", Some("annual_may_12" | "annual_feb_26"))
+                | ("quarterly", Some("quarterly_12"))
+                | ("monthly", Some("monthly_12" | "monthly_26"))
+        )
+    {
+        return Err(AppError::validation(
+            "VAT filing deadline regime is required and must match the reporting period",
+            "vatFilingDeadlineRegime",
+        ));
+    }
+
+    let compliance = compliance::run_profile_compliance_checks(
+        pool,
+        &ComplianceProfileCheckInput {
+            tax_status: tax_status.to_string(),
+            vat_status: vat_status.to_string(),
+            expected_salary_income_minor: Some(expected_salary_income_minor),
+            expected_business_profit_minor: Some(expected_business_profit_minor),
+            rule_year: Some(active_rule_year),
+        },
+    )
+    .await?;
+
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    let existing_business_id: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM sole_trader_profiles WHERE workspace_id = ?1 ORDER BY updated_at DESC LIMIT 1",
+    )
+    .bind(workspace_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let business_exists = existing_business_id.is_some();
+    let business_id = existing_business_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    if business_exists {
+        sqlx::query(
+            r#"
+            UPDATE sole_trader_profiles
+            SET business_name = ?1, owner_name = ?2, residency_country = ?3, sni_code = ?4,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?5
+            "#,
+        )
+        .bind(business_name)
+        .bind(owner_name)
+        .bind(&residency_country)
+        .bind(input.business.sni_code.as_deref())
+        .bind(&business_id)
+        .execute(&mut *tx)
+        .await?;
+    } else {
+        sqlx::query(
+            r#"
+            INSERT INTO sole_trader_profiles (
+                id, workspace_id, business_name, owner_name, residency_country, sni_code
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+        )
+        .bind(&business_id)
+        .bind(workspace_id)
+        .bind(business_name)
+        .bind(owner_name)
+        .bind(&residency_country)
+        .bind(input.business.sni_code.as_deref())
+        .execute(&mut *tx)
+        .await?;
+    }
+    let business = BusinessProfile {
+        id: business_id.clone(),
+        business_name: business_name.to_string(),
+        owner_name: owner_name.to_string(),
+        residency_country,
+        sni_code: input.business.sni_code.clone(),
+    };
+
+    let existing_tax_id: Option<String> =
+        sqlx::query_scalar("SELECT id FROM tax_profiles WHERE workspace_id = ?1 LIMIT 1")
+            .bind(workspace_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let tax_exists = existing_tax_id.is_some();
+    let tax_id = existing_tax_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    if tax_exists {
+        sqlx::query(
+            r#"
+            UPDATE tax_profiles
+            SET tax_status = ?1, expected_business_profit_minor = ?2,
+                expected_salary_income_minor = ?3, active_rule_year = ?4,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?5
+            "#,
+        )
+        .bind(tax_status)
+        .bind(expected_business_profit_minor)
+        .bind(expected_salary_income_minor)
+        .bind(active_rule_year)
+        .bind(&tax_id)
+        .execute(&mut *tx)
+        .await?;
+    } else {
+        sqlx::query(
+            r#"
+            INSERT INTO tax_profiles (
+                id, workspace_id, tax_status, expected_business_profit_minor,
+                expected_salary_income_minor, active_rule_year
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+        )
+        .bind(&tax_id)
+        .bind(workspace_id)
+        .bind(tax_status)
+        .bind(expected_business_profit_minor)
+        .bind(expected_salary_income_minor)
+        .bind(active_rule_year)
+        .execute(&mut *tx)
+        .await?;
+    }
+    let tax = TaxProfile {
+        id: tax_id.clone(),
+        tax_status: tax_status.to_string(),
+        expected_business_profit_minor,
+        expected_salary_income_minor,
+        active_rule_year,
+    };
+
+    let existing_vat: Option<(String, String)> = sqlx::query_as(
+        "SELECT id, reporting_period FROM vat_profiles WHERE workspace_id = ?1 LIMIT 1",
+    )
+    .bind(workspace_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if existing_vat
+        .as_ref()
+        .is_some_and(|(_, existing_period)| existing_period != reporting_period)
+    {
+        let vat_return_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM vat_returns WHERE workspace_id = ?1)",
+        )
+        .bind(workspace_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if vat_return_exists {
+            return Err(AppError::validation(
+                "VAT filing frequency cannot change after VAT return work exists",
+                "reportingPeriod",
+            ));
+        }
+    }
+    let vat_id = existing_vat
+        .as_ref()
+        .map(|(id, _)| id.clone())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    if existing_vat.is_some() {
+        sqlx::query(
+            r#"
+            UPDATE vat_profiles
+            SET vat_status = ?1, reporting_period = ?2, accounting_method = ?3,
+                voluntary_registration_date = ?4, vat_filing_deadline_regime = ?5,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?6
+            "#,
+        )
+        .bind(vat_status)
+        .bind(reporting_period)
+        .bind(accounting_method)
+        .bind(voluntary_registration_date.as_deref())
+        .bind(vat_filing_deadline_regime.as_deref())
+        .bind(&vat_id)
+        .execute(&mut *tx)
+        .await?;
+    } else {
+        sqlx::query(
+            r#"
+            INSERT INTO vat_profiles (
+                id, workspace_id, vat_status, reporting_period, accounting_method,
+                voluntary_registration_date, vat_filing_deadline_regime
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "#,
+        )
+        .bind(&vat_id)
+        .bind(workspace_id)
+        .bind(vat_status)
+        .bind(reporting_period)
+        .bind(accounting_method)
+        .bind(voluntary_registration_date.as_deref())
+        .bind(vat_filing_deadline_regime.as_deref())
+        .execute(&mut *tx)
+        .await?;
+    }
+    let vat = VatProfile {
+        id: vat_id.clone(),
+        vat_status: vat_status.to_string(),
+        reporting_period: reporting_period.to_string(),
+        accounting_method: accounting_method.to_string(),
+        voluntary_registration_date,
+        vat_filing_deadline_regime,
+    };
+
+    for (action, resource_type, resource_id, metadata) in [
+        (
+            "business_profile_save_current",
+            "sole_trader_profile",
+            business.id.as_str(),
+            serde_json::to_string(&business).unwrap_or_else(|_| "{}".to_string()),
+        ),
+        (
+            "tax_profile_save_current",
+            "tax_profile",
+            tax.id.as_str(),
+            serde_json::to_string(&tax).unwrap_or_else(|_| "{}".to_string()),
+        ),
+        (
+            "vat_profile_save_current",
+            "vat_profile",
+            vat.id.as_str(),
+            serde_json::to_string(&vat).unwrap_or_else(|_| "{}".to_string()),
+        ),
+    ] {
+        record_event_tx(
+            &mut *tx,
+            workspace_id,
+            action,
+            resource_type,
+            Some(resource_id),
+            &metadata,
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(OnboardingProfileSaveResult {
+        business,
+        tax,
+        vat,
+        compliance,
+    })
 }
 
 pub async fn get_business_profile(
@@ -324,14 +673,35 @@ pub async fn save_vat_profile(
         ));
     }
 
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let existing = sqlx::query(
         r#"
-        SELECT id FROM vat_profiles WHERE workspace_id = ?1 LIMIT 1
+        SELECT id, reporting_period FROM vat_profiles WHERE workspace_id = ?1 LIMIT 1
         "#,
     )
     .bind(workspace_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await?;
+
+    let reporting_period_changed = existing
+        .as_ref()
+        .map(|row| row.get::<String, _>("reporting_period") != reporting_period)
+        .unwrap_or(false);
+    if reporting_period_changed {
+        let vat_return_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM vat_returns WHERE workspace_id = ?1)",
+        )
+        .bind(workspace_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if vat_return_exists {
+            tx.rollback().await?;
+            return Err(AppError::validation(
+                "VAT filing frequency cannot change after VAT return work exists",
+                "reportingPeriod",
+            ));
+        }
+    }
 
     let profile_id = existing
         .as_ref()
@@ -357,7 +727,7 @@ pub async fn save_vat_profile(
         .bind(input.voluntary_registration_date.as_deref())
         .bind(vat_filing_deadline_regime)
         .bind(workspace_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     } else {
         sqlx::query(
@@ -375,7 +745,7 @@ pub async fn save_vat_profile(
         .bind(accounting_method)
         .bind(input.voluntary_registration_date.as_deref())
         .bind(vat_filing_deadline_regime)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
 
@@ -388,8 +758,8 @@ pub async fn save_vat_profile(
         vat_filing_deadline_regime: vat_filing_deadline_regime.map(str::to_string),
     };
 
-    record_event(
-        pool,
+    record_event_tx(
+        &mut *tx,
         workspace_id,
         "vat_profile_save_current",
         "vat_profile",
@@ -398,6 +768,7 @@ pub async fn save_vat_profile(
     )
     .await?;
 
+    tx.commit().await?;
     Ok(profile)
 }
 

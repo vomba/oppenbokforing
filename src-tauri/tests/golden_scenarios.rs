@@ -124,7 +124,7 @@ async fn m1_backup_restore_preserves_rules_fixture() {
         &workspace_id,
         &data_dir,
         &database_path,
-        &data_dir.join("exports"),
+        &dir.path().join("backup-destination"),
         "fixture-passphrase-12",
         None,
     )
@@ -259,7 +259,7 @@ async fn m2_credit_invoice_fixture() {
             self, InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceLineInput,
         },
         ledger::{has_reversal_for_invoice, net_output_vat_minor, net_revenue_minor},
-        profiles::{self, TaxProfileSaveInput, VatProfileSaveInput},
+        profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
         workspace::ensure_workspace_ready,
     };
 
@@ -285,6 +285,19 @@ async fn m2_credit_invoice_fixture() {
     .expect("workspace");
 
     ensure_workspace_ready(&pool, &workspace_id).await.expect("bootstrap");
+
+    profiles::save_business_profile(
+        &pool,
+        &workspace_id,
+        &BusinessProfileSaveInput {
+            business_name: "M2 Fixture Firma".to_string(),
+            owner_name: "Fixture Owner".to_string(),
+            residency_country: Some("SE".to_string()),
+            sni_code: Some("62010".to_string()),
+        },
+    )
+    .await
+    .expect("business");
 
     profiles::save_tax_profile(
         &pool,
@@ -366,6 +379,7 @@ async fn m2_credit_invoice_fixture() {
             source_invoice_id: issued.id.clone(),
             idempotency_key: "credit-2026-0001".to_string(),
             reason: Some("Fixture correction".to_string()),
+            issue_date: Some("2026-01-20".to_string()),
         },
     )
     .await

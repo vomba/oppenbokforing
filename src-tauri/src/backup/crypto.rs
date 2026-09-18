@@ -1,5 +1,8 @@
-use std::io::Read;
-use std::path::{Component, Path};
+use std::{
+    fs,
+    io::{self, Read},
+    path::{Component, Path, PathBuf},
+};
 
 use aes_gcm::{
     aead::{Aead, KeyInit},
@@ -113,15 +116,77 @@ pub fn decrypt_bytes(passphrase: &str, encrypted: &[u8]) -> Result<Vec<u8>, AppE
         .map_err(|_| AppError::validation("Incorrect backup passphrase", "passphrase"))
 }
 
-pub fn create_tar_archive(root: &std::path::Path) -> Result<Vec<u8>, AppError> {
+fn collect_archive_entries(
+    root: &Path,
+    relative: &Path,
+    entries: &mut Vec<(PathBuf, bool)>,
+) -> Result<(), AppError> {
+    let directory = root.join(relative);
+    let metadata = fs::symlink_metadata(&directory)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(AppError::validation(
+            "Backup archive source must be a directory",
+            "backupPath",
+        ));
+    }
+
+    let mut children = fs::read_dir(&directory)?.collect::<Result<Vec<_>, _>>()?;
+    children.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+    for child in children {
+        let child_relative = relative.join(child.file_name());
+        let file_type = child.file_type()?;
+        if file_type.is_symlink() || (!file_type.is_dir() && !file_type.is_file()) {
+            return Err(AppError::validation(
+                "Backup archive rejected symlink or special file",
+                "backupPath",
+            ));
+        }
+        entries.push((child_relative.clone(), file_type.is_dir()));
+        if file_type.is_dir() {
+            collect_archive_entries(root, &child_relative, entries)?;
+        }
+    }
+    Ok(())
+}
+
+fn archive_header(path: &Path, is_directory: bool, size: u64) -> Result<tar::Header, AppError> {
+    let mut header = tar::Header::new_gnu();
+    header.set_path(path).map_err(redacted_storage_from)?;
+    header.set_size(size);
+    header.set_mode(if is_directory { 0o700 } else { 0o600 });
+    header.set_mtime(0);
+    header.set_uid(0);
+    header.set_gid(0);
+    if is_directory {
+        header.set_entry_type(tar::EntryType::Directory);
+    }
+    header.set_cksum();
+    Ok(header)
+}
+
+pub fn create_tar_archive(root: &Path) -> Result<Vec<u8>, AppError> {
+    let mut entries = Vec::new();
+    collect_archive_entries(root, Path::new(""), &mut entries)?;
+
     let mut buffer = Vec::new();
     {
         let mut builder = tar::Builder::new(&mut buffer);
-        for entry in std::fs::read_dir(root)? {
-            let entry = entry?;
-            let path = entry.path();
-            let name = entry.file_name();
-            builder.append_path_with_name(&path, name)?;
+        for (relative, is_directory) in entries {
+            if is_directory {
+                let header = archive_header(&relative, true, 0)?;
+                builder.append(&header, io::empty())?;
+            } else {
+                let source = root.join(&relative);
+                let metadata = fs::symlink_metadata(&source)?;
+                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                    return Err(AppError::validation(
+                        "Backup archive rejected symlink or special file",
+                        "backupPath",
+                    ));
+                }
+                let header = archive_header(&relative, false, metadata.len())?;
+                builder.append(&header, fs::File::open(source)?)?;
+            }
         }
         builder.finish()?;
     }
@@ -154,6 +219,14 @@ pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppEr
         }
 
         let mut entry = entry.map_err(redacted_storage_from)?;
+        let entry_type = entry.header().entry_type();
+        if !entry_type.is_file() && !entry_type.is_dir() {
+            return Err(AppError::validation(
+                "Backup archive rejected symlink or special file",
+                "backupPath",
+            ));
+        }
+
         let entry_path = entry
             .path()
             .map_err(redacted_storage_from)?

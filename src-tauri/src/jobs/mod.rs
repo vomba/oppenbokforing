@@ -7,7 +7,6 @@ use crate::{
     documents,
     error::{AppError, redacted_internal_from},
     invoicing::{self, InvoiceSummary},
-    profiles,
 };
 
 pub const JOB_INVOICE_PDF: &str = "invoice_pdf_generate";
@@ -19,6 +18,8 @@ struct InvoicePdfJobPayload {
     invoice_id: String,
     invoice_number: String,
     format: String,
+    #[serde(default)]
+    refresh: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,45 +189,48 @@ async fn run_invoice_pdf_job(
     }
 
     let invoice = invoicing::get_invoice(pool, workspace_id, &payload.invoice_id).await?;
-    if invoice.status != "issued" {
+    if !matches!(invoice.status.as_str(), "issued" | "credited") {
         return Err(AppError::validation(
-            "Invoice must be issued before PDF generation",
+            "Invoice must be issued or credited before PDF generation",
             "invoiceId",
         ));
     }
 
     if let Some(document_id) = existing_pdf_document_id(pool, workspace_id, &invoice.id).await? {
-        if document_id.trim().is_empty() {
-            // Continue with fresh PDF generation when no document is linked yet.
-        } else if let Some(content_sha256) = sqlx::query_scalar(
-            r#"
-            SELECT content_sha256 FROM documents
-            WHERE workspace_id = ?1 AND id = ?2
-            LIMIT 1
-            "#,
-        )
-        .bind(workspace_id)
-        .bind(&document_id)
-        .fetch_optional(pool)
-        .await?
-        {
-            return Ok(InvoicePdfJobResult {
-                document_id,
-                content_sha256,
-            });
+        if !document_id.trim().is_empty() {
+            if let Some(document) =
+                verified_pdf_document(pool, workspace_id, &document_id).await?
+            {
+                if !payload.refresh {
+                    return Ok(InvoicePdfJobResult {
+                        document_id: document.id,
+                        content_sha256: document.content_sha256,
+                    });
+                }
+            }
         }
     }
 
-    let business = profiles::get_business_profile(pool, workspace_id)
-        .await?
-        .ok_or_else(|| AppError::validation("Business profile not found", "businessProfile"))?;
-    let tax = profiles::get_tax_profile(pool, workspace_id).await?;
-    let vat = profiles::get_vat_profile(pool, workspace_id).await?;
+    let snapshot = match invoicing::get_issued_invoice_snapshot(pool, workspace_id, &invoice.id).await {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            invoicing::record_legacy_issued_invoice_snapshot_recovery_requirement(
+                pool,
+                workspace_id,
+                &invoice.id,
+            )
+            .await?;
+            return Err(error);
+        }
+    };
     let pdf_context = invoicing::pdf::InvoicePdfContext {
-        business_name: business.business_name,
-        owner_name: business.owner_name,
-        tax_status: tax.map(|profile| profile.tax_status).unwrap_or_default(),
-        vat_status: vat.map(|profile| profile.vat_status).unwrap_or_default(),
+        business_name: snapshot.business_name,
+        owner_name: snapshot.owner_name,
+        tax_status: snapshot.tax_status,
+        vat_status: snapshot.vat_status,
+        rule_version_id: snapshot.rule_version_id,
+        tax_year: snapshot.tax_year,
+        source_url: snapshot.source_url,
     };
     let pdf_bytes = tokio::task::spawn_blocking({
         let invoice = invoice.clone();
@@ -363,9 +367,9 @@ pub async fn refresh_invoice_pdf(
     invoice_id: &str,
 ) -> Result<(), AppError> {
     let invoice = invoicing::get_invoice(pool, workspace_id, invoice_id).await?;
-    if invoice.status != "issued" {
+    if !matches!(invoice.status.as_str(), "issued" | "credited") {
         return Err(AppError::validation(
-            "Only issued invoices can refresh PDF",
+            "Only issued or credited invoices can refresh PDF",
             "invoiceId",
         ));
     }
@@ -394,18 +398,6 @@ pub async fn refresh_invoice_pdf(
         return Ok(());
     }
 
-    sqlx::query(
-        r#"
-        UPDATE invoices
-        SET pdf_document_id = NULL, updated_at = CURRENT_TIMESTAMP
-        WHERE workspace_id = ?1 AND id = ?2
-        "#,
-    )
-    .bind(workspace_id)
-    .bind(invoice_id)
-    .execute(&mut *tx)
-    .await?;
-
     let job_id = uuid::Uuid::new_v4().to_string();
     let invoice_number = invoice
         .invoice_number
@@ -414,7 +406,8 @@ pub async fn refresh_invoice_pdf(
     let payload = serde_json::json!({
         "invoiceId": invoice_id,
         "invoiceNumber": invoice_number,
-        "format": "pdf"
+        "format": "pdf",
+        "refresh": true
     });
     sqlx::query(
         r#"
@@ -454,7 +447,10 @@ pub async fn invoice_pdf_status(
 ) -> Result<String, AppError> {
     if let Some(document_id) = invoice.pdf_document_id.as_deref() {
         if !document_id.trim().is_empty() {
-            if pdf_document_exists(pool, workspace_id, document_id).await? {
+            if verified_pdf_document(pool, workspace_id, document_id)
+                .await?
+                .is_some()
+            {
                 return Ok("succeeded".to_string());
             }
             return Ok("queued".to_string());
@@ -477,11 +473,11 @@ pub async fn invoice_pdf_status(
     Ok(status.unwrap_or_else(|| "unknown".to_string()))
 }
 
-async fn pdf_document_exists(
+async fn verified_pdf_document(
     pool: &SqlitePool,
     workspace_id: &str,
     document_id: &str,
-) -> Result<bool, AppError> {
+) -> Result<Option<documents::Document>, AppError> {
     let exists: Option<String> = sqlx::query_scalar(
         r#"
         SELECT id FROM documents
@@ -493,5 +489,13 @@ async fn pdf_document_exists(
     .bind(document_id)
     .fetch_optional(pool)
     .await?;
-    Ok(exists.is_some())
+    if exists.is_none() {
+        return Ok(None);
+    }
+
+    let document = documents::verify_retained_document(pool, workspace_id, document_id).await?;
+    if !documents::is_pdf_mime(&document.mime_type) {
+        return Ok(None);
+    }
+    Ok(Some(document))
 }

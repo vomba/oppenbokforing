@@ -5,7 +5,7 @@ use oppenbokforing_desktop_lib::{
     invoicing::{
         self, InvoiceCreateDraftInput, InvoiceIssueInput, InvoiceLineInput,
     },
-    profiles::{self, TaxProfileSaveInput},
+    profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
     settings,
     workspace::ensure_workspace_ready,
 };
@@ -162,6 +162,19 @@ async fn count_open_invoices_excludes_reconciled_payments() {
         .await
         .expect("bootstrap");
 
+    profiles::save_business_profile(
+        &pool,
+        &workspace_id,
+        &BusinessProfileSaveInput {
+            business_name: "M8 Fixture Firma".to_string(),
+            owner_name: "Fixture Owner".to_string(),
+            residency_country: Some("SE".to_string()),
+            sni_code: Some("62010".to_string()),
+        },
+    )
+    .await
+    .expect("business profile");
+
     profiles::save_tax_profile(
         &pool,
         &workspace_id,
@@ -174,6 +187,20 @@ async fn count_open_invoices_excludes_reconciled_payments() {
     )
     .await
     .expect("tax profile");
+
+    profiles::save_vat_profile(
+        &pool,
+        &workspace_id,
+        &VatProfileSaveInput {
+            vat_status: "registered".to_string(),
+            reporting_period: "quarterly".to_string(),
+            accounting_method: "invoice_method".to_string(),
+            voluntary_registration_date: None,
+            vat_filing_deadline_regime: Some("quarterly_12".to_string()),
+        },
+    )
+    .await
+    .expect("vat profile");
 
     let customer = counterparties::create_counterparty(
         &pool,

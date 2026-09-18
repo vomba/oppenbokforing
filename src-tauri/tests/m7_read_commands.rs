@@ -6,7 +6,7 @@ use oppenbokforing_desktop_lib::{
     imports::{self, CsvImportCreateInput, StagedTransactionsListInput},
     invoicing::{self, InvoiceCreateDraftInput, InvoiceIssueInput, InvoiceLineInput},
     ledger::{self, VoucherGetInput, VoucherListInput},
-    profiles::{self, TaxProfileSaveInput, VatProfileSaveInput},
+    profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
     vat::{self, VatReturnApproveInput, VatReturnDraftCreateInput},
     year_end::{self, YearEndPackageCreateInput, YearEndReadinessInput},
     workspace::ensure_workspace_ready,
@@ -44,6 +44,19 @@ async fn bootstrap_workspace(
     ensure_workspace_ready(&pool, &workspace_id)
         .await
         .expect("bootstrap");
+
+    profiles::save_business_profile(
+        &pool,
+        &workspace_id,
+        &BusinessProfileSaveInput {
+            business_name: "M7 Fixture Firma".to_string(),
+            owner_name: "Fixture Owner".to_string(),
+            residency_country: Some("SE".to_string()),
+            sni_code: Some("62010".to_string()),
+        },
+    )
+    .await
+    .expect("business profile");
 
     profiles::save_tax_profile(
         &pool,

@@ -1,6 +1,19 @@
-# SQLite Schema Plan
+---
+id: storage-contract
+type: module-design
+title: SQLite storage contract
+status: draft
+parent: system-architecture
+references:
+  - local-sqlite
+  - retained-evidence
+---
 
-Last updated: 2026-07-11. The current schema is defined by the 15 forward-only SQLx migrations listed below.
+# SQLite Storage Contract
+
+The current schema is defined by the 20 forward-only SQLx migrations listed below.
+This is an adopted contract, pending review; requirements are distinguished from
+observed enforcement.
 
 ## Scope
 
@@ -25,6 +38,11 @@ This schema supports v1 local desktop workflows: workspace setup, profiles, comp
 | `202607100004_workspace_path_settings.sql` | Default export/backup directories |
 | `202607110001_dashboard_tour.sql` | `dashboard_tour_completed` on `workspace_settings` |
 | `202607110002_simple_mode.sql` | `simple_mode` on `workspace_settings` |
+| `202607270001_posted_voucher_immutability.sql` | Posted voucher/line protection and append-only audit triggers |
+| `202608200001_tax_task_deadlines.sql` | VAT deadline regime and rule-backed filing schedules |
+| `202609180001_year_end_artifact_integrity.sql` | Year-end artifact hashes |
+| `202609180002_invoice_issue_snapshots.sql` | Immutable issue-time invoice provenance |
+| `202609180003_invoice_snapshot_recovery.sql` | Explicit historical snapshot recovery audit |
 
 ## Tables
 
@@ -55,18 +73,22 @@ This schema supports v1 local desktop workflows: workspace setup, profiles, comp
 
 - `workspace_settings` — `locale`, `updater_enabled`, `default_export_directory`, `default_backup_directory`, `dashboard_tour_completed` (M8), `simple_mode` (M8)
 
-**Deferred (v2):**
+**Additional contracts:**
 
-- `due_dates`, `calculation_traces`, `backup_manifests` (backup flows exist without dedicated tables)
+- `invoice_issue_snapshots` retains immutable issue-time provenance; `invoice_snapshot_recovery_requirements` records legacy evidence requirements. Historical recovery attestation is recorded in audit metadata.
+- `vat_profiles.vat_filing_deadline_regime` selects a rule-backed schedule; tax tasks are derived, not stored as task rows.
+- Year-end packages carry artifact hashes; their ledger fingerprints are retained in audit metadata.
+- Backup manifests are files, not database tables; calculation traces are assembled from existing records.
 
 ## Constraints
 
-- All money values are integer minor units.
-- Posted accounting rows are immutable.
-- Journal lines must have either debit or credit, never both.
-- Voucher posting must verify debit total equals credit total.
-- Invoice numbers are unique per workspace and fiscal year.
-- Locked periods reject new postings, reversals, invoice issuance, and VAT changes.
+- Money columns use integer minor units; posting services use integer VAT basis points for stored invoice rates.
+- Database triggers reject UPDATE/DELETE of posted vouchers and their existing journal lines, and reject all audit-event UPDATE/DELETE.
+- Journal-line checks require nonnegative amounts with exactly one positive debit or credit side.
+- Services verify balanced voucher totals. There is no database balance trigger or blanket prohibition on inserting another line into a posted voucher; immutability is not full database sealing.
+- Invoice sequences are unique per workspace/fiscal year; posted invoice identity and its issue snapshot are separately protected.
+- Posting/approval services enforce fiscal-year and date-range period locks; this is not a universal SQL authorization layer.
+- Keyed `local_jobs` rows are unique by `(workspace_id, job_type, idempotency_key)` when the key is non-null. The table stores both synchronous replay results and queued PDF work, not a general scheduler.
 
 ## Indexes
 
@@ -92,4 +114,4 @@ Ledger read indexes (M7) plus domain indexes from M2–M6 migrations cover:
 - Never rewrite historical accounting rows in migrations.
 - Data backfills must record an `audit_events` row.
 - Rule changes create new `rule_versions`; they do not mutate old rule versions.
-- Migration tests must run against an empty database and a seeded prior-version database.
+- Migration tests must run against an empty database and a seeded prior-version database. This is a verification requirement, not a claim that this documentation import ran them.

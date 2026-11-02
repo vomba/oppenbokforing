@@ -1,8 +1,25 @@
+---
+id: system-architecture
+type: architecture-design
+title: ÖppenBokföring system architecture
+status: draft
+parent: product-goal
+references:
+  - desktop-platform
+  - local-sqlite
+  - rust-command-boundary
+  - prepare-only-tax
+  - retained-evidence
+  - storage-contract
+  - ui-workflows
+  - security-privacy
+---
+
 # Architecture Codemap
 
 High-level system overview for the ÖppenBokföring desktop application.
-
-Last updated: 2026-07-11.
+This existing document is the architecture node; there is no parallel root
+`architecture.md`. Its adopted contracts and source-based corrections await review.
 
 ## System diagram
 
@@ -18,19 +35,19 @@ flowchart TB
 
   subgraph tauri [Tauri v2 shell]
     Invoke[Tauri invoke handler]
-    Plugins[dialog + scoped fs plugins]
+    Plugins[dialog permissions; fs plugin without grants]
     CmdWrap --> Invoke
     Invoke --> Plugins
   end
 
   subgraph rust [Rust domain layer]
-    Commands[commands.rs — workspace gate + handlers]
+    Commands[commands.rs — lifecycle + workspace-bound handlers]
     Domains[invoicing / vat / ledger / documents / …]
-    Rules[rules + compliance engine]
+    Rules[typed rules + profile compliance checks]
     Jobs[local_jobs — invoice PDF generation]
     Commands --> Domains
     Domains --> Rules
-    Domains --> Jobs
+    Jobs --> Domains
   end
 
   subgraph storage [Local persistence]
@@ -50,9 +67,9 @@ flowchart TB
 | Invariant | Enforcement |
 |-----------|-------------|
 | Renderer never writes SQLite | ADR-0003; all mutations via `invoke()` |
-| Accounting rules in Rust | `tax_rules` + `rule_versions`; not duplicated in UI |
-| Idempotency on mutations | `idempotency_key` + `local_jobs` unique constraint |
-| Workspace scoping | Every command requires open workspace (`AppState`) |
+| Accounting policy stays in Rust | Versioned rules plus domain posting/approval guards; compliance is a profile evaluator, not a universal posting engine |
+| Domain-specific replay protection | Keyed operations use `local_jobs`; draft/profile/settings writes are not universally keyed |
+| Workspace scoping | Workspace-bound commands clone the current `AppState` context; lifecycle and integration-status commands are exceptions |
 | Local-first evidence | Content-addressed `documents/` per workspace |
 | Prepare-only tax | ADR-0004; no filing or payment initiation |
 
@@ -61,9 +78,26 @@ flowchart TB
 1. A user action in a React page (`src/pages/*`) calls a typed wrapper in `src/lib/commands.ts`.
 2. The wrapper calls Tauri `invoke<T>()`.
 3. Tauri routes to a registered `#[tauri::command]` in `src-tauri/src/commands.rs`.
-4. The command checks the open `WorkspaceContext` and calls a domain module (`invoicing`, `vat`, and so on).
-5. The domain module runs SQLx queries, evaluates the active rules where applicable, and may enqueue `local_jobs`.
-6. Success returns `{ data: T }`; failure throws `AppError` (structured, redacted storage errors).
+4. Workspace-bound commands obtain a `WorkspaceContext` and call domain modules. Lifecycle commands also orchestrate SQL and filesystem work directly.
+5. Domain modules share SQLx persistence, evaluate applicable rules, and may store replay results or enqueue invoice-PDF work in `local_jobs`.
+6. Success returns `{ data: T }`; failure rejects with `AppError` (structured, redacted storage errors).
+
+## Boundaries and dependency shape
+
+The renderer owns interaction and presentation; the Rust crate owns persistence,
+posting, evidence, and artifact generation under `rust-command-boundary`.
+The two cross only through typed commands, apart from native path-selection dialogs.
+
+The backend is one crate with shared tables, not isolated repositories. Its
+sibling services call each other and query shared tables directly. In particular,
+ledger and VAT have mutual calls, as do settings and paths; do not infer a DAG or
+exclusive ledger-write ownership. Detailed sibling edges belong to the backend
+module spec. The `desktop` feature gates the command adapter and Tauri runtime,
+while domain code can be tested without it.
+
+Observed limitation (unconfirmed as a product decision): the workspace mutex
+protects context selection only. An operation retains its cloned context after
+close/switch; there is no operation-wide workspace lock or cancellation.
 
 ## Major subsystems
 
@@ -71,6 +105,7 @@ flowchart TB
 |-----------|-------------|------------|
 | Workspace lifecycle | `workspace`, `backup`, `recent` | `WorkspacePickerPage`, `SettingsPage` |
 | Profiles & compliance | `profiles`, `compliance`, `rules` | `OnboardingPage`, `DashboardPage` |
+| Tax-task projection | `tax_tasks` | `DashboardPage` |
 | Invoicing & ledger | `invoicing`, `ledger`, `counterparties` | `InvoicesPage`, `LedgerPage` |
 | Documents & imports | `documents`, `imports`, `reconciliation`, `expenses` | `DocumentsPage` |
 | VAT & cash | `vat`, `cashflow` | `VatPage`, `DashboardPage` |
@@ -83,8 +118,8 @@ flowchart TB
 
 - **Client errors:** `AppError` with `code`, `message`, optional `details[]`.
 - **SQL errors:** Redacted public message; `unique_violation` flag preserved internally for idempotency replay.
-- **Path operations:** `paths.rs` + `documents::safe_join_under` + `workspace_open` validates `documents_path` layout.
-- **Permissions:** Tauri capabilities — dialog + app-scoped fs only; CSP `default-src 'self'`.
+- **Path operations:** `paths.rs`, `workspace::safe_join_under`, canonical containment checks, and `workspace_open` document-layout validation. These are distinct checks, not a universal path-safety wrapper.
+- **Permissions:** Main-window capability grants `core:default` and `dialog:default` only. The fs plugin is installed but has no renderer grants; CSP limits resources to self/assets/data and connections to IPC. Requirements and observed gaps live in `security-privacy`.
 
 ## Testing layers
 
@@ -99,7 +134,7 @@ flowchart TB
 ## Related docs
 
 - [README.md](./README.md) — codemap index and current scope
-- [MODULES.md](./MODULES.md) — module APIs and dependencies
+- [MODULES.md](./MODULES.md) — legacy module inventory (input only; graph nodes own current boundaries)
 - [FILES.md](./FILES.md) — directory map
 - [`docs/adr/`](../adr/) — binding architecture decisions
 - [`docs/schema.md`](../schema.md) — SQLite tables and migrations

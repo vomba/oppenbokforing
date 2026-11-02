@@ -1,6 +1,14 @@
+---
+id: prepare-only-tax
+type: architecture-design
+title: Prepare Filing Outputs Without Direct Submission
+status: draft
+parent: system-architecture
+---
+
 # ADR 0004: Prepare Filing Outputs, Do Not Submit Directly in V1
 
-Status: accepted
+Decision status: accepted in the source ADR; graph adoption awaits review.
 
 ## Context
 
@@ -8,7 +16,7 @@ Direct filing to Skatteverket requires technical access, signing, legal responsi
 
 ## Decision
 
-V1 prepares VAT drafts, year-end packages, `NE` draft values, PDFs, and accountant/export bundles. Direct submission is deferred.
+The app prepares VAT drafts, year-end packages, `NE` draft values, PDFs, and accountant/export bundles. It does not submit returns or initiate payments. Current VAT/year-end preparation artifacts are JSON, not proof of an authority-compatible submission format; export does not mean filed.
 
 ## Consequences
 

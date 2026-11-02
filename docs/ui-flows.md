@@ -1,11 +1,27 @@
+---
+id: ui-workflows
+type: module-design
+title: Desktop UI workflows
+status: draft
+parent: system-architecture
+references:
+  - rust-command-boundary
+  - prepare-only-tax
+---
+
 # Desktop UI Flow Specification
+
+Adopted in place for review. The user confirmed that narrow daily-entry UI is
+unfinished coverage, not deliberate product exclusion. Current support and unmet
+requirements are distinguished below; this import changes no UI.
 
 ## Design Direction
 
 Purpose: daily accounting and tax preparation for Swedish sole traders.  
 Audience: solo freelancers who need to invoice, reconcile, prepare VAT, and close the year without an accountant-first interface.  
 Tone: calm, guided, and review-focused — plain Swedish labels with optional field help; technical paths live in Settings, not the dashboard.  
-Memorable detail: every calculated amount has a nearby trace affordance that shows source ledger lines and rule version.  
+Traceability requirement: calculated amounts should expose their ledger/rule provenance. Current VAT traces, NE source references, and voucher links provide parts of this; the dashboard cash metric has no calculation-trace control.
+
 Constraint: first screen is the app workspace, not a landing page.
 
 ## Primary Navigation
@@ -38,9 +54,11 @@ States:
 Required actions:
 
 - Create workspace.
-- Open workspace.
-- Restore backup.
-- Reveal workspace location.
+- Open a workspace from the recent list.
+- Restore encrypted backup with explicit confirmation, then open the restored workspace.
+
+Unmet flow requirements: arbitrary database selection and a reveal-workspace action.
+The recent list currently displays database paths.
 
 ## Dashboard
 
@@ -60,9 +78,13 @@ Required interactions:
 
 - Jump to unresolved work from checklist links.
 - Create backup (header).
-- Open calculation trace from VAT/cash surfaces.
+- Open calculation trace from the VAT surface; a cash trace remains unmet.
 
-Technical workspace paths (`databasePath`, `dataDir`) are shown in Settings only.
+If a required dashboard read fails, show unavailable/retry instead of claiming the
+workspace is caught up. Task dates and tax requirements come from Rust.
+
+The dashboard does not show technical workspace paths (`databasePath`, `dataDir`).
+Settings shows them; the workspace picker also shows recent database paths.
 
 ## Onboarding
 
@@ -72,15 +94,21 @@ Four-step wizard: Business → Tax → VAT → Review.
 - Functional step navigation in sidebar.
 - Human-readable compliance messages on review step.
 - Default locale `sv` for new workspaces.
+- Save the three profiles through the composite onboarding command; a load failure
+  must not be treated as an empty profile and overwritten.
 
 ## Invoices
 
 Views:
 
 - Invoice list with status filters.
-- Draft editor.
+- Single-line draft creation (quantity 1, account 3041, no due date).
 - Issued invoice detail.
 - Credit-note flow.
+
+The broader draft-editor requirement is unmet: Rust exposes draft update, but the
+UI does not call it. List filters are all/draft/issued; paid, overdue, credited, and
+credit-note labels are derived display states, not separate list filters.
 
 Required states:
 
@@ -93,8 +121,8 @@ Required states:
 Controls:
 
 - Create draft.
-- Issue invoice.
-- Preview PDF.
+- Issue invoice after backend preflight; a VAT-treatment review blocks issue and directs setup correction.
+- Preview/refresh PDF from historical issue data. Legacy invoices without snapshots require preserved evidence and explicit historical-value attestation before recovery.
 - Mark paid.
 - Credit invoice.
 - Open ledger trace.
@@ -105,8 +133,11 @@ Views:
 
 - Voucher list.
 - Voucher detail.
-- Account ledger.
-- Period locks.
+- Account balances.
+- Period lock status.
+
+A per-account transaction workbench is not implemented. Lists show the first 100
+posted vouchers without pagination.
 
 Rules:
 
@@ -130,6 +161,12 @@ Required interactions:
 - Import CSV.
 - Match a staged transaction to an invoice payment.
 - Post a staged transaction as an expense, with evidence or an explicit reason.
+- Record a full invoice payment without CSV by selecting retained PDF bank evidence
+  and a payment date through the invoice-linked payment panel.
+
+The UI requires staging for expenses even though the backend accepts an optional
+staged transaction. Evidence/staged lists are capped at 100 and matched history at
+20, without pagination.
 
 ## VAT Workbench
 
@@ -147,7 +184,10 @@ Required interactions:
 - Review source lines.
 - Approve return.
 - Export filing package.
-- Lock period.
+- Approval locks the period; there is no separate lock command/button.
+
+Changing the selected period clears the displayed return and trace. Revisiting a
+period does not reload its existing return; this is unfinished UI coverage.
 
 ## Year-End Workbench
 
@@ -161,10 +201,11 @@ Views:
 
 Required interactions:
 
-- Generate package.
-- Approve package.
+- Generate or reload an existing package for the fiscal year.
+- Regenerate a draft through review when its source snapshot is stale.
+- Approve a ready package.
 - Export package.
-- Lock fiscal year.
+- Approval locks the fiscal year and its periods; there is no separate lock action.
 
 ## Settings
 
@@ -184,4 +225,14 @@ Required interactions:
 - Choose or clear default export and backup directories.
 - Create SIE or accountant packages.
 - Validate a selected accountant package without importing it.
+
+Default directories, SIE/accountant exports, package validation, and integration
+panels are hidden by simple mode; switching to full mode reveals them. This is
+progressive disclosure, not an authorization boundary.
+
+Observed limitations (product rationale unconfirmed): several async page refreshes
+have no stale-response guard; frontend retry keys survive some failures but not
+component remounts. Currency formatting remains Swedish even in English, some
+validation text passes through from Rust, and page year/date defaults differ.
+These are not inferred product guarantees.
 

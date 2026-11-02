@@ -1,7 +1,7 @@
 ---
 id: expense-posting
 type: submodule-design
-status: draft
+status: active
 title: Expense and input-VAT posting
 parent: rust-backend
 depends-on: [evidence-archive, vat-returns, workspace-defaults]

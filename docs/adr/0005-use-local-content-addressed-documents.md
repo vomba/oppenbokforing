@@ -2,13 +2,13 @@
 id: retained-evidence
 type: architecture-design
 title: Use Local Content-Addressed Document Storage
-status: draft
+status: active
 parent: system-architecture
 ---
 
 # ADR 0005: Use Local Content-Addressed Document Storage
 
-Decision status: accepted in the source ADR; graph adoption awaits review.
+Decision status: accepted in the source ADR. The user approved adoption into the spec graph.
 
 ## Context
 

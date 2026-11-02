@@ -2,13 +2,13 @@
 id: rust-command-boundary
 type: architecture-design
 title: Use a Rust Command Boundary for Mutations
-status: draft
+status: active
 parent: system-architecture
 ---
 
 # ADR 0003: Use a Rust Command Boundary for Mutations
 
-Decision status: accepted in the source ADR; graph adoption awaits review.
+Decision status: accepted in the source ADR. The user approved adoption into the spec graph.
 
 ## Context
 

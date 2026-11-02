@@ -1,7 +1,7 @@
 ---
 id: invoice-settlement
 type: submodule-design
-status: draft
+status: active
 title: Invoice payment settlement
 parent: rust-backend
 depends-on: [evidence-archive, vat-returns, workspace-defaults]

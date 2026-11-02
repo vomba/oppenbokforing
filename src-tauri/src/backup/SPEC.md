@@ -1,7 +1,7 @@
 ---
 id: encrypted-backups
 type: submodule-design
-status: draft
+status: active
 title: Encrypted backup publication and restore
 parent: rust-backend
 references: [local-sqlite, security-privacy, system-architecture]

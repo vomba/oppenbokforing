@@ -1,7 +1,7 @@
 ---
 id: accounting-ledger
 type: submodule-design
-status: draft
+status: active
 title: Posting primitives and ledger reads
 parent: rust-backend
 depends-on: [vat-returns]

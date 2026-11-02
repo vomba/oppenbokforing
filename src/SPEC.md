@@ -1,7 +1,7 @@
 ---
 id: renderer
 type: module-design
-status: draft
+status: active
 title: Desktop renderer boundary
 parent: system-architecture
 references: [rust-command-boundary, ui-workflows, prepare-only-tax]

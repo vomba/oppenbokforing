@@ -1,7 +1,7 @@
 ---
 id: cash-planning
 type: submodule-design
-status: draft
+status: active
 title: Provisional cash-planning projection
 parent: rust-backend
 depends-on: [accounting-ledger, business-profiles, vat-returns]

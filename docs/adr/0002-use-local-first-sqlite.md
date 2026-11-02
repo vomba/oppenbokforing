@@ -2,13 +2,13 @@
 id: local-sqlite
 type: architecture-design
 title: Use Local-First SQLite
-status: draft
+status: active
 parent: system-architecture
 ---
 
 # ADR 0002: Use Local-First SQLite
 
-Decision status: accepted in the source ADR; graph adoption awaits review.
+Decision status: accepted in the source ADR. The user approved adoption into the spec graph.
 
 ## Context
 

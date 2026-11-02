@@ -2,13 +2,13 @@
 id: desktop-platform
 type: architecture-design
 title: Use Tauri for the Desktop App
-status: draft
+status: active
 parent: system-architecture
 ---
 
 # ADR 0001: Use Tauri for the Desktop App
 
-Decision status: accepted in the source ADR; graph adoption awaits review.
+Decision status: accepted in the source ADR. The user approved adoption into the spec graph.
 
 ## Context
 

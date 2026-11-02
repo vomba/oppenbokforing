@@ -1,7 +1,7 @@
 ---
 id: sie-export
 type: submodule-design
-status: draft
+status: active
 title: SIE ledger export
 parent: rust-backend
 depends-on: [workspace-defaults]

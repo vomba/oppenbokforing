@@ -2,14 +2,14 @@
 id: prepare-only-tax
 type: architecture-design
 title: Prepare Filing Outputs Without Direct Submission
-status: draft
+status: active
 parent: system-architecture
 references: [tax-rules, product-goal]
 ---
 
 # ADR 0004: Prepare Filing Outputs, Do Not Submit Directly in V1
 
-Decision status: accepted in the source ADR; graph adoption awaits review.
+Decision status: accepted in the source ADR. The user approved adoption into the spec graph.
 
 ## Context
 

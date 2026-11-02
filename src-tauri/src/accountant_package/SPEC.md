@@ -1,7 +1,7 @@
 ---
 id: accountant-handoff
 type: submodule-design
-status: draft
+status: active
 title: Accountant package assembly and validation
 parent: rust-backend
 depends-on: [sie-export, year-end-packages, workspace-defaults]

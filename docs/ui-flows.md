@@ -2,7 +2,7 @@
 id: ui-workflows
 type: module-design
 title: Desktop UI workflows
-status: draft
+status: active
 parent: system-architecture
 references: [rust-command-boundary, prepare-only-tax, product-goal, business-profiles, accounting-ledger, expense-posting, invoice-settlement, year-end-packages, tax-rules, system-architecture, bank-csv-staging]
 ---
@@ -10,8 +10,9 @@ references: [rust-command-boundary, prepare-only-tax, product-goal, business-pro
 # Desktop UI Flow Specification
 
 The approved product contract lives in `product-goal`. This document separates
-required interaction behavior from the observed page flows. The revised text
-remains draft, and this change implements no UI.
+required interaction behavior from the observed page flows.
+
+The user approved the revised text. Spec approval does not implement missing UI behavior.
 
 ## Required interaction contract
 

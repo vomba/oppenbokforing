@@ -1,7 +1,7 @@
 ---
 id: invoice-lifecycle
 type: submodule-design
-status: draft
+status: active
 title: Invoice issuance credits and historical identity
 parent: rust-backend
 depends-on: [accounting-ledger, tax-rules, business-profiles, evidence-archive, workspace-defaults]

@@ -2,7 +2,7 @@
 id: storage-contract
 type: module-design
 title: SQLite storage contract
-status: draft
+status: active
 parent: system-architecture
 references: [local-sqlite, retained-evidence, product-goal]
 ---

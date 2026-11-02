@@ -1,7 +1,7 @@
 ---
 id: tax-rules
 type: submodule-design
-status: draft
+status: active
 title: Versioned tax-rule lookup
 parent: rust-backend
 references: [product-goal, prepare-only-tax]

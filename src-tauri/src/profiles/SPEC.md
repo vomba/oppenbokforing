@@ -1,7 +1,7 @@
 ---
 id: business-profiles
 type: submodule-design
-status: draft
+status: active
 title: Business tax and VAT profiles
 parent: rust-backend
 depends-on: [profile-compliance]

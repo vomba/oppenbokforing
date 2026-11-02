@@ -2,7 +2,7 @@
 id: system-architecture
 type: architecture-design
 title: ÖppenBokföring system architecture
-status: draft
+status: active
 parent: product-goal
 references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only-tax, retained-evidence, storage-contract, ui-workflows, security-privacy, renderer, rust-backend]
 ---
@@ -13,7 +13,7 @@ This document is the system architecture node for ÖppenBokföring.
 There is no parallel root `architecture.md`.
 
 Required behavior is separate from the current implementation.
-The revised document remains draft for text review.
+The user approved this architecture contract.
 
 ## System diagram
 

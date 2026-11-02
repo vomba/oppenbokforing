@@ -1,7 +1,7 @@
 ---
 id: rust-backend
 type: module-design
-status: draft
+status: active
 title: Rust application and shared infrastructure
 parent: system-architecture
 references: [rust-command-boundary, storage-contract, security-privacy, local-sqlite]

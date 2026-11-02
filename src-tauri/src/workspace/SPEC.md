@@ -1,7 +1,7 @@
 ---
 id: workspace-defaults
 type: submodule-design
-status: draft
+status: active
 title: Workspace bootstrap and fiscal guards
 parent: rust-backend
 depends-on: [vat-returns, workspace-settings]

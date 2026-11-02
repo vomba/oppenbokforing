@@ -1,7 +1,7 @@
 ---
 id: vat-returns
 type: submodule-design
-status: draft
+status: active
 title: VAT snapshots traces and period locks
 parent: rust-backend
 depends-on: [business-profiles, tax-rules, accounting-ledger, workspace-defaults]

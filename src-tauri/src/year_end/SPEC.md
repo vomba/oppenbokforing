@@ -1,7 +1,7 @@
 ---
 id: year-end-packages
 type: submodule-design
-status: draft
+status: active
 title: Year-end preparation and artifact integrity
 parent: rust-backend
 depends-on: [tax-rules, workspace-defaults, vat-returns]

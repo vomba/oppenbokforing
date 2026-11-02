@@ -1,7 +1,7 @@
 ---
 id: profile-compliance
 type: submodule-design
-status: draft
+status: active
 title: Profile compliance evaluation
 parent: rust-backend
 depends-on: [tax-rules]

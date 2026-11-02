@@ -2,7 +2,7 @@
 id: security-privacy
 type: architecture-design
 title: Security and privacy contract
-status: draft
+status: active
 parent: system-architecture
 references: [rust-command-boundary, retained-evidence, storage-contract, encrypted-backups, prepare-only-tax]
 ---
@@ -11,7 +11,7 @@ references: [rust-command-boundary, retained-evidence, storage-contract, encrypt
 
 Required controls are separate from current implementation gaps. The gaps are not
 permitted exceptions to the approved product or transaction contract.
-This draft does not claim comprehensive enforcement.
+Approval of this contract does not establish comprehensive enforcement.
 
 ## Scope
 

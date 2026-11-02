@@ -1,7 +1,7 @@
 ---
 id: invoice-pdf-jobs
 type: submodule-design
-status: draft
+status: active
 title: Retryable invoice PDF generation
 parent: rust-backend
 depends-on: [invoice-lifecycle, evidence-archive]

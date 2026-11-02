@@ -1,7 +1,7 @@
 ---
 id: evidence-archive
 type: submodule-design
-status: draft
+status: active
 title: Retained evidence archive
 parent: rust-backend
 depends-on: [workspace-defaults]

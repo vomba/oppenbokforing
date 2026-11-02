@@ -1,7 +1,7 @@
 ---
 id: workspace-settings
 type: submodule-design
-status: draft
+status: active
 title: Workspace presentation and path preferences
 parent: rust-backend
 ---

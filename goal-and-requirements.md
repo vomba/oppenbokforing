@@ -1,7 +1,7 @@
 ---
 id: product-goal
 type: goal-and-requirements
-status: draft
+status: active
 title: ÖppenBokföring goals and requirements
 tags: [product]
 references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only-tax, retained-evidence, cash-planning, ui-workflows, security-privacy, tax-rules]
@@ -18,9 +18,8 @@ including owners with employment income under FA-skatt.
 The app is independent open-source software, not a government service or professional
 tax advice. Professional review is an optional recommendation, not a completion requirement.
 
-The user approved this product contract through decision review. All nodes remain
-draft for review of the revised text. Required capabilities are not claims that
-the current implementation satisfies them.
+The user approved this product contract and the revised spec text.
+Required capabilities are not claims that the current implementation satisfies them.
 
 ## Supported business cases
 

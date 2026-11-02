@@ -1,7 +1,7 @@
 ---
 id: bank-csv-staging
 type: submodule-design
-status: draft
+status: active
 title: Bank CSV staging
 parent: rust-backend
 depends-on: [evidence-archive]

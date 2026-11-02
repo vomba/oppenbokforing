@@ -4,16 +4,16 @@ type: module-design
 title: SQLite storage contract
 status: draft
 parent: system-architecture
-references:
-  - local-sqlite
-  - retained-evidence
+references: [local-sqlite, retained-evidence, product-goal]
 ---
 
 # SQLite Storage Contract
 
-The current schema is defined by the 20 forward-only SQLx migrations listed below.
-This is an adopted contract, pending review; requirements are distinguished from
-observed enforcement.
+The current schema uses the 20 forward-only SQLx migrations in this document.
+This inventory does not establish implementation of every product requirement.
+
+`product-goal` and the owning module specs define required behavior.
+New storage support must not appear as an already-existing migration here.
 
 ## Scope
 

@@ -9,9 +9,11 @@ references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only
 
 # Architecture Codemap
 
-High-level system overview for the ÖppenBokföring desktop application.
-This existing document is the architecture node; there is no parallel root
-`architecture.md`. Its adopted contracts and source-based corrections await review.
+This document is the system architecture node for ÖppenBokföring.
+There is no parallel root `architecture.md`.
+
+Required behavior is separate from the current implementation.
+The revised document remains draft for text review.
 
 ## System diagram
 
@@ -54,7 +56,7 @@ flowchart TB
   Invoke --> Commands
 ```
 
-## Architectural invariants
+## Current composition and enforced boundaries
 
 | Invariant | Enforcement |
 |-----------|-------------|
@@ -76,19 +78,48 @@ flowchart TB
 
 ## Boundaries and dependency shape
 
-The renderer owns interaction and presentation; the Rust crate owns persistence,
-posting, evidence, and artifact generation under `rust-command-boundary`.
-The two cross only through typed commands, apart from native path-selection dialogs.
+The renderer owns interaction and presentation. Rust owns persistence, posting,
+evidence, and artifacts under `rust-command-boundary`. Native dialogs select paths.
 
 The backend is one crate with shared tables, not isolated repositories. Its
-sibling services call each other and query shared tables directly. Do not infer a
-DAG or exclusive ledger-write ownership; actual sibling calls and cycles are
-recorded once in `rust-backend`. `renderer` owns the frontend module boundary. The `desktop` feature gates the command adapter and Tauri runtime,
-while domain code can be tested without it.
+services call each other and query shared tables. `rust-backend` owns the actual
+calls and cycles, not a claimed strict DAG.
 
-Observed limitation (unconfirmed as a product decision): the workspace mutex
-protects context selection only. An operation retains its cloned context after
-close/switch; there is no operation-wide workspace lock or cancellation.
+`renderer` owns the frontend boundary. The `desktop` feature gates Tauri and the
+command adapter, not the domain test surface.
+
+## Required workspace ownership
+
+One application instance owns a workspace exclusively. A second instance must
+refuse that workspace open, rather than offer an unverified read-only mode.
+Different workspaces can have different owners.
+
+Before close or switch, in-flight posting, approval, backup, and related work must
+reach a definite success or failure. The app then performs the requested change.
+A switch must not imply cancellation of committed accounting.
+
+Commands and results remain bound to the owning workspace. Crash recovery must not
+create a second live writer. The ownership contract applies to local workspace
+storage, not shared-network or cloud collaboration.
+
+**Current gap:** `AppState` protects context selection only. Operations retain
+cloned contexts after close/switch. Exclusive ownership and finish-before-switch
+are not implemented guarantees.
+
+## Required export identity and publication
+
+A new export preserves older copies and publishes a distinctly identified artifact.
+Publication must not silently overwrite an existing file or package directory.
+Approved source artifacts remain immutable under `prepare-only-tax`.
+
+An identical retry can reuse an artifact only after content and source identity
+verification. Changed content is a new export, not an identical retry.
+
+A corrupt or missing approved artifact must not silently become a current-ledger replacement.
+
+**Current gap:** generic publication can replace destinations. SIE and accountant
+package replay do not universally verify hashes. The owning service specs retain
+the detailed observed limits.
 
 ## Major subsystems
 

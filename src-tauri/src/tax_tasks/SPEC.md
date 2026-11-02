@@ -17,7 +17,21 @@ with dates, status, route target, rule-version identity, and official source URL
 No task table is maintained; tasks are derived from profiles, rules, and current
 return/package state.
 
-## Boundary
+## Required task semantics
+
+The projection distinguishes accounting year, filing calendar, preparation state,
+and user-reported external submission. `tax-rules` governs applicable schedules,
+not an unconditional latest-active year.
+
+`prepare-only-tax` owns submission attestations and their evidence/audit contract.
+Only that explicit user report can indicate external completion. Approval, export,
+or a path string alone cannot mean filed.
+
+Relevant unresolved activity or missing guided answers prevents misleading complete
+status. The renderer presents backend states rather than invents deadlines or
+submission claims.
+
+## Current boundary and gaps
 
 Rust owns deadline regime matching, task necessity, status, and ordering. Missing
 profile/regime/schedule data yields an undated profile-review task rather than a
@@ -30,7 +44,9 @@ by status/date/ID. Approved-plus-export-path state becomes
 `prepared_external_submission_required`: metadata does not prove submission or
 that an exported file still exists. `prepare-only-tax` owns that product boundary.
 
-Observed year scope (acceptance unconfirmed): rule selection uses the latest
-active rule year, not the caller's as-of year. The year-end task targets the
-preceding fiscal year. Consumers must not reinterpret as-of as arbitrary-year
-rule selection or infer full multi-year calendar coverage.
+Current selection uses the latest active rule year, not the caller's as-of year.
+The year-end task targets the preceding fiscal year. This does not establish the
+required accounting-year/filing-calendar coverage.
+
+Submission attestations and the corresponding completion state are not implemented.
+The existing prepared status is not that new state.

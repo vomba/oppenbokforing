@@ -4,7 +4,7 @@ type: submodule-design
 status: draft
 title: Encrypted backup publication and restore
 parent: rust-backend
-references: [local-sqlite, security-privacy]
+references: [local-sqlite, security-privacy, system-architecture]
 ---
 
 # Encrypted backup publication and restore
@@ -13,10 +13,27 @@ references: [local-sqlite, security-privacy]
 
 Preserve a recoverable workspace database, retained documents, exports, and rule
 state in an encrypted `.skatbackup`, and restore into a fresh workspace directory.
-This service owns backup claims/staging/manifests; `invoice-pdf-jobs` is not its
-scheduler. Broader snapshot/path/size gaps are owned by `security-privacy`.
 
-## Boundary
+This service owns claims, staging, and manifests. `invoice-pdf-jobs` is not its
+scheduler. `security-privacy` owns broader snapshot/path/size gaps.
+
+## Required recovery contract
+
+Restore succeeds only for a complete, verified package. A missing or corrupt retained
+receipt must fail the restore, not produce editable partial books. Existing
+workspaces remain unchanged, and the failure must identify the problem.
+
+Required verification covers the manifest, included data/evidence, supported format,
+paths, and integrity before publication. A successful backup must fit the supported
+restore limits.
+
+Partial salvage is outside the approved recovery contract.
+
+Snapshot coordination must preserve a coherent recoverable state across the database
+and retained files. `system-architecture` owns exclusive access, in-flight operation
+completion, and artifact publication identity.
+
+## Current boundary and gaps
 
 A checkpoint and `VACUUM INTO` produce the database snapshot; copied files and a
 hashed manifest form the package. The private crypto component owns the format-v2
@@ -30,9 +47,15 @@ No-clobber publication precedes a fenced success/audit transaction; a stale owne
 cannot finalize another owner's claim. Retry semantics include staged publication
 recovery rather than blindly creating another package.
 
-Restore requires explicit confirmation but never overwrites: it verifies/decrypts
-into staging, retains the logical workspace ID, rewrites physical paths, and
-publishes into a new UUID directory. Directory backups are rejected. Restore does
-not itself activate the workspace or add a recent entry; the UI opens it afterward.
-The format's restore limits do not certify that creation enforces equivalent limits;
-see the unconfirmed implementation gaps in `security-privacy`.
+Restore requires explicit confirmation and uses a fresh UUID directory.
+It decrypts/verifies in staging, preserves the logical workspace ID, and rewrites
+physical paths. It rejects directory backups.
+
+Restore does not activate the workspace or add a recent entry.
+The UI opens the restored workspace afterward.
+
+Current creation does not enforce all restore size/count limits.
+File copies are not part of one atomic database snapshot.
+
+`security-privacy` records additional manifest/path gaps.
+Existing encryption does not satisfy the full recovery contract.

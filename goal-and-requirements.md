@@ -4,51 +4,74 @@ type: goal-and-requirements
 status: draft
 title: ÖppenBokföring goals and requirements
 tags: [product]
-references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only-tax, retained-evidence, cash-planning, ui-workflows, security-privacy]
+references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only-tax, retained-evidence, cash-planning, ui-workflows, security-privacy, tax-rules]
 ---
 
 # ÖppenBokföring
 
 ## Goal and audience
 
-Help Swedish enskild firma owners keep local books and prepare reviewable tax
-and accountant handoffs without an accountant-first interface. The audience is
-solo freelancers, including people combining employment and business under FA-skatt.
-The app is independent open-source software, not tax advice or a government service.
+Help Swedish enskild firma owners keep local books and report business taxes
+without mandatory professional assistance. The audience is solo service businesses,
+including owners with employment income under FA-skatt.
 
-This draft imports the purpose from `README.md` and the accepted decisions in
-`desktop-platform`, `local-sqlite`, `rust-command-boundary`, `prepare-only-tax`, and
-`retained-evidence`. Source-observed capabilities below are not a claim of legal
-or accounting completeness; all imported nodes await user review.
+The app is independent open-source software, not a government service or professional
+tax advice. Professional review is an optional recommendation, not a completion requirement.
 
-## Capabilities
+The user approved this product contract through decision review. All nodes remain
+draft for review of the revised text. Required capabilities are not claims that
+the current implementation satisfies them.
 
-- Create and reopen local workspaces; preserve them with encrypted backup and restore.
-- Guide business, tax, and VAT profile setup, with Swedish-first and English UI,
-  simple navigation, contextual help, and review before material accounting actions.
-- Create invoice drafts, issue invoices with tax/VAT safeguards and retained PDFs,
-  record full payments, and issue compensating credit notes.
-- Keep a double-entry ledger with protected posted records and auditable source links.
-- Retain documents by content hash, stage bank CSV transactions, reconcile receipts,
-  and post expenses with evidence or an explicit explanation.
-- Prepare VAT worksheets with source-line traces and period locking on approval;
-  show rule-backed tax tasks and an approximate cash-planning projection.
-- Prepare simplified annual-account and NE draft artifacts, review readiness,
-  approve year-end packages, and export SIE and accountant handoff packages.
+## Supported business cases
 
-The cash projection is a **provisional approximation**, confirmed by the user;
-its formula and limits belong to `cash-planning`. The user also confirmed that
-narrow daily-entry flows are unfinished coverage, not intended product exclusions;
-`ui-workflows` distinguishes current UI support from its requirements.
+- Simple solo domestic service businesses, without employees or trading inventory.
+- Ordinary taxable services and low-turnover VAT exemption, not sector-specific exemptions.
+- Both cash-method and invoice-method accounting, with method-specific recognition and closing treatment.
+- Ordinary equipment, depreciation, and justified business-use splits for shared phone, internet, and equipment costs.
+- New businesses and established businesses with reviewed opening balances and unpaid invoices.
+- Accounting years 2025 and 2026, with their applicable filing calendars. `tax-rules` governs validated support and new-year extension.
+- SEK invoices, full or partial payments, and full credits that do not require an unsupported refund.
 
-## Product boundary
+## Required capabilities
 
-The product prepares information for review and external submission. Direct tax
-filing and payment initiation are excluded by `prepare-only-tax`. Cloud sync,
-hosted collaboration, and hosted OCR are outside the documented local-first scope;
-this is not an assertion that every unimplemented feature is forbidden.
+- Guided business/tax/VAT setup, Swedish-first and English UI, and review before material accounting actions.
+- Double-entry books, retained invoice identity, protected posted history, and source traces.
+- Retained evidence, validated bank CSV staging, reconciliation, and guided expense/asset treatment.
+- VAT preparation and complete annual-account/NE drafts for supported cases, including guided answers for facts absent from the ledger.
+- Human-readable, box-by-box external-filing guidance, source references, and remaining user actions. Structured files supplement this handoff.
+- Explicit provisional exports, validated approval, audited corrections, and user-reported external submission under `prepare-only-tax`.
+- Reviewed opening positions, accounting-method transitions, and remediation of affected legacy books without silent historical rewrites.
+- Verified encrypted backup/restore, exclusive workspace ownership, and preserved export copies under the owning architecture and module contracts.
 
-Sensitive records remain local under the controls and explicit implementation gaps
-in `security-privacy`. Golden fixtures define regression examples, not legal
-certification. Users remain responsible for checking figures and submitting them
-outside the app.
+The cash projection remains a **provisional approximation**, not a tax calculation
+or bank-funds guarantee. Its formula belongs to `cash-planning`.
+
+## Explicit exclusions
+
+Cross-border trade, sector-specific VAT exemptions, complex assets, vehicle/property-specific
+cases, employees, and inventory are outside the supported set.
+
+Partial credits, overpayments/refunds, and foreign-currency invoices are also outside
+scope. An operation that requires an excluded case must stop, not disguise it as a
+supported invoice, expense, or credit.
+
+Unsupported or unresolved transactions retain their evidence/staging but cannot
+enter the ordinary posting workflow. Relevant unresolved activity blocks a claim
+that the affected books or tax preparation are complete.
+
+The product covers business accounts and the NE annex, not the entire personal
+income-tax return. Salary assumptions do not imply support for unrelated personal
+or capital-income sections.
+
+Direct filing and payment initiation are excluded by `prepare-only-tax`. Cloud
+sync, hosted collaboration, and hosted OCR are outside the local-first scope.
+Future scope expansion requires an explicit contract change, not a roadmap here.
+
+## Implementation honesty
+
+`tax-rules` owns the evidence required for calculation eligibility. Golden fixtures
+alone are not independent tax validation. Disclaimers do not replace that gate.
+
+Module specs separate required behavior from observed implementation gaps.
+`ui-workflows` owns interaction gaps, and `security-privacy` owns known control gaps.
+This documentation change implements none of the missing capabilities.

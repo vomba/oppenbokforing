@@ -5,7 +5,7 @@ status: draft
 title: SIE ledger export
 parent: rust-backend
 depends-on: [workspace-defaults]
-references: [security-privacy]
+references: [security-privacy, system-architecture, accounting-ledger, local-sqlite]
 ---
 
 # SIE ledger export
@@ -16,7 +16,18 @@ Serialize a workspace fiscal year's ledger into a SIE type-4-style handoff artif
 with export metadata and a replay result. It does not import ledger entries or
 submit figures to an authority.
 
-## Boundary
+## Required export contract
+
+SIE content must represent the selected ledger scope and obey its declared format/encoding.
+
+Opening positions and method-specific entries follow `accounting-ledger`, not a
+fictitious zero position for established businesses.
+
+`system-architecture` owns distinct export identity, preserved older copies,
+and verified identical retries. Regeneration cannot silently replace an approved
+historical artifact from today's ledger.
+
+## Current boundary and gaps
 
 The exporter queries shared profiles/accounts/vouchers directly and uses workspace
 fiscal helpers plus shared destination publication. Voucher/detail queries select

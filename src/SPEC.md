@@ -29,15 +29,19 @@ order the next-action checklist, and map backend task targets to routes. They do
 not determine tax deadlines, VAT treatment, posting eligibility, or filing status.
 Calculation and mutation authority remains across `rust-command-boundary`.
 
+Workspace ownership, operation completion, and cross-switch result identity must
+obey `system-architecture`. Renderer visibility alone does not enforce those rules.
+
 Workspace context holds an in-memory summary, not a second source of accounting
 truth. Locale and simple-mode contexts hydrate workspace settings; pages own their
 read/refresh state rather than a global accounting cache. Simple mode changes
 visibility, not permission. Review-dialog mechanics are shared; each page owns the
 facts shown and the command dispatched after confirmation.
 
-The UI boundary is enforced by convention and command exposure, not a runtime DTO
-validator. Observed limitation (rationale unconfirmed): not every asynchronous
-read is protected against a stale workspace/selection response; see `ui-workflows`.
+The UI boundary uses convention and command exposure, not a runtime DTO validator.
+
+Not every asynchronous read guards against stale workspace/selection responses.
+This remains a gap against `ui-workflows`, not a guarantee established by context providers.
 
 ## Verification surface
 

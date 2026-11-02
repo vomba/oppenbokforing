@@ -5,7 +5,7 @@ status: draft
 title: Accountant package assembly and validation
 parent: rust-backend
 depends-on: [sie-export, year-end-packages, workspace-defaults]
-references: [security-privacy]
+references: [security-privacy, system-architecture, prepare-only-tax, local-sqlite]
 ---
 
 # Accountant package assembly and validation
@@ -16,7 +16,16 @@ Assemble a reviewable handoff package from SIE, optional existing year-end artif
 an evidence index, and a hashed manifest. Validate a selected package without
 importing its ledger data.
 
-## Boundary
+## Required package contract
+
+`system-architecture` owns non-overwriting publication and verified identical
+retries. A new package must not destroy an older handoff copy.
+
+Provisional tax figures preserve the state, gaps, rules, and sources required by
+`prepare-only-tax`. Packaging cannot promote them to completed preparation.
+A package does not require professional review or replace the self-service handoff.
+
+## Current boundary and gaps
 
 The package contains `ledger.sie`, optional year-end JSON, the evidence index, and
 manifest; it does not copy the retained receipt/document bytes. It is therefore
@@ -28,9 +37,11 @@ hashes, and canonical path confinement. It bounds the manifest to 1 MiB and each
 hashed file to 50 MiB. These checks apply to validation, not automatically to every
 export retry.
 
-Observed limitations (acceptance unconfirmed): cached export replay checks manifest
-existence rather than revalidating every entry; file publication, succeeded-job
-storage, and audit do not form one common transaction. Nested SIE creation still
-honors saved export defaults. `security-privacy` owns these broader control gaps;
-`local-sqlite` retains the transaction requirement. A successful export is a local
-handoff, not proof an accountant accepted it or a return was submitted.
+Current cached replay checks manifest existence rather than every entry.
+File publication, succeeded-job storage, and audit do not form one transaction.
+
+Nested SIE creation still honors saved export defaults.
+`security-privacy` owns these gaps, and `local-sqlite` retains the transaction requirement.
+
+A successful export is a local handoff, not proof an accountant accepted it or a
+return was submitted.

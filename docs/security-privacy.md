@@ -4,17 +4,14 @@ type: architecture-design
 title: Security and privacy contract
 status: draft
 parent: system-architecture
-references:
-  - rust-command-boundary
-  - retained-evidence
-  - storage-contract
+references: [rust-command-boundary, retained-evidence, storage-contract, encrypted-backups, prepare-only-tax]
 ---
 
 # Security and Privacy Contract
 
-Adopted for review. Principles and checklists below are requirements, not a claim
-of comprehensive enforcement. The implementation distinctions are source-observed;
-their acceptance as product limitations is **unconfirmed**.
+Required controls are separate from current implementation gaps. The gaps are not
+permitted exceptions to the approved product or transaction contract.
+This draft does not claim comprehensive enforcement.
 
 ## Scope
 
@@ -83,7 +80,21 @@ staged rows behind.
   No workspace-delete command is currently exposed.
 - Audit events should record deletion and export actions.
 
-## Observed control boundaries
+## Required consistency boundaries
+
+`system-architecture` owns exclusive workspace access, completion before switch,
+and preservation of older export copies. These controls apply to commands and
+jobs, not only renderer visibility.
+
+`encrypted-backups` owns strict, verified recovery. Successful decryption alone
+cannot authorize an incomplete restore. Creation must preserve recoverability,
+not produce packages the restore contract refuses.
+
+`prepare-only-tax` owns provisional/approved output identity and correction history.
+An export path or existing file does not prove the artifact matches its approved
+sources and figures.
+
+## Current control gaps
 
 - Tauri grants only core and dialog permissions. Filesystem IO occurs in Rust;
   accepting an absolute path in a command is not proof it came from a native picker.
@@ -104,8 +115,8 @@ staged rows behind.
 - Posting, VAT approval, and composite onboarding include transactional audit;
   some draft/profile/export writes and their audit happen separately.
 
-These are documentation findings only; no vulnerability fixes or security test run
-are part of this import.
+These are documented gaps, not completed fixes. This spec revision changes no
+application controls and runs no security certification.
 
 ## Release Blocking Checklist
 

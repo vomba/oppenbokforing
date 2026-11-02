@@ -4,16 +4,50 @@ type: module-design
 title: Desktop UI workflows
 status: draft
 parent: system-architecture
-references:
-  - rust-command-boundary
-  - prepare-only-tax
+references: [rust-command-boundary, prepare-only-tax, product-goal, business-profiles, accounting-ledger, expense-posting, invoice-settlement, year-end-packages, tax-rules, system-architecture, bank-csv-staging]
 ---
 
 # Desktop UI Flow Specification
 
-Adopted in place for review. The user confirmed that narrow daily-entry UI is
-unfinished coverage, not deliberate product exclusion. Current support and unmet
-requirements are distinguished below; this import changes no UI.
+The approved product contract lives in `product-goal`. This document separates
+required interaction behavior from the observed page flows. The revised text
+remains draft, and this change implements no UI.
+
+## Required interaction contract
+
+Setup screens for supported cases under `business-profiles`. Unsupported or
+unresolved cases retain evidence but cannot enter ordinary posting or appear complete.
+
+Historical timing problems and method changes require their reviewed workflows.
+
+`accounting-ledger` owns reviewed opening positions. `expense-posting` owns guided
+equipment and business-use allocation. `invoice-settlement` owns partial-payment
+balances.
+
+The UI must not hide these requirements behind narrower current forms.
+
+Guided tax questions collect facts absent from the ledger. Unknown required values
+cannot become zero. `year-end-packages` owns supported-case completeness.
+
+`prepare-only-tax` owns provisional exports, reviewed snapshots, amendments,
+box-by-box external-filing guidance, and user-reported submission. The UI must
+keep those states distinct. Export never means submitted.
+
+`tax-rules` owns calculation eligibility. A warning cannot enable completed
+preparation without that evidence. Professional review remains optional under
+`product-goal`.
+
+`system-architecture` owns exclusive open, finish-before-switch, and preserved
+export copies. Busy or failed operations must not appear silently cancelled
+because the selected workspace changed.
+
+`bank-csv-staging` owns named format compatibility. Unsupported formats or rows
+cannot appear as silently successful imports.
+
+## Observed UI record
+
+The page sections record existing controls and specific unmet requirements.
+They do not claim implementation of the required interaction contract.
 
 ## Design Direction
 
@@ -94,8 +128,8 @@ Four-step wizard: Business → Tax → VAT → Review.
 - Functional step navigation in sidebar.
 - Human-readable compliance messages on review step.
 - Default locale `sv` for new workspaces.
-- Save the three profiles through the composite onboarding command; a load failure
-  must not be treated as an empty profile and overwritten.
+- Save the three profiles through the composite onboarding command.
+- A profile load failure must not appear as an empty profile that saving can overwrite.
 
 ## Invoices
 
@@ -159,7 +193,7 @@ Required interactions:
 
 - Import document.
 - Import CSV.
-- Match a staged transaction to an invoice payment.
+- Match a staged transaction to an invoice payment (currently exact full payment only).
 - Post a staged transaction as an expense, with evidence or an explicit reason.
 - Record a full invoice payment without CSV by selecting retained PDF bank evidence
   and a payment date through the invoice-linked payment panel.
@@ -186,8 +220,9 @@ Required interactions:
 - Export filing package.
 - Approval locks the period; there is no separate lock command/button.
 
-Changing the selected period clears the displayed return and trace. Revisiting a
-period does not reload its existing return; this is unfinished UI coverage.
+Changing the selected period clears the displayed return and trace.
+Revisiting a period does not reload its existing return. This remains unfinished
+UI coverage, separate from the new eligibility and stale-review requirements.
 
 ## Year-End Workbench
 

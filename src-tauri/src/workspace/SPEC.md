@@ -5,6 +5,7 @@ status: draft
 title: Workspace bootstrap and fiscal guards
 parent: rust-backend
 depends-on: [vat-returns, workspace-settings]
+references: [accounting-ledger, tax-rules, security-privacy]
 ---
 
 # Workspace bootstrap and fiscal guards
@@ -28,6 +29,9 @@ checks for workspace exports. A safe lexical join is not a substitute for canoni
 containment; the broader security requirements live in `security-privacy`.
 Cross-service calls and cycles are recorded by `rust-backend`.
 
-Observed scope (product acceptance unconfirmed): fiscal years are calendar years
-and the seeded chart is deliberately small in code. Neither configurable fiscal
-calendars nor a complete BAS account catalog is established by this bootstrap.
+Fiscal years are calendar years, and the seeded chart is small. Bootstrap does
+not establish a complete BAS catalog or the reviewed opening-position support
+required by `accounting-ledger`.
+
+Creating defaults for today's UTC year does not establish tax support for that
+year. `tax-rules` governs applicability and validated year extension.

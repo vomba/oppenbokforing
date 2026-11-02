@@ -5,7 +5,7 @@ status: draft
 title: Retryable invoice PDF generation
 parent: rust-backend
 depends-on: [invoice-lifecycle, evidence-archive]
-references: [storage-contract]
+references: [storage-contract, system-architecture]
 ---
 
 # Retryable invoice PDF generation
@@ -29,7 +29,9 @@ and refresh paths trigger processing; there is no standalone queue daemon.
 Refresh deduplication is transactional. Querying PDF status can therefore perform
 work, not merely inspect state.
 
-Observed recovery limitation (acceptance unconfirmed): opening a workspace resets
-all running PDF jobs to queued without an age/lease test, so “stale recovery” does
-not establish safe multi-instance worker fencing. Backup lease semantics must not
-be inferred for this queue.
+Recovery must obey workspace ownership and finish-before-switch requirements in
+`system-architecture`. It cannot treat another live operation as abandoned.
+
+Current opening resets every running PDF job without an age/lease test.
+That behavior does not establish safe recovery. Backup lease semantics do not
+apply to this queue.

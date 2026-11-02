@@ -1,8 +1,19 @@
+---
+id: system-architecture
+type: architecture-design
+title: ÖppenBokföring system architecture
+status: active
+parent: product-goal
+references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only-tax, retained-evidence, storage-contract, ui-workflows, security-privacy, renderer, rust-backend]
+---
+
 # Architecture Codemap
 
-High-level system overview for the ÖppenBokföring desktop application.
+This document is the system architecture node for ÖppenBokföring.
+There is no parallel root `architecture.md`.
 
-Last updated: 2026-07-11.
+Required behavior is separate from the current implementation.
+The user approved this architecture contract.
 
 ## System diagram
 
@@ -18,19 +29,19 @@ flowchart TB
 
   subgraph tauri [Tauri v2 shell]
     Invoke[Tauri invoke handler]
-    Plugins[dialog + scoped fs plugins]
+    Plugins[dialog permissions; fs plugin without grants]
     CmdWrap --> Invoke
     Invoke --> Plugins
   end
 
   subgraph rust [Rust domain layer]
-    Commands[commands.rs — workspace gate + handlers]
+    Commands[commands.rs — lifecycle + workspace-bound handlers]
     Domains[invoicing / vat / ledger / documents / …]
-    Rules[rules + compliance engine]
+    Rules[typed rules + profile compliance checks]
     Jobs[local_jobs — invoice PDF generation]
     Commands --> Domains
     Domains --> Rules
-    Domains --> Jobs
+    Jobs --> Domains
   end
 
   subgraph storage [Local persistence]
@@ -45,14 +56,14 @@ flowchart TB
   Invoke --> Commands
 ```
 
-## Architectural invariants
+## Current composition and enforced boundaries
 
 | Invariant | Enforcement |
 |-----------|-------------|
 | Renderer never writes SQLite | ADR-0003; all mutations via `invoke()` |
-| Accounting rules in Rust | `tax_rules` + `rule_versions`; not duplicated in UI |
-| Idempotency on mutations | `idempotency_key` + `local_jobs` unique constraint |
-| Workspace scoping | Every command requires open workspace (`AppState`) |
+| Accounting policy stays in Rust | Versioned rules plus domain posting/approval guards; compliance is a profile evaluator, not a universal posting engine |
+| Domain-specific replay protection | Keyed operations use `local_jobs`; draft/profile/settings writes are not universally keyed |
+| Workspace scoping | Workspace-bound commands clone the current `AppState` context; lifecycle and integration-status commands are exceptions |
 | Local-first evidence | Content-addressed `documents/` per workspace |
 | Prepare-only tax | ADR-0004; no filing or payment initiation |
 
@@ -61,9 +72,54 @@ flowchart TB
 1. A user action in a React page (`src/pages/*`) calls a typed wrapper in `src/lib/commands.ts`.
 2. The wrapper calls Tauri `invoke<T>()`.
 3. Tauri routes to a registered `#[tauri::command]` in `src-tauri/src/commands.rs`.
-4. The command checks the open `WorkspaceContext` and calls a domain module (`invoicing`, `vat`, and so on).
-5. The domain module runs SQLx queries, evaluates the active rules where applicable, and may enqueue `local_jobs`.
-6. Success returns `{ data: T }`; failure throws `AppError` (structured, redacted storage errors).
+4. Workspace-bound commands obtain a `WorkspaceContext` and call domain modules. Lifecycle commands also orchestrate SQL and filesystem work directly.
+5. Domain modules share SQLx persistence, evaluate applicable rules, and may store replay results or enqueue invoice-PDF work in `local_jobs`.
+6. Success returns `{ data: T }`; failure rejects with `AppError` (structured, redacted storage errors).
+
+## Boundaries and dependency shape
+
+The renderer owns interaction and presentation. Rust owns persistence, posting,
+evidence, and artifacts under `rust-command-boundary`. Native dialogs select paths.
+
+The backend is one crate with shared tables, not isolated repositories. Its
+services call each other and query shared tables. `rust-backend` owns the actual
+calls and cycles, not a claimed strict DAG.
+
+`renderer` owns the frontend boundary. The `desktop` feature gates Tauri and the
+command adapter, not the domain test surface.
+
+## Required workspace ownership
+
+One application instance owns a workspace exclusively. A second instance must
+refuse that workspace open, rather than offer an unverified read-only mode.
+Different workspaces can have different owners.
+
+Before close or switch, in-flight posting, approval, backup, and related work must
+reach a definite success or failure. The app then performs the requested change.
+A switch must not imply cancellation of committed accounting.
+
+Commands and results remain bound to the owning workspace. Crash recovery must not
+create a second live writer. The ownership contract applies to local workspace
+storage, not shared-network or cloud collaboration.
+
+**Current gap:** `AppState` protects context selection only. Operations retain
+cloned contexts after close/switch. Exclusive ownership and finish-before-switch
+are not implemented guarantees.
+
+## Required export identity and publication
+
+A new export preserves older copies and publishes a distinctly identified artifact.
+Publication must not silently overwrite an existing file or package directory.
+Approved source artifacts remain immutable under `prepare-only-tax`.
+
+An identical retry can reuse an artifact only after content and source identity
+verification. Changed content is a new export, not an identical retry.
+
+A corrupt or missing approved artifact must not silently become a current-ledger replacement.
+
+**Current gap:** generic publication can replace destinations. SIE and accountant
+package replay do not universally verify hashes. The owning service specs retain
+the detailed observed limits.
 
 ## Major subsystems
 
@@ -71,6 +127,7 @@ flowchart TB
 |-----------|-------------|------------|
 | Workspace lifecycle | `workspace`, `backup`, `recent` | `WorkspacePickerPage`, `SettingsPage` |
 | Profiles & compliance | `profiles`, `compliance`, `rules` | `OnboardingPage`, `DashboardPage` |
+| Tax-task projection | `tax_tasks` | `DashboardPage` |
 | Invoicing & ledger | `invoicing`, `ledger`, `counterparties` | `InvoicesPage`, `LedgerPage` |
 | Documents & imports | `documents`, `imports`, `reconciliation`, `expenses` | `DocumentsPage` |
 | VAT & cash | `vat`, `cashflow` | `VatPage`, `DashboardPage` |
@@ -83,8 +140,8 @@ flowchart TB
 
 - **Client errors:** `AppError` with `code`, `message`, optional `details[]`.
 - **SQL errors:** Redacted public message; `unique_violation` flag preserved internally for idempotency replay.
-- **Path operations:** `paths.rs` + `documents::safe_join_under` + `workspace_open` validates `documents_path` layout.
-- **Permissions:** Tauri capabilities — dialog + app-scoped fs only; CSP `default-src 'self'`.
+- **Path operations:** `paths.rs`, `workspace::safe_join_under`, canonical containment checks, and `workspace_open` document-layout validation. These are distinct checks, not a universal path-safety wrapper.
+- **Permissions:** Main-window capability grants `core:default` and `dialog:default` only. The fs plugin is installed but has no renderer grants; CSP limits resources to self/assets/data and connections to IPC. Requirements and observed gaps live in `security-privacy`.
 
 ## Testing layers
 
@@ -99,7 +156,7 @@ flowchart TB
 ## Related docs
 
 - [README.md](./README.md) — codemap index and current scope
-- [MODULES.md](./MODULES.md) — module APIs and dependencies
+- [MODULES.md](./MODULES.md) — legacy module inventory (input only; graph nodes own current boundaries)
 - [FILES.md](./FILES.md) — directory map
 - [`docs/adr/`](../adr/) — binding architecture decisions
 - [`docs/schema.md`](../schema.md) — SQLite tables and migrations

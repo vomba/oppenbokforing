@@ -1,6 +1,14 @@
+---
+id: desktop-platform
+type: architecture-design
+title: Use Tauri for the Desktop App
+status: active
+parent: system-architecture
+---
+
 # ADR 0001: Use Tauri for the Desktop App
 
-Status: accepted
+Decision status: accepted in the source ADR. The user approved adoption into the spec graph.
 
 ## Context
 
@@ -16,5 +24,5 @@ Use Tauri v2 with a React/Vite TypeScript renderer and Rust native layer.
 - The renderer stays focused on UI and workflow state.
 - The binary footprint should be smaller than a comparable Electron app.
 - The team must maintain Rust and TypeScript code.
-- Native integrations such as updater, dialogs, and scoped file access are handled through Tauri plugins and permissions.
+- Native integrations are mediated by Tauri plugins and permissions. Dialogs are installed and permitted. The fs plugin is installed without renderer fs grants; updater configuration is present but no updater plugin is installed in the runtime.
 

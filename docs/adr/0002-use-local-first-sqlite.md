@@ -22,7 +22,14 @@ Use SQLite per workspace in the OS app data directory as the primary system of r
 
 - Users can work without network access.
 - Backup and restore become product-critical features.
-- Accounting posting must be transactional. This is not a blanket claim that every profile, draft, audit, or artifact write shares a transaction; `security-privacy` distinguishes those limits.
+- All accounting writes must be transactional.
 - Multi-device sync is deferred.
 - The app must test migrations against empty databases and seeded prior versions.
+
+## Observed implementation gaps
+
+Some profile, draft, audit, and artifact paths do not share a transaction, as
+recorded in `security-privacy`. Their acceptance as product limitations is
+unconfirmed; they are implementation gaps, not exceptions to the transaction
+requirement above or the mutation boundary in `rust-command-boundary`.
 

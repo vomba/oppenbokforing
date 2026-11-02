@@ -4,15 +4,7 @@ type: architecture-design
 title: ÖppenBokföring system architecture
 status: draft
 parent: product-goal
-references:
-  - desktop-platform
-  - local-sqlite
-  - rust-command-boundary
-  - prepare-only-tax
-  - retained-evidence
-  - storage-contract
-  - ui-workflows
-  - security-privacy
+references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only-tax, retained-evidence, storage-contract, ui-workflows, security-privacy, renderer, rust-backend]
 ---
 
 # Architecture Codemap
@@ -89,10 +81,9 @@ posting, evidence, and artifact generation under `rust-command-boundary`.
 The two cross only through typed commands, apart from native path-selection dialogs.
 
 The backend is one crate with shared tables, not isolated repositories. Its
-sibling services call each other and query shared tables directly. In particular,
-ledger and VAT have mutual calls, as do settings and paths; do not infer a DAG or
-exclusive ledger-write ownership. Detailed sibling edges belong to the backend
-module spec. The `desktop` feature gates the command adapter and Tauri runtime,
+sibling services call each other and query shared tables directly. Do not infer a
+DAG or exclusive ledger-write ownership; actual sibling calls and cycles are
+recorded once in `rust-backend`. `renderer` owns the frontend module boundary. The `desktop` feature gates the command adapter and Tauri runtime,
 while domain code can be tested without it.
 
 Observed limitation (unconfirmed as a product decision): the workspace mutex

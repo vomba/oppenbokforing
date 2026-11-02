@@ -4,6 +4,7 @@ type: goal-and-requirements
 status: draft
 title: ÖppenBokföring goals and requirements
 tags: [product]
+references: [desktop-platform, local-sqlite, rust-command-boundary, prepare-only-tax, retained-evidence, cash-planning, ui-workflows, security-privacy]
 ---
 
 # ÖppenBokföring

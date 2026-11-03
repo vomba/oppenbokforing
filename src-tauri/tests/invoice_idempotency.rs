@@ -1381,3 +1381,61 @@ async fn credit_rejects_a_selected_year_closed_after_fiscal_year_resolution_with
     .expect("credit state remains unchanged");
     assert_eq!((source_status.as_str(), credit_count, next_number), ("issued", 0, 1));
 }
+
+#[tokio::test]
+async fn cash_method_issue_rejects_invoice_timing_without_posting() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    profiles::save_vat_profile(
+        &pool,
+        &workspace_id,
+        &VatProfileSaveInput {
+            vat_status: "registered".to_string(),
+            reporting_period: "quarterly".to_string(),
+            accounting_method: "cash_method".to_string(),
+            voluntary_registration_date: None,
+            vat_filing_deadline_regime: Some("quarterly_12".to_string()),
+        },
+    )
+    .await
+    .expect("cash selection before posting remains available");
+    let customer = create_customer(&pool, &workspace_id).await;
+    let draft = invoicing::create_draft(
+        &pool,
+        &workspace_id,
+        &InvoiceCreateDraftInput {
+            counterparty_id: customer.id,
+            due_date: None,
+            lines: vec![InvoiceLineInput {
+                description: "Service".to_string(),
+                quantity: 1,
+                unit_price_minor: 100_000,
+                vat_rate: 0.25,
+                account_number: Some("3041".to_string()),
+            }],
+        },
+    )
+    .await
+    .expect("draft retention remains available");
+    let error = invoicing::issue_invoice(
+        &pool,
+        &workspace_id,
+        &InvoiceIssueInput {
+            invoice_id: draft.id.clone(),
+            idempotency_key: "cash-method-issue".to_string(),
+            issue_date: Some("2026-02-01".to_string()),
+        },
+    )
+    .await
+    .expect_err("cash method must not receive invoice-method recognition");
+    assert_eq!(error.code, "validation_error");
+    assert_eq!(error.details.unwrap()[0].field.as_deref(), Some("accountingMethod"));
+    let retained = invoicing::get_invoice(&pool, &workspace_id, &draft.id).await.unwrap();
+    assert_eq!(retained.status, "draft");
+    assert!(retained.voucher_id.is_none());
+    let posted: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vouchers WHERE workspace_id = ?1")
+        .bind(&workspace_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(posted, 0);
+}

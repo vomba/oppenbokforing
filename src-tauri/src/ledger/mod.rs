@@ -132,6 +132,7 @@ pub async fn post_invoice_voucher_tx(
     accounting_date: &str,
     buckets: &[VatBucket],
 ) -> Result<String, AppError> {
+    crate::profiles::ensure_invoice_timing_supported(&mut **tx, workspace_id).await?;
     let accounts = bas_account_ids_tx(tx, workspace_id).await?;
     let total_ex_vat_minor: i64 = buckets.iter().map(|b| b.ex_vat_minor).sum();
     let total_vat_minor: i64 = buckets.iter().map(|b| b.vat_minor).sum();
@@ -205,7 +206,7 @@ pub async fn post_invoice_voucher(
     accounting_date: &str,
     buckets: &[VatBucket],
 ) -> Result<String, AppError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let voucher_id = post_invoice_voucher_tx(
         &mut tx,
         workspace_id,
@@ -236,6 +237,7 @@ pub async fn post_reversal_voucher_tx(
     accounting_date: &str,
     buckets: &[VatBucket],
 ) -> Result<String, AppError> {
+    crate::profiles::ensure_invoice_timing_supported(&mut **tx, workspace_id).await?;
     let accounts = bas_account_ids_tx(tx, workspace_id).await?;
     let total_ex_vat_minor: i64 = buckets.iter().map(|b| b.ex_vat_minor).sum();
     let total_vat_minor: i64 = buckets.iter().map(|b| b.vat_minor).sum();
@@ -299,7 +301,7 @@ pub async fn post_reversal_voucher(
     accounting_date: &str,
     buckets: &[VatBucket],
 ) -> Result<String, AppError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let voucher_id = post_reversal_voucher_tx(
         &mut tx,
         workspace_id,

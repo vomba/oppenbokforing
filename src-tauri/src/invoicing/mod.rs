@@ -997,6 +997,7 @@ pub async fn invoice_issue_preflight(
             "invoiceId",
         ));
     }
+    crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
     let issue_date = resolve_accounting_date(input.issue_date.as_deref(), "issueDate")?;
     let tax_year = NaiveDate::parse_from_str(&issue_date, "%Y-%m-%d")
         .map_err(|_| AppError::validation("Invalid date format", "issueDate"))?
@@ -1803,6 +1804,7 @@ pub async fn issue_invoice(
         return Err(AppError::validation("Only draft invoices can be issued", "invoiceId"));
     }
 
+    crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
     let draft_lines = lines_as_input(pool, &input.invoice_id).await?;
     if draft_lines.is_empty() {
         return Err(AppError::validation(
@@ -1834,6 +1836,7 @@ pub async fn issue_invoice(
 
 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
     let tax_status = match validate_issue_tax_status_tx(&mut tx, workspace_id).await {
         Ok(tax_status) => tax_status,
         Err(error) => {
@@ -2149,6 +2152,7 @@ pub async fn credit_invoice(
         return Ok(existing);
     }
 
+    crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
     let source = get_invoice(pool, workspace_id, &credit_request.source_invoice_id).await?;
     if source.invoice_kind != "standard" {
         return Err(AppError::validation("Cannot credit a credit note", "sourceInvoiceId"));
@@ -2219,6 +2223,7 @@ pub async fn credit_invoice(
 
     let credit_invoice_id = Uuid::new_v4().to_string();
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
 
     let source_row = sqlx::query(
         r#"

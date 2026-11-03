@@ -2196,13 +2196,16 @@ pub async fn year_end_package_approve(
     input: &YearEndPackageApproveInput,
 ) -> Result<YearEndPackageSummary, AppError> {
     let idempotency_key = normalize_idempotency_key(&input.idempotency_key)?;
-    let summary = ensure_package_artifacts(pool, workspace_id, &input.package_id).await?;
+    let summary = load_package_summary(pool, workspace_id, &input.package_id).await?;
 
     if summary.status == "approved" {
         return ensure_package_artifacts(pool, workspace_id, &input.package_id).await;
     }
 
-    let mut tx = pool.begin().await?;
+    crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
+    let summary = ensure_package_artifacts(pool, workspace_id, &input.package_id).await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
     ensure_fiscal_year_open_tx(&mut *tx, &summary.fiscal_year_id).await?;
     ensure_vat_year_filed_tx(&mut tx, workspace_id, summary.fiscal_year).await?;
     ensure_draft_ledger_snapshot_current_tx(

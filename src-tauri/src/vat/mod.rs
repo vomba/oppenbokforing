@@ -1333,6 +1333,7 @@ pub async fn vat_return_approve(
         return Ok(summary);
     }
 
+    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
     let fiscal_period_id: String = row.get("fiscal_period_id");
     let fiscal_year_id: String = row.get("fiscal_year_id");
     let starts_on: String = row.get("starts_on");

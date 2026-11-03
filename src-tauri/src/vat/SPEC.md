@@ -104,6 +104,12 @@ is a live reconstruction without a review revision, not a historical snapshot.
 Period shape follows the stored frequency. Returns cannot overlap, and profile
 frequency cannot change once returns exist.
 
+New approval enforces `business-profiles`' interim timing policy in the immediate
+transaction after completed-result replay and already-approved recovery, but before
+any new approval. It approves only the retained reviewed snapshot under the revision
+and source/configuration checks above, never recomputed boxes. Retrieval of an already
+approved result follows the policy's preservation exceptions.
+
 Posting guards reject dates in locked ranges. `rust-backend` records shared fiscal
 helpers and revenue reads. There is no standalone VAT repository.
 
@@ -115,6 +121,6 @@ Aggregation recognizes accounts 3041/2611/2641 and reconstructs some bases from
 rounded VAT. It maps VAT12/VAT6 bases to boxes 06/07 and residual base to 05.
 These mappings lack independent tax-law validation.
 
-Method-specific treatment, independent calculation validation, eligibility gating,
+Method-specific treatment, independent calculation validation, full eligibility gating,
 and guided amendments remain implementation gaps. Existing JSON exports are not proof of a
 completed readable filing handoff.

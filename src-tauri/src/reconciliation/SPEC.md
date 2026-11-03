@@ -4,7 +4,7 @@ type: submodule-design
 status: active
 title: Invoice payment settlement
 parent: rust-backend
-depends-on: [evidence-archive, vat-returns, workspace-defaults]
+depends-on: [evidence-archive, vat-returns, workspace-defaults, business-profiles]
 references: [storage-contract, product-goal, tax-rules, accounting-ledger]
 ---
 
@@ -40,6 +40,10 @@ The direct payment route requires verified retained PDF evidence and an explicit
 payment date, creates a synthetic staged transaction, and converges on the same
 settlement rules. It does not initiate a bank payment or accept arbitrary files
 as proof solely because their metadata says PDF.
+
+Both routes enforce `business-profiles`' interim timing policy inside their
+immediate transaction, before creating a payment voucher or synthetic staged row,
+or consuming an imported receipt. Completed replays retain that policy's exceptions.
 
 Payment voucher/lines, match, staging transition, replay result, and audit are
 committed together, with balance and accounting-date fiscal/period guards. This

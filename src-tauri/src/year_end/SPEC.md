@@ -4,8 +4,8 @@ type: submodule-design
 status: active
 title: Year-end preparation and artifact integrity
 parent: rust-backend
-depends-on: [tax-rules, workspace-defaults, vat-returns]
-references: [prepare-only-tax, product-goal, accounting-ledger, expense-posting, business-profiles, tax-task-calendar]
+depends-on: [tax-rules, workspace-defaults, vat-returns, business-profiles]
+references: [prepare-only-tax, product-goal, accounting-ledger, expense-posting, tax-task-calendar]
 ---
 
 # Year-end preparation and artifact integrity
@@ -35,6 +35,11 @@ audited corrections, provisional exports, and the human-readable filing handoff.
 Professional assistance is not a completion prerequisite.
 
 ## Current boundary and gaps
+
+New approval enforces `business-profiles`' interim timing policy before draft
+artifact repair and rechecks it inside the immediate approval transaction.
+Already-approved artifact retrieval retains its integrity safeguards and the
+policy's preservation exceptions; it does not reapprove or rewrite posted books.
 
 Creation/regeneration captures ledger state and rule provenance. Approval requires
 all configured VAT periods approved and an unchanged ledger fingerprint, then

@@ -33,10 +33,12 @@ recognition or safe completion.
 
 ## Current boundary and gaps
 
-Issuance rechecks tax/VAT posture, issue-year rules, fiscal locks, and replay state
+Issuance rechecks tax/VAT posture, accounting method, issue-year rules, fiscal locks, and replay state
 under an immediate transaction. Number allocation, posting, issue snapshot,
 PDF-job enqueue, and audit commit with the transition. A preflight is guidance,
-not permission to skip revalidation at issue time.
+not permission to skip revalidation at issue time. Direct preflight and new
+issuance/credit transitions enforce `business-profiles`' interim timing policy;
+completed-result recovery follows that policy's preservation exceptions.
 
 Planning tax status cannot issue. VAT-exempt invoices cannot charge VAT; a sale
 that crosses the exemption threshold is blocked for VAT-treatment review rather

@@ -46,6 +46,26 @@ changes. The save serializes this check.
 Voluntary-registration date validation differs between composite and individual
 saves. The transaction requirement remains in `local-sqlite`.
 
-`cash_method` is accepted and stored, but posting/VAT services do not branch on it.
-Method-transition, legacy-remediation, and full eligibility screening contracts
-are implementation gaps, not accepted exceptions.
+### Interim accounting-method safety
+
+`cash_method` remains selectable before posting. Both individual VAT-profile saves
+and composite onboarding saves serialize a method freeze with their writes: after
+any posted voucher, the stored method must remain unchanged. A missing method in
+posted books also requires review, not ordinary profile replacement.
+
+The interim timing policy permits only a stored `invoice_method` for new invoice
+issuance, full credits, invoice settlements, and VAT/year-end approval. Missing
+profiles fail closed. A rejection identifies `accountingMethod` and explains the
+unsupported timing/remediation boundary rather than substituting another method.
+The posting/approval transaction rechecks the policy; preflight is guidance only.
+
+Completed-result replays and existing-result recovery remain available without
+new posting. An already-issued retry may cache a new replay key. Historical reads,
+PDF/evidence retention, imports/staging, drafts and historical exports retain their
+existing safeguards. Expense posting and VAT/year-end draft creation/regeneration
+are not newly gated by this policy; availability does not establish safe treatment
+or complete preparation.
+
+This guard is not cash-method recognition or closing support. Reviewed method
+transitions, legacy remediation, and full eligibility screening remain gaps.
+Allowing invoice-method timing does not satisfy `tax-rules`' validation gate.

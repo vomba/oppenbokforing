@@ -47,6 +47,9 @@ where they change the boundary.
 - VAT calls ledger revenue reads; ledger calls VAT period guards. Workspace bootstrap
   calls VAT seeding while VAT calls workspace fiscal helpers. These are cycles,
   not a layered DAG.
+- Invoice/ledger, settlement, and preparation transitions consult the profile timing
+  policy in their write transactions. That policy reads stored VAT profiles; the
+  profile-save method freeze also reads posted vouchers rather than a ledger API.
 - Onboarding profiles call compliance, which reads typed rules. Cash planning reads
   ledger/profiles/VAT; tax tasks read profiles/rules and return/package tables.
 - Year-end calls rule/fiscal helpers and VAT period-key helpers, while aggregating

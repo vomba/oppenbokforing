@@ -4,8 +4,8 @@ type: submodule-design
 status: active
 title: Posting primitives and ledger reads
 parent: rust-backend
-depends-on: [vat-returns]
-references: [storage-contract, business-profiles, expense-posting, product-goal, prepare-only-tax, local-sqlite]
+depends-on: [vat-returns, business-profiles]
+references: [storage-contract, expense-posting, product-goal, prepare-only-tax, local-sqlite]
 ---
 
 # Posting primitives and ledger reads
@@ -37,9 +37,11 @@ to approved periods/years, which cannot become an unlock-and-overwrite shortcut.
 
 ## Current boundary and gaps
 
-Invoice posting primitives use the caller's transaction. Expense/payment services
-write vouchers directly. This is not an exclusive ledger repository.
-`rust-backend` owns the service graph.
+Invoice posting and reversal primitives check `business-profiles`' interim timing
+policy in the caller's transaction before creating vouchers or lines. Their
+standalone wrappers use immediate transactions. Expense/payment services write
+vouchers directly and need their own transition guards. This is not an exclusive
+ledger repository. `rust-backend` owns the service graph.
 
 `storage-contract` owns balance, row protection, and replay constraints.
 Period guards use accounting dates.

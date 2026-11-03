@@ -411,6 +411,7 @@ fn buckets() -> Vec<VatBucket> {
 
 #[derive(Clone, Copy)]
 enum Mutation {
+    Preflight,
     Issue,
     Credit,
     StagedPayment,
@@ -452,6 +453,16 @@ async fn rejects_new_mutation(mutation: Mutation, cash: bool) {
     let before = database_snapshot(&f.pool).await;
     let files = artifact_snapshot(f.dir.path());
     let result = match mutation {
+        Mutation::Preflight => invoicing::invoice_issue_preflight(
+            &f.pool,
+            &f.workspace,
+            &invoicing::InvoiceIssuePreflightInput {
+                invoice_id: draft.id.clone(),
+                issue_date: Some("2026-01-20".into()),
+            },
+        )
+        .await
+        .map(|_| ()),
         Mutation::Issue => invoicing::issue_invoice(
             &f.pool,
             &f.workspace,
@@ -582,6 +593,11 @@ macro_rules! method_cases {
         }
     };
 }
+method_cases!(
+    cash_rejects_preflight,
+    missing_method_rejects_preflight,
+    Preflight
+);
 method_cases!(
     cash_rejects_new_issue,
     missing_method_rejects_new_issue,

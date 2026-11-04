@@ -2,7 +2,7 @@
 
 Validation ID: `invoice-recognition-se-service25-2026-exact-v1`.
 Candidate rule version: `rv-2026-domestic-service25-exact-v1`.
-Status: **implementation mechanically verified; final independent implementation review pending**.
+Status: **bounded recognition gate verified and independently reviewed** (implementation `5916918`).
 Source retrieval: 2026-11-04. This is not a professional opinion or a claim that complete books, returns, settlements, credits, or generated PDFs are legally validated.
 
 ## Applicability and declarations
@@ -57,21 +57,26 @@ For a service completed and invoiced on 2026-12-31, the recognized date is 2026-
 
 On 2026-11-04, the read-only reviewer session `01a1a5ed-fc8c-7355-a36b-d6b6b61afbbb` performed an **AI evidence/coverage review**, not professional or tax-authority attestation. Verdict: conceptual evidence approved, conditional on implementation checks. The reviewer verified the three local official publication extracts, recomputed every JSON amount example independently with arbitrary-precision integers/rational fractions, and verified the filing date's weekday. The annual deadline review relied on the official fetched-text representation because its fresh retrieval reset; that limitation remains explicit.
 
-The review requires explicit classification/registration/annual/no-EU/expected-base facts; ordinary timely and consistently applied invoice timing, with invoice date meaning sending date; per-line exactness and checked arithmetic; current profile/line/rule binding; atomic provenance; positive and negative execution tests, including earlier same-year completion. Those are implementation obligations, not completed execution verification. No broader case is approved.
+The review requires explicit classification/registration/annual/no-EU/expected-base facts; ordinary timely and consistently applied invoice timing, with invoice date meaning sending date; per-line exactness and checked arithmetic; current profile/line/rule binding; atomic provenance; positive and negative execution tests, including earlier same-year completion. Execution verification was still pending at that evidence review; the implementation results below address those obligations. No broader case is approved.
 
 ## Activation and execution verification
 
 Mechanical execution verification on 2026-11-04:
 
-- The original-DTO missing-facts regression failed behaviorally against archived `44f897e`; its source/log and pre-gate posting shapes are retained under `fixtures/historical-regressions/`, separately from this independent evidence.
+- The original-DTO missing-facts regression failed behaviorally against archived `44f897e`; its source, tracked `missing-facts-red.txt` transcript and pre-gate posting shapes are retained under `fixtures/historical-regressions/`, separately from this independent evidence. The transcript is present in commit `5916918` and is not lost to the generated-log ignore rule.
 - The current public-boundary suite exercises the independent exact-VAT journals and date/calendar examples, each required fact, stale profiles/lines/rules/facts/dates, unsupported cases, line/aggregate overflow, annual limits, atomic issuance and immutable provenance, low-level bypasses and writer-lock races.
 - A focused security audit found that lexicographic comparison could accept signed future registration date `+2027-01-01`. A public profile/preflight/issuance regression failed before the fix; parsed-date comparison made it pass. No broader profile-format policy was inferred.
 - A real first-20-migrations database upgrades normally to migration 21 without changes to historical posting/audit/replay data or a fabricated eligibility backfill. Separate close/reopen and encrypted backup/restore checks preserve new immutable provenance and retained PDF bytes. Both persistence tests pass.
-- The public CI invocation passed fixtures, golden/M8 gates, **255 Rust tests**, **146 frontend tests**, and the TypeScript/production build. Its final HEAD-diff binding check currently reports the legitimate uncommitted DTO change; generator output was independently regenerated twice and is byte-for-byte stable. The complete gate will be rerun after the implementation commit.
-- Desktop compilation and integration-mode smoke pass. New-file Rust formatting and spec validation pass. Packaged GUI install/launch UAT is not verified.
+- Final post-commit `npm run ci:public` passed fixtures, golden/M8 gates, **262 Rust tests**, **152 frontend tests**, TypeScript/production build and the generated-binding HEAD-diff check. The earlier legitimate pending DTO diff is no longer a failed gate.
+- The final review now displays the actual customer, due date, lines and checked totals returned by preflight, bound in its fingerprint and immutable context. Backend and component regressions reproduced missing/stale snapshots before the fix; changed customer identity also invalidates confirmation.
+- Source actions dispatch only compiled validation/source IDs to the native macOS browser opener. Tests verify exact command construction, off-async-worker execution, denied arbitrary IDs/URLs, navigation prevention and visible launch failures. No browser was opened by automated tests; other platforms fail explicitly as unsupported.
+- Desktop compilation and integration-mode smoke pass. New-file Rust formatting and spec validation pass. Packaged GUI install/launch and actual browser-launch UAT are **not verified**.
+- Strict Clippy remains blocked by pre-existing findings: 9 library diagnostics, 16 including library tests. One obsolete preflight-builder argument-count diagnostic disappeared during the gate refactor; no suppressions were added to hide the remaining debt.
 
-Final independent implementation review: **pending**. Its disposition and the post-commit public gate must be recorded before handoff. These results do not establish excluded fractional rounding or whole-PDF/books/return validation.
+## Independent implementation review and disposition
 
-A source citation, machine digest, active rule row or passing regression alone does not activate coverage. Before enabling this case, a fresh independent reviewer must inspect these sources/extracts, derivations, exclusions and test results; record its findings and disposition here. Do not invent a human/professional sign-off. Record the actual review identity and scope.
+The independent implementation review of `5a0bf15` requested corrections for stale final-review amounts, nonfunctional webview source links and the ignored RED transcript. After those fixes, re-review of **`59169189bf6d` approved** the change and independently reran 262 Rust tests, 152 frontend tests, build, desktop, formatting and transcript checks. This is an AI implementation review, not a human/professional or tax-authority attestation. Its remaining manual browser/package UAT limitation is preserved above.
 
-The implementation must bind the exact validation-package digest and relevant typed rule values to the current transaction's inputs and persist that provenance atomically with issuance. New rule versions must preserve historical identities. Existing unsupported invoices are historical engineering regression fixtures, not retrospectively validated cases.
+The source review, independent expected arithmetic, public-boundary execution checks and recorded implementation review support only the declared exact-VAT case. A citation, digest, active row or regression pass alone is not the basis for eligibility. Excluded fractional rounding and whole-PDF/books/return validation remain unestablished.
+
+The implementation binds the exact validation-package digest and relevant typed rule values to actual transaction inputs and persists the provenance atomically with issuance. New rule versions preserve historical identities. Existing unsupported invoices remain historical engineering regression fixtures, not retrospectively validated cases.

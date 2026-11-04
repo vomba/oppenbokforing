@@ -2,8 +2,8 @@
 
 ## Status and scope
 
-**Package build passed. Accessibility is now authorized; native UI verification has not yet run.**
-No packaged invoice workflow, browser launch, reopening or GUI install outcome is claimed here yet. This is an unsigned local development smoke build, not a signed/notarized release or a claim of complete accounting support. Cash-method implementation remains dependent on the runtime check.
+**Package build passed. The first authorized native UI run found a blocking F-skatt onboarding defect.**
+Launch and disposable Rust-data creation were observed. Invoice review, browser launch and invoice reopening were not reached in this first run; no success for those paths or GUI installation is claimed. This is an unsigned local development smoke build, not a signed/notarized release or a claim of complete accounting support. Cash-method implementation remains dependent on the runtime check.
 
 Code revision: `fe60b628a63ef72996238730be2884d8ba245e61` on `cash-method-safety`.
 Artifact inspection: 2026-11-04T13:39:56Z. Platform: macOS arm64.
@@ -42,7 +42,39 @@ The release compile emitted four unused-variable warnings: `commands.rs`'s best-
 
 Initial AppleScript and `AXIsProcessTrusted()` checks reported false. After the user selected UI automation, the normal Accessibility permission prompt was requested; its immediate result remained false. A subsequent `AXIsProcessTrusted()` check returned **true**. This requested normal OS consent; it did not grant or bypass permission programmatically. The runner ancestry is the ThinkRail application (`bun`/`launcher` inside `ThinkRail.app`). UI automation is authorized, but its results are still pending.
 
-## Pending runtime procedure
+## First native run — observed blocker
+
+The packaged executable was launched as a managed foreground process with disposable
+`HOME=/tmp/oppenbokforing-native-uat.kv06Kn`. Native Accessibility inspection was
+restricted to that process, verified by bundle identifier and executable path;
+no screenshots or unrelated application contents were captured. Rust created its
+recent-workspace index and SQLite database beneath that disposable home, not the
+normal application-data directory. Isolation of every macOS webview/preference
+cache is not claimed.
+
+A synthetic workspace reached onboarding. Real keyboard events entered
+`UAT Verification Firma` / `UAT Test Owner`; native menu actions selected registered
+VAT, annual reporting, invoice method and the May-12 regime. The review showed
+F-skatt with zero salary and SEK 10,000 expected profit. Saving persisted those
+profiles but stayed on Review with “FA-skatt kräver separat planering för lön och
+firma” and “Skatteplanering behöver din förväntade lön.” Read-only inspection of the
+disposable database confirmed `f_skatt`, salary `0`, and
+`registered/yearly/invoice_method/annual_may_12`.
+
+The native Accessibility transcript is retained in
+`artifacts/f-skatt-onboarding-native-failure-2026-11-04.txt`. Initial direct AX value
+assignment did not propagate React-controlled input state, so subsequent text entry
+used normal keyboard events; this automation limitation is not reported as an app
+bug. The application was gracefully terminated after the profiles were saved.
+
+Root cause was verified in the profile compliance selector: registered F-skatt
+falls back to the FA-skatt salary scenario, whose FA-specific predicates cannot
+pass for an ordinary F-skatt owner. The UI correctly refuses navigation when that
+backend result is false. This is a blocking profile-guidance classification bug,
+not a reason to invent salary, change tax status, skip the check or authorize cash
+posting. A test-first correction and rebuilt-package rerun are required.
+
+## Remaining runtime procedure
 
 Use only disposable test data. Rust app-data resolution in the installed Tauri/dirs sources respects an explicit `HOME`; verify actual paths during launch rather than assume all macOS webview/preferences storage is isolated. Do not open real working books or overwrite an installed application.
 

@@ -377,6 +377,7 @@ export const en = {
   "onboarding.compliance.unsupportedScenario": "This profile combination is not supported yet.",
   "onboarding.compliance.salaryInLedger": "Salary income must not appear in the business ledger.",
   "onboarding.compliance.faSkattGuidance": "FA-skatt requires separate salary and business planning.",
+  "onboarding.compliance.fSkattGuidance": "Check that your business is approved for F-skatt. Record business income in the business ledger; F-skatt does not require salary income.",
   "onboarding.compliance.fSkattMention": "Issued invoices must state your F-skatt approval.",
   "onboarding.compliance.salaryAssumption": "Tax planning needs your expected salary amount.",
   "onboarding.compliance.mustNotChargeVat": "A VAT-exempt business must not charge VAT on invoices.",

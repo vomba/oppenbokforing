@@ -5,6 +5,12 @@ type Outcomes = Record<string, unknown>
 
 export function isCompliancePassing(scenarioId: string, outcomes: Outcomes): boolean {
   switch (scenarioId) {
+    case "f-skatt-business":
+      return (
+        outcomes.businessIncomeInLedger === true &&
+        outcomes.requiresFSkattGuidance === true &&
+        outcomes.invoiceMustMentionFSkatt === true
+      )
     case "fa-skatt-salary-and-business":
       return (
         outcomes.salaryIncomeInBusinessLedger === false &&
@@ -53,6 +59,14 @@ export function complianceFailureMessages(scenarioId: string, outcomes: Outcomes
   const messages: MessageKey[] = []
 
   switch (scenarioId) {
+    case "f-skatt-business":
+      if (outcomes.businessIncomeInLedger !== true || outcomes.requiresFSkattGuidance !== true) {
+        messages.push("onboarding.compliance.fSkattGuidance")
+      }
+      if (outcomes.invoiceMustMentionFSkatt !== true) {
+        messages.push("onboarding.compliance.fSkattMention")
+      }
+      break
     case "fa-skatt-salary-and-business":
       if (outcomes.salaryIncomeInBusinessLedger !== false) {
         messages.push("onboarding.compliance.salaryInLedger")

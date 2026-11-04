@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import {
   complianceFailureMessages,
   isCompliancePassing,
+  profileComplianceFailureMessages,
 } from "./compliancePresentation"
 
 const fixturesDir = join(process.cwd(), "fixtures/golden-scenarios")
@@ -21,6 +22,7 @@ describe("isCompliancePassing", () => {
     .map((name) => name.replace(/\.json$/, ""))
     .filter((id) =>
       [
+        "f-skatt-business",
         "fa-skatt-salary-and-business",
         "vat-exempt-below-threshold",
         "vat-exempt-threshold-breach",
@@ -50,6 +52,40 @@ describe("complianceFailureMessages", () => {
         loadExpected("fa-skatt-salary-and-business"),
       ),
     ).toEqual([])
+  })
+
+  it("presents F-skatt failures without FA-skatt or salary requirements", () => {
+    expect(complianceFailureMessages("f-skatt-business", {})).toEqual([
+      "onboarding.compliance.fSkattGuidance",
+      "onboarding.compliance.fSkattMention",
+    ])
+    const passing = loadExpected("f-skatt-business")
+    expect(complianceFailureMessages("f-skatt-business", passing)).toEqual([])
+    for (const key of Object.keys(passing)) {
+      expect(isCompliancePassing("f-skatt-business", { ...passing, [key]: false })).toBe(false)
+      expect(complianceFailureMessages("f-skatt-business", { ...passing, [key]: false })).toEqual([
+        key === "invoiceMustMentionFSkatt"
+          ? "onboarding.compliance.fSkattMention"
+          : "onboarding.compliance.fSkattGuidance",
+      ])
+    }
+    expect(profileComplianceFailureMessages({
+      scenarioIds: ["f-skatt-business", "vat-exempt-below-threshold"],
+      outcomes: {
+        "f-skatt-business": passing,
+        "vat-exempt-below-threshold": {
+          ...loadExpected("vat-exempt-below-threshold"),
+          invoiceMustStateVatExemption: false,
+        },
+      },
+    })).toEqual(["onboarding.compliance.vatExemptionText"])
+  })
+
+  it("keeps FA-skatt salary failures explicit", () => {
+    expect(complianceFailureMessages("fa-skatt-salary-and-business", {
+      ...loadExpected("fa-skatt-salary-and-business"),
+      taxPlanningUsesSalaryAssumption: false,
+    })).toEqual(["onboarding.compliance.salaryAssumption"])
   })
 
   it("handles unsupported scenarios", () => {

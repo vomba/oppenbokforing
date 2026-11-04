@@ -40,6 +40,7 @@ pub struct GoldenScenario {
 /// Scenario IDs accepted by the live `compliance_check_run` command.
 /// Keep in sync with arms implemented in `compliance::evaluate_scenario`.
 pub const ALLOWED_GOLDEN_SCENARIO_IDS: &[&str] = &[
+    "f-skatt-business",
     "fa-skatt-salary-and-business",
     "vat-exempt-below-threshold",
     "vat-exempt-threshold-breach",
@@ -51,6 +52,9 @@ pub fn fixtures_dir() -> PathBuf {
 
 fn embedded_golden_scenario_json(id: &str) -> Option<&'static str> {
     match id {
+        "f-skatt-business" => Some(include_str!(
+            "../../fixtures/golden-scenarios/f-skatt-business.json"
+        )),
         "fa-skatt-salary-and-business" => Some(include_str!(
             "../../fixtures/golden-scenarios/fa-skatt-salary-and-business.json"
         )),
@@ -149,6 +153,18 @@ mod tests {
     fn load_golden_scenario_embeds_fa_skatt() {
         let scenario = load_golden_scenario("fa-skatt-salary-and-business").expect("load");
         assert_eq!(scenario.id, "fa-skatt-salary-and-business");
+    }
+
+    #[test]
+    fn load_compliance_embeds_and_allowlists_f_skatt() {
+        // Parse the embed directly as well: this must work without source fixtures on disk.
+        let raw = embedded_golden_scenario_json("f-skatt-business").expect("embedded");
+        let embedded = parse_golden_scenario(raw).expect("parse embed");
+        let scenario = load_compliance_golden_scenario("f-skatt-business").expect("allowlisted");
+        assert_eq!(scenario.id, "f-skatt-business");
+        assert_eq!(scenario.expected, embedded.expected);
+        assert_eq!(scenario.profile["taxStatus"], "f_skatt");
+        assert_eq!(scenario.profile["expectedSalaryIncomeMinor"], 0);
     }
 
     #[test]

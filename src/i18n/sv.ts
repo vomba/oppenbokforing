@@ -380,6 +380,7 @@ export const sv: Record<MessageKey, string> = {
   "onboarding.compliance.unsupportedScenario": "Denna profilkombination stöds inte ännu.",
   "onboarding.compliance.salaryInLedger": "Löneinkomst får inte bokföras i firman.",
   "onboarding.compliance.faSkattGuidance": "FA-skatt kräver separat planering för lön och firma.",
+  "onboarding.compliance.fSkattGuidance": "Kontrollera att firman är godkänd för F-skatt. Bokför firmans inkomster i firman; F-skatt kräver ingen löneinkomst.",
   "onboarding.compliance.fSkattMention": "Utfärdade fakturor måste ange F-skatt.",
   "onboarding.compliance.salaryAssumption": "Skatteplanering behöver din förväntade lön.",
   "onboarding.compliance.mustNotChargeVat": "Momsbefriad firma får inte ta ut moms på fakturor.",

@@ -44,7 +44,7 @@ async fn m1_golden_scenarios_pass_compliance_engine() {
         .await
         .expect("connect");
 
-    for scenario_id in ["fa-skatt-salary-and-business", "vat-exempt-below-threshold", "vat-exempt-threshold-breach"] {
+    for scenario_id in ["f-skatt-business", "fa-skatt-salary-and-business", "vat-exempt-below-threshold", "vat-exempt-threshold-breach"] {
         let scenario = load_golden_scenario(scenario_id).expect("golden scenario");
         let profile: ScenarioProfile =
             serde_json::from_value(scenario.profile).expect("profile");

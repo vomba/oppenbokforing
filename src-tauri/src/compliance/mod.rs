@@ -57,18 +57,16 @@ pub struct ComplianceProfileCheckResult {
 /// Resolve golden scenario IDs from workspace tax/VAT posture (rules live in Rust, not UI).
 pub fn scenario_ids_for_profile(tax_status: &str, vat_status: &str) -> Vec<&'static str> {
     let mut ids: Vec<&'static str> = Vec::new();
-    if tax_status == "fa_skatt" {
+    if tax_status == "f_skatt" {
+        ids.push("f-skatt-business");
+    } else if tax_status == "fa_skatt" {
         ids.push("fa-skatt-salary-and-business");
     }
     if vat_status == "exempt_low_turnover" {
         ids.push("vat-exempt-below-threshold");
     }
     if ids.is_empty() {
-        if tax_status == "f_skatt" || tax_status == "fa_skatt" {
-            ids.push("fa-skatt-salary-and-business");
-        } else {
-            ids.push("vat-exempt-below-threshold");
-        }
+        ids.push("vat-exempt-below-threshold");
     }
     ids.sort_unstable();
     ids.dedup();
@@ -116,6 +114,7 @@ pub async fn evaluate_scenario(
     transactions: &[ScenarioTransaction],
 ) -> Result<ComplianceCheckResult, AppError> {
     let outcomes = match scenario_id {
+        "f-skatt-business" => evaluate_f_skatt(profile),
         "fa-skatt-salary-and-business" => evaluate_fa_skatt(profile).await?,
         "vat-exempt-below-threshold" => evaluate_vat_exempt_below(pool, profile, transactions).await?,
         "vat-exempt-threshold-breach" => evaluate_vat_exempt_breach(pool, profile, transactions).await?,
@@ -130,6 +129,11 @@ pub async fn evaluate_scenario(
     };
 
     let passed = match scenario_id {
+        "f-skatt-business" => {
+            outcomes["businessIncomeInLedger"] == true
+                && outcomes["requiresFSkattGuidance"] == true
+                && outcomes["invoiceMustMentionFSkatt"] == true
+        }
         "fa-skatt-salary-and-business" => {
             outcomes["salaryIncomeInBusinessLedger"] == false
                 && outcomes["requiresFaSkattGuidance"] == true
@@ -153,6 +157,15 @@ pub async fn evaluate_scenario(
         passed,
         outcomes,
         rule_year: profile.rule_year.unwrap_or(2026),
+    })
+}
+
+fn evaluate_f_skatt(profile: &ScenarioProfile) -> serde_json::Value {
+    let is_f_skatt = profile.tax_status.as_deref() == Some("f_skatt");
+    serde_json::json!({
+        "businessIncomeInLedger": is_f_skatt,
+        "requiresFSkattGuidance": is_f_skatt,
+        "invoiceMustMentionFSkatt": is_f_skatt,
     })
 }
 
@@ -250,9 +263,9 @@ mod tests {
     }
 
     #[test]
-    fn scenario_ids_for_registered_f_skatt() {
+    fn registered_f_skatt_selects_business_guidance_not_fa_salary() {
         let ids = scenario_ids_for_profile("f_skatt", "registered");
-        assert_eq!(ids, vec!["fa-skatt-salary-and-business"]);
+        assert_eq!(ids, vec!["f-skatt-business"]);
     }
 
     #[tokio::test]

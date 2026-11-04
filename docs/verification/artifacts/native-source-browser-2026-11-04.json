@@ -1,0 +1,7 @@
+{
+  "browserBundleIdentifier" : "org.mozilla.firefox",
+  "inspectionScope" : "Browser-window URL metadata to identify only the requested source; no unmatched URLs, tab data or page content recorded",
+  "nativeBrowserSourceConfirmed" : true,
+  "observedAt" : "2026-11-04T15:19:23Z",
+  "requestedSourceURL" : "https:\/\/www.skatteverket.se\/foretag\/moms\/deklareramoms\/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html"
+}

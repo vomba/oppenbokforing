@@ -1,0 +1,274 @@
+[
+  {
+    "phase": "before_stale_confirmation",
+    "observedAt": "2026-11-04T14:57:35.332762+00:00",
+    "dataRoot": "/private/tmp/oppenbokforing-native-uat-fixed.yWRchu",
+    "workspaceId": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+    "taxProfile": [
+      "f_skatt",
+      0
+    ],
+    "vatProfile": [
+      "registered",
+      "yearly",
+      "invoice_method",
+      "annual_may_12"
+    ],
+    "invoices": [
+      [
+        "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "draft",
+        null,
+        null,
+        200000,
+        50000,
+        250000,
+        null,
+        null
+      ]
+    ],
+    "counts": {
+      "vouchers": 0,
+      "journal_lines": 0,
+      "invoice_issue_validations": 0,
+      "invoice_issue_snapshots": 0,
+      "audit_events": 10,
+      "documents": 0
+    },
+    "nextInvoiceNumber": 1,
+    "issueJobs": [],
+    "validations": []
+  },
+  {
+    "phase": "after_stale_rejection",
+    "observedAt": "2026-11-04T14:57:37.930311+00:00",
+    "dataRoot": "/private/tmp/oppenbokforing-native-uat-fixed.yWRchu",
+    "workspaceId": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+    "taxProfile": [
+      "f_skatt",
+      0
+    ],
+    "vatProfile": [
+      "registered",
+      "yearly",
+      "invoice_method",
+      "annual_may_12"
+    ],
+    "invoices": [
+      [
+        "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "draft",
+        null,
+        null,
+        200000,
+        50000,
+        250000,
+        null,
+        null
+      ]
+    ],
+    "counts": {
+      "vouchers": 0,
+      "journal_lines": 0,
+      "invoice_issue_validations": 0,
+      "invoice_issue_snapshots": 0,
+      "audit_events": 10,
+      "documents": 0
+    },
+    "nextInvoiceNumber": 1,
+    "issueJobs": [],
+    "validations": []
+  },
+  {
+    "phase": "after_native_issue",
+    "observedAt": "2026-11-04T15:20:56.683031+00:00",
+    "dataRoot": "/private/tmp/oppenbokforing-native-uat-fixed.yWRchu",
+    "workspaceId": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+    "taxProfile": [
+      "f_skatt",
+      0
+    ],
+    "vatProfile": [
+      "registered",
+      "yearly",
+      "invoice_method",
+      "annual_may_12"
+    ],
+    "invoices": [
+      [
+        "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "issued",
+        "2026-0001",
+        "2026-11-04",
+        200000,
+        50000,
+        250000,
+        "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "a77de2e7-d764-49eb-9046-7c3caa1c2fbe"
+      ]
+    ],
+    "counts": {
+      "vouchers": 1,
+      "journal_lines": 3,
+      "invoice_issue_validations": 1,
+      "invoice_issue_snapshots": 1,
+      "audit_events": 14,
+      "documents": 1
+    },
+    "nextInvoiceNumber": 2,
+    "issueJobs": [
+      [
+        "invoice_issue",
+        "succeeded"
+      ],
+      [
+        "invoice_pdf_generate",
+        "succeeded"
+      ]
+    ],
+    "validations": [
+      {
+        "facts": {
+          "ordinaryDomesticService": true,
+          "serviceCompletedOn": "2026-11-04",
+          "priorPaymentReceived": false,
+          "noEuTradeInYear": true,
+          "annualVatRegistrationConfirmed": true,
+          "expectedTaxableBaseWithinLimit": true,
+          "ordinaryInvoiceTimingConfirmed": true
+        },
+        "assessment": {
+          "validationId": "invoice-recognition-se-service25-2026-exact-v1",
+          "evidenceDigest": "cb00f554e7ee3697b8461309e7184fd88b3a0aa70300f3f27ead9f6ca98b8594",
+          "reviewFingerprint": "f9b6933df5ff7e7f643c8e72f3eeef843918c9db80d9701dbb05ea44f773da5d",
+          "accountingDate": "2026-11-04",
+          "completedOn": "2026-11-04",
+          "deadlineRegime": "annual_may_12",
+          "periodKey": "2026",
+          "dueOn": "2027-05-12",
+          "coverageSummary": "2026 invoice-method recognition only: ordinary completed domestic SEK service, 25% exact VAT per line, no prior payment, annual VAT without EU trade. Not whole-book, return, credit, settlement or legal PDF validation.",
+          "ruleVersionId": "rv-2026-domestic-service25-exact-v1",
+          "accountingYear": 2026
+        },
+        "reviewedInvoice": {
+          "counterpartyId": "1ac90a23-cb18-4826-9c48-c88ea46527e6",
+          "counterpartyName": "UAT Buyer",
+          "dueDate": null,
+          "invoiceId": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+          "lines": [
+            {
+              "accountNumber": "3041",
+              "description": "UAT updated by concurrent draft caller",
+              "id": "899cc5fa-c7ff-4dfb-98ab-e0a3caae4d21",
+              "lineExVatMinor": 200000,
+              "lineOrder": 1,
+              "lineVatMinor": 50000,
+              "quantity": 1,
+              "unitPriceMinor": 200000,
+              "vatRateBp": 2500
+            }
+          ],
+          "totalExVatMinor": 200000,
+          "totalIncVatMinor": 250000,
+          "totalVatMinor": 50000
+        }
+      }
+    ]
+  },
+  {
+    "phase": "after_cold_reopen",
+    "observedAt": "2026-11-04T15:27:37.925923+00:00",
+    "dataRoot": "/private/tmp/oppenbokforing-native-uat-fixed.yWRchu",
+    "workspaceId": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+    "taxProfile": [
+      "f_skatt",
+      0
+    ],
+    "vatProfile": [
+      "registered",
+      "yearly",
+      "invoice_method",
+      "annual_may_12"
+    ],
+    "invoices": [
+      [
+        "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "issued",
+        "2026-0001",
+        "2026-11-04",
+        200000,
+        50000,
+        250000,
+        "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "a77de2e7-d764-49eb-9046-7c3caa1c2fbe"
+      ]
+    ],
+    "counts": {
+      "vouchers": 1,
+      "journal_lines": 3,
+      "invoice_issue_validations": 1,
+      "invoice_issue_snapshots": 1,
+      "audit_events": 18,
+      "documents": 1
+    },
+    "nextInvoiceNumber": 2,
+    "issueJobs": [
+      [
+        "invoice_issue",
+        "succeeded"
+      ],
+      [
+        "invoice_pdf_generate",
+        "succeeded"
+      ]
+    ],
+    "validations": [
+      {
+        "facts": {
+          "ordinaryDomesticService": true,
+          "serviceCompletedOn": "2026-11-04",
+          "priorPaymentReceived": false,
+          "noEuTradeInYear": true,
+          "annualVatRegistrationConfirmed": true,
+          "expectedTaxableBaseWithinLimit": true,
+          "ordinaryInvoiceTimingConfirmed": true
+        },
+        "assessment": {
+          "validationId": "invoice-recognition-se-service25-2026-exact-v1",
+          "evidenceDigest": "cb00f554e7ee3697b8461309e7184fd88b3a0aa70300f3f27ead9f6ca98b8594",
+          "reviewFingerprint": "f9b6933df5ff7e7f643c8e72f3eeef843918c9db80d9701dbb05ea44f773da5d",
+          "accountingDate": "2026-11-04",
+          "completedOn": "2026-11-04",
+          "deadlineRegime": "annual_may_12",
+          "periodKey": "2026",
+          "dueOn": "2027-05-12",
+          "coverageSummary": "2026 invoice-method recognition only: ordinary completed domestic SEK service, 25% exact VAT per line, no prior payment, annual VAT without EU trade. Not whole-book, return, credit, settlement or legal PDF validation.",
+          "ruleVersionId": "rv-2026-domestic-service25-exact-v1",
+          "accountingYear": 2026
+        },
+        "reviewedInvoice": {
+          "counterpartyId": "1ac90a23-cb18-4826-9c48-c88ea46527e6",
+          "counterpartyName": "UAT Buyer",
+          "dueDate": null,
+          "invoiceId": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+          "lines": [
+            {
+              "accountNumber": "3041",
+              "description": "UAT updated by concurrent draft caller",
+              "id": "899cc5fa-c7ff-4dfb-98ab-e0a3caae4d21",
+              "lineExVatMinor": 200000,
+              "lineOrder": 1,
+              "lineVatMinor": 50000,
+              "quantity": 1,
+              "unitPriceMinor": 200000,
+              "vatRateBp": 2500
+            }
+          ],
+          "totalExVatMinor": 200000,
+          "totalIncVatMinor": 250000,
+          "totalVatMinor": 50000
+        }
+      }
+    ]
+  }
+]

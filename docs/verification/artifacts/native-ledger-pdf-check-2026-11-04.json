@@ -1,0 +1,28 @@
+{
+  "staleRejectionLeftPostingStateUnchanged": true,
+  "coldReopenPreservedInvoiceAndValidation": true,
+  "actualJournal": [
+    [
+      "1510",
+      250000,
+      0,
+      "2026-11-04"
+    ],
+    [
+      "2611",
+      0,
+      50000,
+      "2026-11-04"
+    ],
+    [
+      "3041",
+      0,
+      200000,
+      "2026-11-04"
+    ]
+  ],
+  "retainedPdfSha256": "46ead1a55e6d3081faace1f6f12259aefc4de79207832361cd183129ecd8c292",
+  "retainedPdfBytes": 2328,
+  "retainedPdfMatchesArchiveMetadata": true,
+  "pdfViewerNotOpened": true
+}

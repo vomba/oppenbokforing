@@ -46,6 +46,19 @@ pub struct InvoiceEligibilityAssessment {
     pub accounting_year: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct InvoiceIssueReviewSnapshot {
+    pub invoice_id: String,
+    pub counterparty_id: String,
+    pub counterparty_name: String,
+    pub due_date: Option<String>,
+    pub total_ex_vat_minor: i64,
+    pub total_vat_minor: i64,
+    pub total_inc_vat_minor: i64,
+    pub lines: Vec<super::InvoiceLine>,
+}
+
 #[derive(Debug, Clone, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct InvoiceIssueValidationGetInput {
@@ -202,6 +215,7 @@ fn validate_facts<'a>(
 
 pub(crate) struct Evaluation {
     pub assessment: InvoiceEligibilityAssessment,
+    pub reviewed_invoice: InvoiceIssueReviewSnapshot,
     pub rule: RuleVersionSummary,
     pub fiscal_year_id: String,
     pub current_turnover_minor: i64,
@@ -347,9 +361,17 @@ pub(crate) async fn evaluate_tx(
         let unit = row.try_get("unit_price_minor")?;
         let (net, vat, _) = exact_amounts(quantity, unit)?;
         amounts.push((net, vat));
-        lines.push(json!({"id": row.try_get::<String,_>("id")?, "order": row.try_get::<i64,_>("line_order")?,
-            "description": row.try_get::<String,_>("description")?, "quantity": quantity, "unitPriceMinor": unit,
-            "vatRateBp": 2500, "accountNumber": "3041", "netMinor": net, "vatMinor": vat}));
+        lines.push(super::InvoiceLine {
+            id: row.try_get("id")?,
+            line_order: row.try_get("line_order")?,
+            description: row.try_get("description")?,
+            quantity,
+            unit_price_minor: unit,
+            vat_rate_bp: 2500,
+            account_number: "3041".into(),
+            line_ex_vat_minor: net,
+            line_vat_minor: vat,
+        });
     }
     let (net, vat, gross) = checked_totals(amounts)?;
     if invoice.try_get::<i64, _>("total_ex_vat_minor")? != net
@@ -371,11 +393,28 @@ pub(crate) async fn evaluate_tx(
         ));
     }
     let source_url: String = version.try_get("source_url")?;
+    let counterparty_id: String = invoice.try_get("counterparty_id")?;
+    let counterparty_name: String =
+        sqlx::query_scalar("SELECT name FROM counterparties WHERE workspace_id = ?1 AND id = ?2")
+            .bind(workspace_id)
+            .bind(&counterparty_id)
+            .fetch_optional(&mut **tx)
+            .await?
+            .ok_or_else(|| blocked("The reviewed customer must belong to this workspace"))?;
+    let reviewed_invoice = InvoiceIssueReviewSnapshot {
+        invoice_id: invoice_id.into(),
+        counterparty_id,
+        counterparty_name,
+        due_date: invoice.try_get("due_date")?,
+        total_ex_vat_minor: net,
+        total_vat_minor: vat,
+        total_inc_vat_minor: gross,
+        lines,
+    };
     let context = json!({"validationId": VALIDATION_ID, "evidenceDigest": evidence_digest(),
         "workspaceId": workspace_id, "invoiceId": invoice_id, "fiscalYearId": fiscal_year_id,
-        "issueDate": issue, "facts": facts, "counterpartyId": invoice.try_get::<String,_>("counterparty_id")?,
-        "dueDate": invoice.try_get::<Option<String>,_>("due_date")?, "lines": lines,
-        "netMinor": net, "vatMinor": vat, "grossMinor": gross, "currentTurnoverMinor": current_turnover_minor,
+        "issueDate": issue, "facts": facts, "reviewedInvoice": reviewed_invoice,
+        "currentTurnoverMinor": current_turnover_minor,
         "profile": {"taxStatus": tax_status, "vatStatus": vat_status, "reportingPeriod": "yearly",
             "accountingMethod": "invoice_method", "voluntaryRegistrationDate": voluntary_date, "deadlineRegime": "annual_may_12"},
         "rules": {"id": RULE_VERSION_ID, "effectiveFrom": effective_from, "effectiveTo": effective_to,
@@ -383,6 +422,7 @@ pub(crate) async fn evaluate_tx(
     let assessment = assessment(issue, completion, digest(encode(&context)?.as_bytes()));
     Ok(Evaluation {
         assessment,
+        reviewed_invoice,
         context,
         fiscal_year_id,
         current_turnover_minor,

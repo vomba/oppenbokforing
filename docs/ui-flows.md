@@ -157,7 +157,8 @@ Controls:
 
 - Create draft.
 - For new standard invoices, collect explicit transaction/year eligibility facts before backend preflight, then review the same facts and sending date before issuance. Unknown/contradictory or uncovered cases stop without posting; a stale review returns to the retained facts step.
-- Show the backend recognition identity, evidence digest, accounting/completion dates and applicable deadline, with inspectable source citations for that specific bundled validation. The owner sends the invoice on the chosen date; the app does not email it.
+- Final review displays the backend's fingerprint-bound customer, due date, line data and totals rather than cached list values. Missing or unrelated reviewed snapshots stop confirmation.
+- Show the backend recognition identity, evidence digest, accounting/completion dates and applicable deadline, with inspectable source citations for that specific bundled validation. Source clicks use a constrained native ID-only opener, not a webview new tab; opening failures stay visible. The owner sends the invoice on the chosen date; the app does not email it.
 - Read immutable recognition provenance for issued history. Missing historical provenance is explicit, not inferred from current profiles.
 - Preview/refresh PDF from historical issue data. Legacy invoices without snapshots require preserved evidence and explicit historical-value attestation before recovery.
 - Mark paid.

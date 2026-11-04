@@ -22,9 +22,10 @@ const JOB_INVOICE_CREDIT: &str = "invoice_credit";
 
 pub mod eligibility;
 pub mod pdf;
+pub mod sources;
 pub use eligibility::{
     invoice_issue_validation_get, InvoiceEligibilityAssessment, InvoiceEligibilityFacts,
-    InvoiceIssueValidation, InvoiceIssueValidationGetInput,
+    InvoiceIssueValidation, InvoiceIssueValidationGetInput, InvoiceIssueReviewSnapshot,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -134,6 +135,7 @@ pub struct InvoiceIssuePreflightInput {
 #[serde(rename_all = "camelCase")]
 pub struct InvoiceIssuePreflight {
     pub eligibility: Option<InvoiceEligibilityAssessment>,
+    pub reviewed_invoice: InvoiceIssueReviewSnapshot,
     pub invoice_id: String,
     pub issue_date: String,
     pub current_turnover_minor: i64,
@@ -274,6 +276,7 @@ fn build_invoice_issue_preflight(
         issue_date: evaluation.assessment.accounting_date.clone(),
         tax_year: evaluation.assessment.accounting_year,
         eligibility: Some(evaluation.assessment),
+        reviewed_invoice: evaluation.reviewed_invoice,
         invoice_id,
         current_turnover_minor: evaluation.current_turnover_minor,
         projected_turnover_minor,

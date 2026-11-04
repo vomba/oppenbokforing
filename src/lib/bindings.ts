@@ -84,9 +84,11 @@ export type InvoiceEligibilityFacts = { ordinaryDomesticService: boolean | null;
 
 export type InvoiceIssueInput = { invoiceId: string; idempotencyKey: string; issueDate: string | null; eligibilityFacts: InvoiceEligibilityFacts | null; reviewFingerprint: string | null }
 
-export type InvoiceIssuePreflight = { eligibility: InvoiceEligibilityAssessment | null; invoiceId: string; issueDate: string; currentTurnoverMinor: number; projectedTurnoverMinor: number; thresholdMinor: number | null; requiresVatTreatmentReview: boolean; nextAction: string | null; ruleVersionId: string | null; taxYear: number; sourceUrl: string | null }
+export type InvoiceIssuePreflight = { eligibility: InvoiceEligibilityAssessment | null; reviewedInvoice: InvoiceIssueReviewSnapshot; invoiceId: string; issueDate: string; currentTurnoverMinor: number; projectedTurnoverMinor: number; thresholdMinor: number | null; requiresVatTreatmentReview: boolean; nextAction: string | null; ruleVersionId: string | null; taxYear: number; sourceUrl: string | null }
 
 export type InvoiceIssuePreflightInput = { invoiceId: string; issueDate: string | null; eligibilityFacts: InvoiceEligibilityFacts | null }
+
+export type InvoiceIssueReviewSnapshot = { invoiceId: string; counterpartyId: string; counterpartyName: string; dueDate: string | null; totalExVatMinor: number; totalVatMinor: number; totalIncVatMinor: number; lines: InvoiceLine[] }
 
 export type InvoiceIssueValidation = { invoiceId: string; facts: InvoiceEligibilityFacts; assessment: InvoiceEligibilityAssessment; recordedAt: string }
 
@@ -105,6 +107,8 @@ export type InvoicePdfStatusInput = { invoiceId: string }
 export type InvoiceSummary = { id: string; counterpartyId: string; counterpartyName: string; status: string; invoiceKind: string; invoiceNumber: string | null; sourceInvoiceId: string | null; issueDate: string | null; dueDate: string | null; totalExVatMinor: number; totalVatMinor: number; totalIncVatMinor: number; pdfJobId: string | null; pdfDocumentId: string | null; voucherId: string | null; paymentVoucherId: string | null; lines: InvoiceLine[] }
 
 export type InvoiceUpdateDraftInput = { invoiceId: string; dueDate: string | null; lines: InvoiceLineInput[] }
+
+export type InvoiceValidationSourceOpenInput = { validationId: string; sourceId: string }
 
 export type JournalLineRow = { accountNumber: string; accountName: string; debitMinor: number; creditMinor: number; vatCode: string | null }
 

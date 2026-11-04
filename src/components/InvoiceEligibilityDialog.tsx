@@ -72,10 +72,12 @@ export function InvoiceEligibilityDialog({ invoice, idempotencyKey, onCancel, on
     try {
       const result = await invoiceIssuePreflight({ invoiceId: invoice.id, issueDate, eligibilityFacts: facts })
       if (!alive.current) return
-      if (result.requiresVatTreatmentReview) {
-        // Preserve the existing threshold review, but it cannot submit issuance.
+      if (!result.reviewedInvoice || result.reviewedInvoice.invoiceId !== invoice.id ||
+        result.invoiceId !== invoice.id || result.issueDate !== issueDate) {
+        setError(t(locale, "eligibility.missingAssessment"))
+      } else if (result.requiresVatTreatmentReview) {
         setPreflight(result)
-      } else if (!result.eligibility?.reviewFingerprint || result.invoiceId !== invoice.id || result.issueDate !== issueDate) {
+      } else if (!result.eligibility?.reviewFingerprint) {
         setError(t(locale, "eligibility.missingAssessment"))
       } else {
         setPreflight(result)
@@ -111,10 +113,11 @@ export function InvoiceEligibilityDialog({ invoice, idempotencyKey, onCancel, on
   }
 
   const blockedThreshold = preflight?.requiresVatTreatmentReview
+  const displayedInvoice = preflight?.reviewedInvoice ?? invoice
   const summary = tVars(locale, "actionReview.issue.summary", {
-    customer: invoice.counterpartyName, total: formatSekMinor(invoice.totalIncVatMinor),
-    vat: formatSekMinor(invoice.totalVatMinor),
-    rate: invoice.totalExVatMinor > 0 ? Math.round(invoice.totalVatMinor / invoice.totalExVatMinor * 100) : 0,
+    customer: displayedInvoice.counterpartyName, total: formatSekMinor(displayedInvoice.totalIncVatMinor),
+    vat: formatSekMinor(displayedInvoice.totalVatMinor),
+    rate: displayedInvoice.totalExVatMinor > 0 ? Math.round(displayedInvoice.totalVatMinor / displayedInvoice.totalExVatMinor * 100) : 0,
   })
 
   return <ActionReviewDialog
@@ -137,6 +140,18 @@ export function InvoiceEligibilityDialog({ invoice, idempotencyKey, onCancel, on
   >
     <p className="invoice-eligibility">{t(locale, "eligibility.scope")}</p>
     {preflight ? <>
+      <section>
+        <h4>{t(locale, "eligibility.invoiceSnapshot")}</h4>
+        {preflight.reviewedInvoice.dueDate ? <p>{tVars(locale, "eligibility.reviewDueDate", { date: preflight.reviewedInvoice.dueDate })}</p> : null}
+        <ul>{preflight.reviewedInvoice.lines.map((line) => <li key={line.id}>
+          <p>{line.description}</p>
+          <p>{tVars(locale, "eligibility.reviewLine", {
+            quantity: line.quantity, unit: formatSekMinor(line.unitPriceMinor),
+            net: formatSekMinor(line.lineExVatMinor), vat: formatSekMinor(line.lineVatMinor),
+            account: line.accountNumber,
+          })}</p>
+        </li>)}</ul>
+      </section>
       <InvoiceEligibilityFactsView facts={facts} locale={locale} />
       {preflight.eligibility ? <InvoiceEligibilityEvidence assessment={preflight.eligibility} locale={locale} /> : null}
       <button type="button" className="secondary" disabled={busy} onClick={() => setPreflight(null)}>{t(locale, "eligibility.edit")}</button>

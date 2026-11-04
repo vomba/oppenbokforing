@@ -55,8 +55,11 @@ case is only 2026 invoice-method ordinary completed domestic SEK services at
 25%, no previous payments, annual VAT/no-EU under `annual_may_12`, with exact
 whole-öre VAT on every line. Rust remains the eligibility authority.
 
-Final review shows the same facts, completion date, narrow coverage, backend
-validation/digest/rule/fingerprint identity and returned deadline. Confirmation
+Final review uses the fingerprint-bound invoice snapshot returned by Rust, not
+cached list amounts: customer, due date, lines and totals are shown alongside the
+same facts, completion date, narrow coverage, backend validation/digest/rule identity
+and returned deadline. A missing or unrelated snapshot cannot reach confirmation.
+Confirmation
 submits exactly those facts, date and review fingerprint. The owner sends the
 invoice on that date; the app does not email it. Editing facts/date discards the
 preflight, and workspace/invoice changes discard the review. Failed preflight
@@ -69,7 +72,9 @@ Issued history can read immutable recognition provenance through
 facts or invoking any mutation. This is not approval of historical invoices,
 full legal PDF compliance, books, VAT returns or year-end accounts. Bundled source
 citations are inspectable only for their matching validation identity; unknown
-retained identities do not inherit another case's references. `tax-rules` owns the
+retained identities do not inherit another case's references. Source clicks prevent
+webview navigation and invoke the native ID-only opener; failures remain visible
+without accounting mutation. `tax-rules` owns the
 evidence and verification record; UI checks alone do not establish eligibility.
 
 ## Verification surface

@@ -26,6 +26,7 @@ import type {
   InvoiceCreditInput,
   InvoiceIssueValidation,
   InvoiceIssueValidationGetInput,
+  InvoiceValidationSourceOpenInput,
   InvoiceIssueInput,
   InvoiceIssuePreflight,
   InvoiceIssuePreflightInput,
@@ -308,6 +309,10 @@ export async function invoiceIssueValidationGet(input: InvoiceIssueValidationGet
     "invoice_issue_validation_get", { input },
   )
   return response.data
+}
+
+export async function invoiceValidationSourceOpen(input: InvoiceValidationSourceOpenInput) {
+  await invoke<CommandResponse<null>>("invoice_validation_source_open", { input })
 }
 
 export async function invoiceCredit(input: InvoiceCreditInput) {

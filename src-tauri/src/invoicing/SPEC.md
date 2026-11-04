@@ -58,8 +58,12 @@ Preflight and issuance share an evaluator over actual workspace-scoped profiles,
 lines, amounts, year and reviewed rules. Checked multiplication/addition and stored
 header comparisons reject saturation, overflow or inconsistent amounts. A context
 fingerprint binds the reviewed facts/date, relevant profile and rule payloads,
-line identities and evidence digest. It is a freshness check, not authorization:
-issuance recomputes all predicates under its immediate transaction.
+line identities and evidence digest. Preflight returns the actual reviewed invoice
+snapshot (customer display identity, due date, checked line data and totals) from
+that same transaction. The complete snapshot is fingerprint-bound and retained in
+the immutable context; a stale list row is not the final review's data source.
+It is a freshness check, not authorization: issuance recomputes all predicates
+under its immediate transaction.
 
 New issuance atomically saves immutable recognition provenance with the issue
 snapshot, number, voucher, PDF job, audit and replay result. `storage-contract` owns
@@ -67,6 +71,13 @@ row protection. Completed replay/already-issued recovery precedes new-case check
 legacy invoices are not backfilled as eligible. Workspace-scoped provenance reads
 use retained facts and identity, not current profile substitutions. `ui-workflows`
 owns fact collection, stale-review behavior and source inspection.
+
+Source-opening requests carry only compiled validation/source IDs. The native
+handler requires an open workspace and resolves exact reviewed HTTPS sources;
+renderer-supplied URLs, files and commands are not accepted. On macOS, a blocking
+task invokes the system browser opener and reaps/checks its result rather than
+relying on an unhandled webview new-window request. Unsupported platforms report
+an error. Opening a source does not mutate accounting or validation records.
 
 Only drafts are editable through draft APIs. A source can receive one full credit.
 The credit date cannot precede issue but can use a later open period/year.

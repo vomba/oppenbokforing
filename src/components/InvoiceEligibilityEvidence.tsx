@@ -1,7 +1,8 @@
-import { useId } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import evidence from "../../fixtures/accounting-validation/2026-domestic-service25-exact.json"
 import { t, tVars, type Locale, type MessageKey } from "../i18n"
 import type { InvoiceEligibilityFacts, InvoiceIssuePreflight } from "../lib/bindings"
+import { appErrorMessage, invoiceValidationSourceOpen } from "../lib/commands"
 
 export const eligibilityQuestions: ReadonlyArray<{
   field: Exclude<keyof InvoiceEligibilityFacts, "serviceCompletedOn">
@@ -37,6 +38,30 @@ export function InvoiceEligibilityEvidence({ assessment, locale }: {
   locale: Locale
 }) {
   const sourcesId = useId()
+  const pending = useRef(false)
+  const alive = useRef(true)
+  const [opening, setOpening] = useState(false)
+  const [sourceError, setSourceError] = useState("")
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false }
+  }, [])
+
+  async function openSource(sourceId: string) {
+    if (pending.current) return
+    pending.current = true
+    setOpening(true)
+    setSourceError("")
+    try {
+      await invoiceValidationSourceOpen({ validationId: assessment.validationId, sourceId })
+    } catch (error) {
+      if (alive.current) setSourceError(`${t(locale, "eligibility.sourceOpenFailed")} ${appErrorMessage(error, "")}`)
+    } finally {
+      pending.current = false
+      if (alive.current) setOpening(false)
+    }
+  }
+
   return <section className="eligibility-evidence">
     <h4>{t(locale, "eligibility.evidenceTitle")}</h4>
     <p>{tVars(locale, "eligibility.assessment", {
@@ -53,8 +78,12 @@ export function InvoiceEligibilityEvidence({ assessment, locale }: {
     {assessment.validationId === evidence.validationId ? <section aria-labelledby={sourcesId}>
       <h5 id={sourcesId}>{t(locale, "eligibility.sources")}</h5>
       <ul>{evidence.sourceReferences.map((source) => <li key={source.id}>
-        <a href={source.url} target="_blank" rel="noopener noreferrer">{source.pinpoint}</a>
+        <a href={source.url} aria-disabled={opening} onClick={(event) => {
+          event.preventDefault()
+          void openSource(source.id)
+        }}>{source.pinpoint}</a>
       </li>)}</ul>
     </section> : null}
+    {sourceError ? <p role="alert">{sourceError}</p> : null}
   </section>
 }

@@ -298,6 +298,83 @@ async fn independently_derived_exact_cases_reach_journal_and_correct_annual_dead
 }
 
 #[tokio::test]
+async fn preflight_returns_the_actual_invoice_snapshot_bound_to_its_fingerprint() {
+    let f = Fixture::new().await;
+    let draft = f.draft(vec![line(1, 100_000, 0.25)]).await;
+    let input = f.input(&draft.id);
+    let old = f.preflight(&input).await.unwrap();
+    invoicing::update_draft(
+        &f.pool,
+        &f.workspace,
+        &invoicing::InvoiceUpdateDraftInput {
+            invoice_id: draft.id.clone(),
+            due_date: Some("2027-01-31".into()),
+            lines: vec![InvoiceLineInput {
+                description: "Current service".into(),
+                ..line(2, 100_000, 0.25)
+            }],
+        },
+    )
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE counterparties SET name='Current Customer' WHERE id=?1 AND workspace_id=?2",
+    )
+    .bind(&f.customer)
+    .bind(&f.workspace)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let current = f.preflight(&input).await.unwrap();
+    let encoded = serde_json::to_value(&current).unwrap();
+    let snapshot = &encoded["reviewedInvoice"];
+    assert_eq!(snapshot["invoiceId"], draft.id);
+    assert_eq!(snapshot["counterpartyName"], "Current Customer");
+    assert_eq!(snapshot["dueDate"], "2027-01-31");
+    assert_eq!(snapshot["totalExVatMinor"], 200_000);
+    assert_eq!(snapshot["totalVatMinor"], 50_000);
+    assert_eq!(snapshot["totalIncVatMinor"], 250_000);
+    assert_eq!(snapshot["lines"][0]["description"], "Current service");
+    assert_ne!(
+        old.eligibility.unwrap().review_fingerprint,
+        current.eligibility.as_ref().unwrap().review_fingerprint
+    );
+
+    let mut reviewed = input.clone();
+    reviewed.review_fingerprint = Some(current.eligibility.unwrap().review_fingerprint);
+    sqlx::query(
+        "UPDATE counterparties SET name='Changed after review' WHERE id=?1 AND workspace_id=?2",
+    )
+    .bind(&f.customer)
+    .bind(&f.workspace)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let before = f.state().await;
+    eligibility_error(
+        f.issue(&reviewed)
+            .await
+            .expect_err("customer display identity is also fingerprint-bound"),
+    );
+    assert_eq!(before, f.state().await);
+    let fresh = f.preflight(&input).await.unwrap();
+    let fresh_snapshot = serde_json::to_value(&fresh).unwrap()["reviewedInvoice"].clone();
+    reviewed.review_fingerprint = Some(fresh.eligibility.unwrap().review_fingerprint);
+    f.issue(&reviewed).await.unwrap();
+    let context: String = sqlx::query_scalar(
+        "SELECT context_json FROM invoice_issue_validations WHERE invoice_id=?1",
+    )
+    .bind(&draft.id)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(&context).unwrap()["reviewedInvoice"],
+        fresh_snapshot
+    );
+}
+
+#[tokio::test]
 async fn every_fact_requires_an_explicit_favorable_answer_and_review_is_required() {
     let f = Fixture::new().await;
     let draft = f.draft(vec![line(1, 1_000_000, 0.25)]).await;

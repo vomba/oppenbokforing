@@ -1,0 +1,27 @@
+Baseline archived with git archive 44f897e (no checkout/index mutation).
+Command: cargo test --no-default-features --test invoice_idempotency new_invoice_requires_case_eligibility_not_just_invoice_method -- --exact
+The appended test uses the original DTO, with no new fields or API. Compilation succeeded.
+Annual/annual_may_12 invoice-method profile is selected explicitly to isolate missing facts from unsupported-calendar rejection.
+
+   Compiling oppenbokforing-desktop v0.1.0 (/private/tmp/eligibility-baseline.TsE71B/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.36s
+     Running tests/invoice_idempotency.rs (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri/target/debug/deps/invoice_idempotency-ebb5a8289f076b56)
+
+running 1 test
+test new_invoice_requires_case_eligibility_not_just_invoice_method ... FAILED
+
+failures:
+
+---- new_invoice_requires_case_eligibility_not_just_invoice_method stdout ----
+
+thread 'new_invoice_requires_case_eligibility_not_just_invoice_method' (14332640) panicked at tests/invoice_idempotency.rs:1481:6:
+stored invoice method alone must not authorize an unreviewed case: InvoiceSummary { id: "5195f8c8-8aa4-47d3-9106-ac839b5aa75f", counterparty_id: "1f5c6588-1411-4aed-a2e5-354d1ac475d4", counterparty_name: "Idempotency Customer", status: "issued", invoice_kind: "standard", invoice_number: Some("2026-0001"), source_invoice_id: None, issue_date: Some("2026-02-01"), due_date: None, total_ex_vat_minor: 100000, total_vat_minor: 25000, total_inc_vat_minor: 125000, pdf_job_id: Some("6724b25e-c98a-4761-b76b-4913d4bae8f7"), pdf_document_id: None, voucher_id: Some("c6a6ac28-4d96-4d26-b192-747a2c3c1cb5"), payment_voucher_id: None, lines: [InvoiceLine { id: "6a576262-57a4-423f-8502-d4978e86d714", line_order: 1, description: "Unreviewed service", quantity: 1, unit_price_minor: 100000, vat_rate_bp: 2500, account_number: "3041", line_ex_vat_minor: 100000, line_vat_minor: 25000 }] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    new_invoice_requires_case_eligibility_not_just_invoice_method
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `--test invoice_idempotency`

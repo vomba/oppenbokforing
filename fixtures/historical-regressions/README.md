@@ -12,8 +12,8 @@ checkout). `export-pre-gate-shapes.rs` contains the exporter; append it to that
 commit's `src-tauri/tests/invoice_idempotency.rs`, then run:
 
 ```sh
-cargo test --no-default-features --test invoice_idempotency \
-  export_pre_gate_historical_shapes -- --exact --nocapture
+cargo test --manifest-path src-tauri/Cargo.toml --no-default-features \
+  --test invoice_idempotency export_pre_gate_historical_shapes -- --exact --nocapture
 ```
 
 The `HISTORICAL_SHAPES=` line contains the JSON. Generated database IDs and times
@@ -24,7 +24,10 @@ All five baseline cases (exempt, 6%, 12%, 25%, mixed 25%/12%) succeeded.
 
 `missing-facts-red.rs` is the retained missing-facts regression in its original
 API form. Append it instead and run the command retained in
-`missing-facts-red.log`. Compilation succeeds and the assertion fails because
+`missing-facts-red.txt`. The transcript uses a tracked `.txt` extension because the
+repository excludes generated `*.log` files. The recorded command runs from the
+archived `src-tauri` directory; from the archive root add `--manifest-path src-tauri/Cargo.toml`.
+Compilation succeeds and the assertion fails because
 baseline issuance returns an **issued** invoice with voucher/PDF job despite no
 case facts. This is behavioral RED proof, not a new-DTO compile failure. The
 current integration test retains this regression with both optional new input

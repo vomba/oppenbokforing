@@ -20,6 +20,7 @@ use crate::{
     imports::{CsvImportCreateInput, CsvImportSummary, StagedTransactionSummary, StagedTransactionsListInput},
     integrations::IntegrationStatusResponse,
     invoicing::{
+        sources::InvoiceValidationSourceOpenInput,
         InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceIssuePreflight,
         InvoiceIssuePreflightInput, InvoiceLine, InvoiceLineInput, InvoiceListInput,
         InvoiceEligibilityFacts, InvoiceEligibilityAssessment, InvoiceIssueValidationGetInput, InvoiceIssueValidation,
@@ -127,6 +128,7 @@ pub fn export_types() -> String {
     types.register::<InvoiceEligibilityFacts>();
     types.register::<InvoiceEligibilityAssessment>();
     types.register::<InvoiceIssueValidationGetInput>();
+    types.register::<InvoiceValidationSourceOpenInput>();
     types.register::<InvoiceIssueValidation>();
     types.register::<InvoiceCreditInput>();
     types.register::<InvoiceListInput>();

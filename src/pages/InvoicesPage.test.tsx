@@ -43,6 +43,7 @@ const {
   invoiceIssue,
   invoiceIssuePreflight,
   invoiceIssueValidationGet,
+  invoiceValidationSourceOpen,
   invoiceCredit,
   invoiceLegacySnapshotRecoveryStatus,
   invoiceLegacySnapshotRecover,
@@ -55,6 +56,7 @@ const {
   invoiceIssue: vi.fn(),
   invoiceIssuePreflight: vi.fn(),
   invoiceIssueValidationGet: vi.fn(),
+  invoiceValidationSourceOpen: vi.fn(),
   invoiceCredit: vi.fn(),
   invoiceLegacySnapshotRecoveryStatus: vi.fn(),
   invoiceLegacySnapshotRecover: vi.fn(),
@@ -93,6 +95,7 @@ vi.mock("../lib/commands", () => ({
   invoiceIssue,
   invoiceIssuePreflight,
   invoiceIssueValidationGet,
+  invoiceValidationSourceOpen,
   invoiceList,
   invoiceLegacySnapshotRecoveryStatus,
   invoiceLegacySnapshotRecover,
@@ -131,6 +134,17 @@ const eligibleAssessment = {
   dueOn: "2027-05-12",
   coverageSummary: "2026 domestic service, exact VAT per line",
   ruleVersionId: "rv-2026-domestic-service25-exact-v1",
+}
+
+const reviewedInvoice = {
+  invoiceId: baseInvoice.id,
+  counterpartyId: baseInvoice.counterpartyId,
+  counterpartyName: baseInvoice.counterpartyName,
+  dueDate: baseInvoice.dueDate,
+  totalExVatMinor: baseInvoice.totalExVatMinor,
+  totalVatMinor: baseInvoice.totalVatMinor,
+  totalIncVatMinor: baseInvoice.totalIncVatMinor,
+  lines: baseInvoice.lines,
 }
 
 const expectedFacts = {
@@ -190,8 +204,10 @@ describe("InvoicesPage", () => {
     vi.clearAllMocks()
     activeWorkspace = workspace
     invoiceIssueValidationGet.mockResolvedValue(null)
+    invoiceValidationSourceOpen.mockResolvedValue(undefined)
     taxProfileGetCurrent.mockResolvedValue({ taxStatus: "f_skatt" })
     invoiceIssuePreflight.mockResolvedValue({
+      reviewedInvoice,
       eligibility: eligibleAssessment,
       invoiceId: "inv-1",
       issueDate: "2026-01-15",
@@ -253,6 +269,39 @@ describe("InvoicesPage", () => {
       invoiceId: "inv-1", idempotencyKey: expect.any(String), issueDate: "2026-01-15",
       eligibilityFacts: expectedFacts, reviewFingerprint: eligibleAssessment.reviewFingerprint,
     }))
+  })
+
+  it("shows the backend-reviewed draft rather than stale list amounts or lines", async () => {
+    invoiceList.mockResolvedValue([{
+      ...baseInvoice, status: "draft", voucherId: null,
+      totalExVatMinor: 100_000, totalVatMinor: 25_000, totalIncVatMinor: 125_000,
+    }])
+    invoiceIssuePreflight.mockResolvedValueOnce({
+      reviewedInvoice: {
+        ...reviewedInvoice, counterpartyName: "Current Customer AB",
+        totalExVatMinor: 200_000, totalVatMinor: 50_000, totalIncVatMinor: 250_000,
+        lines: [{ id: "changed-line", lineOrder: 1, description: "Current service", quantity: 1,
+          unitPriceMinor: 200_000, vatRateBp: 2500, accountNumber: "3041", lineExVatMinor: 200_000,
+          lineVatMinor: 50_000 }],
+      },
+      invoiceId: "inv-1", issueDate: "2026-01-15",
+      currentTurnoverMinor: 0, projectedTurnoverMinor: 200_000,
+      thresholdMinor: null, requiresVatTreatmentReview: false, nextAction: null,
+      ruleVersionId: eligibleAssessment.ruleVersionId, taxYear: 2026, sourceUrl: "https://www.bfn.se/",
+      eligibility: { ...eligibleAssessment, reviewFingerprint: "current-draft-fingerprint" },
+    })
+    invoiceIssue.mockResolvedValue(baseInvoice)
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    await reachFinalReview()
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByText(/Current Customer AB: 2.500,00 kr/)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/1.250,00 kr/)).not.toBeInTheDocument()
+    expect(within(dialog).getByText("Current service")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skicka faktura" }))
+    await waitFor(() => expect(invoiceIssue).toHaveBeenCalledWith(expect.objectContaining({
+      reviewFingerprint: "current-draft-fingerprint",
+    })))
   })
 
   it.each([
@@ -372,7 +421,7 @@ describe("InvoicesPage", () => {
 
   it("blocks a missing eligibility assessment rather than trusting an old successful preflight", async () => {
     invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
-    invoiceIssuePreflight.mockResolvedValueOnce({ invoiceId: "inv-1", issueDate: "2026-01-15", eligibility: null, requiresVatTreatmentReview: false })
+    invoiceIssuePreflight.mockResolvedValueOnce({ reviewedInvoice, invoiceId: "inv-1", issueDate: "2026-01-15", eligibility: null, requiresVatTreatmentReview: false })
     renderInvoices()
     fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
     answerEligibility()
@@ -381,6 +430,24 @@ describe("InvoicesPage", () => {
     expect(screen.queryByRole("button", { name: "Skicka faktura" })).not.toBeInTheDocument()
     expect(invoiceIssue).not.toHaveBeenCalled()
   })
+
+  it.each([undefined, { ...reviewedInvoice, invoiceId: "another-invoice" }])(
+    "rejects a missing or unrelated reviewed invoice snapshot",
+    async (snapshot) => {
+      invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+      invoiceIssuePreflight.mockResolvedValueOnce({
+        invoiceId: "inv-1", issueDate: "2026-01-15", eligibility: eligibleAssessment,
+        reviewedInvoice: snapshot, requiresVatTreatmentReview: false,
+      })
+      renderInvoices()
+      fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+      answerEligibility()
+      fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+      await screen.findByRole("alert")
+      expect(screen.queryByRole("button", { name: "Skicka faktura" })).not.toBeInTheDocument()
+      expect(invoiceIssue).not.toHaveBeenCalled()
+    },
+  )
 
   it("presents the explicit annual questions and sending responsibility in English", async () => {
     invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
@@ -567,6 +634,7 @@ describe("InvoicesPage", () => {
   it("shows the rule-backed VAT action and blocks confirmation before issue", async () => {
     invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
     invoiceIssuePreflight.mockResolvedValue({
+      reviewedInvoice,
       eligibility: eligibleAssessment,
       invoiceId: "inv-1",
       issueDate: "2026-01-15",

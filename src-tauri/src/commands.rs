@@ -28,6 +28,7 @@ use crate::{
     imports::{self, CsvImportCreateInput, CsvImportSummary, StagedTransactionsListInput, StagedTransactionSummary},
     integrations::{self, IntegrationStatusResponse},
     invoicing::{
+        sources::InvoiceValidationSourceOpenInput,
         self, InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput,
         InvoiceIssuePreflight, InvoiceIssuePreflightInput, InvoiceListInput, InvoicePdfStatusInput,
         InvoiceIssueValidation, InvoiceIssueValidationGetInput,
@@ -683,6 +684,16 @@ pub async fn invoice_issue_validation_get(
     let workspace = require_workspace(&state).await?;
     let validation = invoicing::invoice_issue_validation_get(&workspace.pool, &workspace.id, &input).await?;
     Ok(CommandResponse { data: validation })
+}
+
+#[tauri::command]
+pub async fn invoice_validation_source_open(
+    state: State<'_, AppState>,
+    input: InvoiceValidationSourceOpenInput,
+) -> CommandResult<()> {
+    require_workspace(&state).await?;
+    invoicing::sources::invoice_validation_source_open(&input).await?;
+    Ok(CommandResponse { data: () })
 }
 
 #[tauri::command]

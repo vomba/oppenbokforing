@@ -22,6 +22,7 @@ use crate::{
     invoicing::{
         InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceIssuePreflight,
         InvoiceIssuePreflightInput, InvoiceLine, InvoiceLineInput, InvoiceListInput,
+        InvoiceEligibilityFacts, InvoiceEligibilityAssessment, InvoiceIssueValidationGetInput, InvoiceIssueValidation,
         InvoicePdfStatusInput, InvoiceSummary, InvoiceUpdateDraftInput,
         LegacyIssuedInvoiceSnapshotRecoveryInput, LegacyIssuedInvoiceSnapshotRecoveryStatus,
     },
@@ -123,6 +124,10 @@ pub fn export_types() -> String {
     types.register::<InvoiceIssueInput>();
     types.register::<InvoiceIssuePreflightInput>();
     types.register::<InvoiceIssuePreflight>();
+    types.register::<InvoiceEligibilityFacts>();
+    types.register::<InvoiceEligibilityAssessment>();
+    types.register::<InvoiceIssueValidationGetInput>();
+    types.register::<InvoiceIssueValidation>();
     types.register::<InvoiceCreditInput>();
     types.register::<InvoiceListInput>();
     types.register::<InvoicePdfStatusInput>();

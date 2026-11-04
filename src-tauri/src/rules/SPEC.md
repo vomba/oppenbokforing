@@ -59,8 +59,29 @@ lookup returns a validation error.
 The repository seeds engineering rules. It does not establish validated coverage
 for all required years or the eligibility gate described here.
 
-A [2026 exact-VAT domestic-service evidence dossier](../../../docs/accounting-validation/2026-domestic-service25-exact.md)
-records source applicability, independently derived expectations and an AI evidence
-review for a bounded invoice-recognition case. Its companion arithmetic checks do
-not establish execution verification or activate calculation eligibility. Fractional-
-öre rounding remains outside that candidate coverage.
+### Bounded invoice-recognition coverage
+
+The [2026 exact-VAT domestic-service dossier](../../../docs/accounting-validation/2026-domestic-service25-exact.md)
+records authoritative passages, independently derived expectations, AI coverage
+review and execution-verification status. It is not a professional or authority
+attestation. Its companion manifest pins the source references and expected cases.
+
+The invoice-owned gate covers only new 2026 invoice-method recognition of ordinary
+completed domestic SEK services at 25%, without prior receipts, under annual VAT
+without EU trade (`annual_may_12`). Each line must have exact VAT in integer öre;
+fractional-öre rounding remains uncovered, even when fractions cancel in the total.
+The applicable accounting period is 2026 and the filing date is 2027-05-12. Explicit
+annual-registration, expected taxable-base and year-wide no-EU facts are required;
+profit, residency defaults and stored regime selections do not establish them.
+
+`rv-2026-domestic-service25-exact-v1` retires the old engineering version without
+rewriting its rule payloads or historical references. Other engineering rules are
+copied to retain existing consumers, not promoted to validated coverage. The gate
+requires the exact compiled manifest digest, active version/applicability, typed
+case policy and actual annual schedule; a matching descriptive checksum alone
+cannot authorize it. Published manifest bytes and their validation ID are immutable;
+a successor must retain the old evidence/reader instead of reusing that ID or
+reformatting the old manifest. `invoice-lifecycle` owns transaction enforcement and
+retained facts. This gate does not validate credits, settlement, complete legal PDFs, books,
+VAT-return approval or year-end preparation. Full required-year/case eligibility
+remains incomplete.

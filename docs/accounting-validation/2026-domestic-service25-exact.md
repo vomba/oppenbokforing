@@ -2,7 +2,7 @@
 
 Validation ID: `invoice-recognition-se-service25-2026-exact-v1`.
 Candidate rule version: `rv-2026-domestic-service25-exact-v1`.
-Status: **conceptual evidence reviewed; activation awaits implementation verification**.
+Status: **implementation mechanically verified; final independent implementation review pending**.
 Source retrieval: 2026-11-04. This is not a professional opinion or a claim that complete books, returns, settlements, credits, or generated PDFs are legally validated.
 
 ## Applicability and declarations
@@ -61,7 +61,16 @@ The review requires explicit classification/registration/annual/no-EU/expected-b
 
 ## Activation and execution verification
 
-Execution verification: **pending**. Record actual gate test results and final independent implementation review here before calling the case enabled.
+Mechanical execution verification on 2026-11-04:
+
+- The original-DTO missing-facts regression failed behaviorally against archived `44f897e`; its source/log and pre-gate posting shapes are retained under `fixtures/historical-regressions/`, separately from this independent evidence.
+- The current public-boundary suite exercises the independent exact-VAT journals and date/calendar examples, each required fact, stale profiles/lines/rules/facts/dates, unsupported cases, line/aggregate overflow, annual limits, atomic issuance and immutable provenance, low-level bypasses and writer-lock races.
+- A focused security audit found that lexicographic comparison could accept signed future registration date `+2027-01-01`. A public profile/preflight/issuance regression failed before the fix; parsed-date comparison made it pass. No broader profile-format policy was inferred.
+- A real first-20-migrations database upgrades normally to migration 21 without changes to historical posting/audit/replay data or a fabricated eligibility backfill. Separate close/reopen and encrypted backup/restore checks preserve new immutable provenance and retained PDF bytes. Both persistence tests pass.
+- The public CI invocation passed fixtures, golden/M8 gates, **255 Rust tests**, **146 frontend tests**, and the TypeScript/production build. Its final HEAD-diff binding check currently reports the legitimate uncommitted DTO change; generator output was independently regenerated twice and is byte-for-byte stable. The complete gate will be rerun after the implementation commit.
+- Desktop compilation and integration-mode smoke pass. New-file Rust formatting and spec validation pass. Packaged GUI install/launch UAT is not verified.
+
+Final independent implementation review: **pending**. Its disposition and the post-commit public gate must be recorded before handoff. These results do not establish excluded fractional rounding or whole-PDF/books/return validation.
 
 A source citation, machine digest, active rule row or passing regression alone does not activate coverage. Before enabling this case, a fresh independent reviewer must inspect these sources/extracts, derivations, exclusions and test results; record its findings and disposition here. Do not invent a human/professional sign-off. Record the actual review identity and scope.
 

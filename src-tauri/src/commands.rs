@@ -30,6 +30,7 @@ use crate::{
     invoicing::{
         self, InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput,
         InvoiceIssuePreflight, InvoiceIssuePreflightInput, InvoiceListInput, InvoicePdfStatusInput,
+        InvoiceIssueValidation, InvoiceIssueValidationGetInput,
         InvoiceSummary, InvoiceUpdateDraftInput, LegacyIssuedInvoiceSnapshotRecoveryInput,
         LegacyIssuedInvoiceSnapshotRecoveryStatus,
     },
@@ -672,6 +673,16 @@ pub async fn invoice_issue_preflight(
     let preflight =
         invoicing::invoice_issue_preflight(&workspace.pool, &workspace.id, &input).await?;
     Ok(CommandResponse { data: preflight })
+}
+
+#[tauri::command]
+pub async fn invoice_issue_validation_get(
+    state: State<'_, AppState>,
+    input: InvoiceIssueValidationGetInput,
+) -> CommandResult<Option<InvoiceIssueValidation>> {
+    let workspace = require_workspace(&state).await?;
+    let validation = invoicing::invoice_issue_validation_get(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data: validation })
 }
 
 #[tauri::command]

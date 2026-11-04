@@ -1,0 +1,262 @@
+{
+  "cases": [
+    {
+      "audit": [
+        "invoice_issue",
+        "voucher_post"
+      ],
+      "grossMinor": 100000,
+      "id": "exempt",
+      "invoiceNumber": "2026-0001",
+      "issueDate": "2026-02-01",
+      "jobs": [
+        [
+          "invoice_issue",
+          "succeeded"
+        ],
+        [
+          "invoice_pdf_generate",
+          "queued"
+        ]
+      ],
+      "journal": [
+        [
+          "1510",
+          100000,
+          0,
+          null
+        ],
+        [
+          "3041",
+          0,
+          100000,
+          null
+        ]
+      ],
+      "netMinor": 100000,
+      "snapshot": [
+        "rv-2026-active",
+        2026,
+        "exempt_low_turnover"
+      ],
+      "unitPriceMinorPerLine": 100000,
+      "vatMinor": 0,
+      "vatRates": [
+        0.0
+      ]
+    },
+    {
+      "audit": [
+        "invoice_issue",
+        "voucher_post"
+      ],
+      "grossMinor": 106000,
+      "id": "six",
+      "invoiceNumber": "2026-0001",
+      "issueDate": "2026-02-01",
+      "jobs": [
+        [
+          "invoice_issue",
+          "succeeded"
+        ],
+        [
+          "invoice_pdf_generate",
+          "queued"
+        ]
+      ],
+      "journal": [
+        [
+          "1510",
+          106000,
+          0,
+          null
+        ],
+        [
+          "2611",
+          0,
+          6000,
+          "VAT6"
+        ],
+        [
+          "3041",
+          0,
+          100000,
+          null
+        ]
+      ],
+      "netMinor": 100000,
+      "snapshot": [
+        "rv-2026-active",
+        2026,
+        "registered"
+      ],
+      "unitPriceMinorPerLine": 100000,
+      "vatMinor": 6000,
+      "vatRates": [
+        0.06
+      ]
+    },
+    {
+      "audit": [
+        "invoice_issue",
+        "voucher_post"
+      ],
+      "grossMinor": 112000,
+      "id": "twelve",
+      "invoiceNumber": "2026-0001",
+      "issueDate": "2026-02-01",
+      "jobs": [
+        [
+          "invoice_issue",
+          "succeeded"
+        ],
+        [
+          "invoice_pdf_generate",
+          "queued"
+        ]
+      ],
+      "journal": [
+        [
+          "1510",
+          112000,
+          0,
+          null
+        ],
+        [
+          "2611",
+          0,
+          12000,
+          "VAT12"
+        ],
+        [
+          "3041",
+          0,
+          100000,
+          null
+        ]
+      ],
+      "netMinor": 100000,
+      "snapshot": [
+        "rv-2026-active",
+        2026,
+        "registered"
+      ],
+      "unitPriceMinorPerLine": 100000,
+      "vatMinor": 12000,
+      "vatRates": [
+        0.12
+      ]
+    },
+    {
+      "audit": [
+        "invoice_issue",
+        "voucher_post"
+      ],
+      "grossMinor": 125000,
+      "id": "standard",
+      "invoiceNumber": "2026-0001",
+      "issueDate": "2026-02-01",
+      "jobs": [
+        [
+          "invoice_issue",
+          "succeeded"
+        ],
+        [
+          "invoice_pdf_generate",
+          "queued"
+        ]
+      ],
+      "journal": [
+        [
+          "1510",
+          125000,
+          0,
+          null
+        ],
+        [
+          "2611",
+          0,
+          25000,
+          "VAT25"
+        ],
+        [
+          "3041",
+          0,
+          100000,
+          null
+        ]
+      ],
+      "netMinor": 100000,
+      "snapshot": [
+        "rv-2026-active",
+        2026,
+        "registered"
+      ],
+      "unitPriceMinorPerLine": 100000,
+      "vatMinor": 25000,
+      "vatRates": [
+        0.25
+      ]
+    },
+    {
+      "audit": [
+        "invoice_issue",
+        "voucher_post"
+      ],
+      "grossMinor": 237000,
+      "id": "mixed",
+      "invoiceNumber": "2026-0001",
+      "issueDate": "2026-02-01",
+      "jobs": [
+        [
+          "invoice_issue",
+          "succeeded"
+        ],
+        [
+          "invoice_pdf_generate",
+          "queued"
+        ]
+      ],
+      "journal": [
+        [
+          "1510",
+          237000,
+          0,
+          null
+        ],
+        [
+          "2611",
+          0,
+          12000,
+          "VAT12"
+        ],
+        [
+          "2611",
+          0,
+          25000,
+          "VAT25"
+        ],
+        [
+          "3041",
+          0,
+          200000,
+          null
+        ]
+      ],
+      "netMinor": 200000,
+      "snapshot": [
+        "rv-2026-active",
+        2026,
+        "registered"
+      ],
+      "unitPriceMinorPerLine": 100000,
+      "vatMinor": 37000,
+      "vatRates": [
+        0.25,
+        0.12
+      ]
+    }
+  ],
+  "classification": "engineering_regression_not_independent_validation",
+  "sourceCommit": "44f897e"
+}

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import { en } from "./en"
+import { sv } from "./sv"
 import { isLocale, t, tVars } from "./index"
 
 describe("i18n", () => {
@@ -19,6 +21,17 @@ describe("i18n", () => {
     expect(tVars("en", "dashboard.checklist.openInvoicesDetailCount", { count: 4 })).toBe(
       "4 invoices awaiting payment",
     )
+  })
+
+  it("provides every eligibility label and interpolation variable in Swedish and English", () => {
+    const keys = Object.keys(en).filter((key) => key.startsWith("eligibility.")) as Array<keyof typeof en>
+    expect(keys.length).toBeGreaterThan(40)
+    for (const key of keys) {
+      expect(sv[key]).toBeTruthy()
+      expect(en[key]).toBeTruthy()
+      expect(sv[key]).not.toBe(en[key])
+      expect(sv[key].match(/\{[^}]+\}/g) ?? []).toEqual(en[key].match(/\{[^}]+\}/g) ?? [])
+    }
   })
 
   it("resolves every novice task and review label in both supported locales", () => {

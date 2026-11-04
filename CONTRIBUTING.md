@@ -24,6 +24,14 @@ No Cursor, ECC skills, or private harness tooling is required.
 
 ### Accounting / tax behaviour
 
+Golden scenarios preserve engineering regressions; they do not establish tax
+eligibility. Before enabling a case or rule version, follow the active
+`src-tauri/src/rules/SPEC.md` validation contract. Retain authoritative applicability,
+independently derived expectations, reproducible checks and a recorded review.
+The bounded recognition evidence lives in `fixtures/accounting-validation/` and
+`docs/accounting-validation/`. Historical regression fixtures must never become
+production authorization shortcuts.
+
 1. Find or add a golden scenario in `fixtures/golden-scenarios/`.
 2. Write a failing test that loads the fixture `expected` output.
 3. Implement the minimal Rust change (rules live in the database seed / rule engine — not in UI-only logic).

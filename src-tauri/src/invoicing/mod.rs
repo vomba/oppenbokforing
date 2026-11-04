@@ -9,18 +9,23 @@ use crate::{
     documents,
     error::AppError,
     ledger::{
-        net_revenue_minor_for_fiscal_year, post_invoice_voucher_tx, post_reversal_voucher_tx,
+        post_invoice_voucher_tx, post_reversal_voucher_tx,
         vat_buckets_from_rate_lines, VatBucket,
     },
     profiles::get_vat_profile,
-    rules::{get_active_rule_version_for_year, require_rule_i64, RuleVersionSummary},
+    rules::{get_active_rule_version_for_year, RuleVersionSummary},
     workspace::{ensure_fiscal_year_open_tx, fiscal_year_id_for_date},
 };
 
 const JOB_INVOICE_ISSUE: &str = "invoice_issue";
 const JOB_INVOICE_CREDIT: &str = "invoice_credit";
 
+pub mod eligibility;
 pub mod pdf;
+pub use eligibility::{
+    invoice_issue_validation_get, InvoiceEligibilityAssessment, InvoiceEligibilityFacts,
+    InvoiceIssueValidation, InvoiceIssueValidationGetInput,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +109,8 @@ pub struct InvoiceIssueInput {
     pub invoice_id: String,
     pub idempotency_key: String,
     pub issue_date: Option<String>,
+    pub eligibility_facts: Option<InvoiceEligibilityFacts>,
+    pub review_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Type)]
@@ -120,11 +127,13 @@ pub struct InvoiceCreditInput {
 pub struct InvoiceIssuePreflightInput {
     pub invoice_id: String,
     pub issue_date: Option<String>,
+    pub eligibility_facts: Option<InvoiceEligibilityFacts>,
 }
 
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct InvoiceIssuePreflight {
+    pub eligibility: Option<InvoiceEligibilityAssessment>,
     pub invoice_id: String,
     pub issue_date: String,
     pub current_turnover_minor: i64,
@@ -254,102 +263,25 @@ fn credit_idempotency_request(
     }
 }
 
-async fn vat_threshold_rule(
-    pool: &SqlitePool,
-    issue_date: &str,
-) -> Result<(RuleVersionSummary, i64), AppError> {
-    let tax_year = NaiveDate::parse_from_str(issue_date, "%Y-%m-%d")
-        .map_err(|_| AppError::validation("Invalid date format", "issueDate"))?
-        .year();
-    let rule_version = get_active_rule_version_for_year(pool, tax_year)
-        .await?
-        .ok_or_else(|| AppError::validation("No active rule version for issue date", "ruleVersion"))?;
-    let threshold_minor = require_rule_i64(
-        pool,
-        "vat",
-        "annual_turnover_threshold_minor",
-        tax_year,
-    )
-    .await?;
-    Ok((rule_version, threshold_minor))
-}
-
-async fn vat_threshold_rule_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    issue_date: &str,
-) -> Result<(RuleVersionSummary, i64), AppError> {
-    let tax_year = NaiveDate::parse_from_str(issue_date, "%Y-%m-%d")
-        .map_err(|_| AppError::validation("Invalid date format", "issueDate"))?
-        .year();
-    let row = sqlx::query(
-        r#"
-        SELECT rv.id, rv.tax_year, rv.source_url, rv.status, tr.value_json
-        FROM rule_versions rv
-        JOIN tax_rules tr ON tr.rule_version_id = rv.id
-        WHERE rv.status = 'active'
-          AND rv.tax_year = ?1
-          AND tr.family = 'vat'
-          AND tr.key = 'annual_turnover_threshold_minor'
-        LIMIT 1
-        "#,
-    )
-    .bind(tax_year)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or_else(|| {
-        AppError::validation(
-            "Active tax rule configuration is missing or invalid",
-            "ruleVersion",
-        )
-    })?;
-    let threshold_minor = serde_json::from_str::<i64>(&row.get::<String, _>("value_json"))
-        .map_err(|_| {
-            AppError::validation(
-                "Active tax rule configuration is missing or invalid",
-                "ruleVersion",
-            )
-        })?;
-    Ok((
-        RuleVersionSummary {
-            id: row.get("id"),
-            tax_year: row.get("tax_year"),
-            source_url: row.get("source_url"),
-            status: row.get("status"),
-        },
-        threshold_minor,
-    ))
-}
-
 fn build_invoice_issue_preflight(
     invoice_id: String,
-    issue_date: String,
-    current_turnover_minor: i64,
-    invoice_total_ex_vat_minor: i64,
-    vat_status: &str,
-    total_vat_minor: i64,
-    rule_version: Option<RuleVersionSummary>,
-    threshold_minor: Option<i64>,
-    tax_year: i32,
+    evaluation: eligibility::Evaluation,
 ) -> Result<InvoiceIssuePreflight, AppError> {
-    let projected_turnover_minor = current_turnover_minor
-        .checked_add(invoice_total_ex_vat_minor)
+    let projected_turnover_minor = evaluation.current_turnover_minor
+        .checked_add(evaluation.net)
         .ok_or_else(|| AppError::validation("Projected turnover is out of range", "lines"))?;
-    let requires_vat_treatment_review = vat_status == "exempt_low_turnover"
-        && total_vat_minor == 0
-        && threshold_minor.is_some_and(|threshold| projected_turnover_minor > threshold);
     Ok(InvoiceIssuePreflight {
+        issue_date: evaluation.assessment.accounting_date.clone(),
+        tax_year: evaluation.assessment.accounting_year,
+        eligibility: Some(evaluation.assessment),
         invoice_id,
-        issue_date,
-        current_turnover_minor,
+        current_turnover_minor: evaluation.current_turnover_minor,
         projected_turnover_minor,
-        threshold_minor,
-        requires_vat_treatment_review,
-        next_action: requires_vat_treatment_review.then(|| {
-            "Review VAT registration and VAT treatment before issuing this invoice".to_string()
-        }),
-        rule_version_id: rule_version.as_ref().map(|rule| rule.id.clone()),
-        tax_year,
-        source_url: rule_version.map(|rule| rule.source_url),
+        threshold_minor: None,
+        requires_vat_treatment_review: false,
+        next_action: None,
+        rule_version_id: Some(evaluation.rule.id),
+        source_url: Some(evaluation.rule.source_url),
     })
 }
 
@@ -990,44 +922,16 @@ pub async fn invoice_issue_preflight(
     workspace_id: &str,
     input: &InvoiceIssuePreflightInput,
 ) -> Result<InvoiceIssuePreflight, AppError> {
-    let invoice = get_invoice(pool, workspace_id, &input.invoice_id).await?;
-    if invoice.status != "draft" || invoice.invoice_kind != "standard" {
-        return Err(AppError::validation(
-            "Only standard draft invoices can be preflighted",
-            "invoiceId",
-        ));
-    }
     crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
-    let issue_date = resolve_accounting_date(input.issue_date.as_deref(), "issueDate")?;
-    let tax_year = NaiveDate::parse_from_str(&issue_date, "%Y-%m-%d")
-        .map_err(|_| AppError::validation("Invalid date format", "issueDate"))?
-        .year();
-    let fiscal_year_id = format!("fy-{workspace_id}-{tax_year}");
-    let current_turnover_minor =
-        net_revenue_minor_for_fiscal_year(pool, workspace_id, &fiscal_year_id).await?;
-    let vat_status = get_vat_profile(pool, workspace_id)
-        .await?
-        .ok_or_else(|| AppError::validation("VAT profile is required before issuing", "vatProfile"))?
-        .vat_status;
-    let (rule_version, threshold_minor) =
-        if vat_status == "exempt_low_turnover" && invoice.total_vat_minor == 0 {
-            let (rule_version, threshold_minor) = vat_threshold_rule(pool, &issue_date).await?;
-            (Some(rule_version), Some(threshold_minor))
-        } else {
-            (None, None)
-        };
-
-    build_invoice_issue_preflight(
-        invoice.id,
-        issue_date,
-        current_turnover_minor,
-        invoice.total_ex_vat_minor,
-        &vat_status,
-        invoice.total_vat_minor,
-        rule_version,
-        threshold_minor,
-        tax_year,
-    )
+    let issue = input.issue_date.as_deref().ok_or_else(|| AppError::validation(
+        "An explicit sending/invoice date is required for eligibility review", "eligibility"))?;
+    let issue = resolve_accounting_date(Some(issue), "issueDate")?;
+    let mut tx = pool.begin().await?;
+    let evaluation = eligibility::evaluate_tx(&mut tx, workspace_id, &input.invoice_id,
+        &issue, input.eligibility_facts.as_ref()).await?;
+    let response = build_invoice_issue_preflight(input.invoice_id.clone(), evaluation)?;
+    tx.commit().await?;
+    Ok(response)
 }
 
 use crate::idempotency::normalize_idempotency_key;
@@ -1165,47 +1069,6 @@ async fn fetch_invoice_summary_tx(
         .collect();
 
     Ok(map_invoice_row(row, lines))
-}
-
-async fn lines_as_input(pool: &SqlitePool, invoice_id: &str) -> Result<Vec<InvoiceLineInput>, AppError> {
-    let lines = load_lines(pool, invoice_id).await?;
-    Ok(lines
-        .into_iter()
-        .map(|line| InvoiceLineInput {
-            description: line.description,
-            quantity: line.quantity,
-            unit_price_minor: line.unit_price_minor,
-            vat_rate: line.vat_rate_bp as f64 / 10_000.0,
-            account_number: Some(line.account_number),
-        })
-        .collect())
-}
-
-async fn lines_as_input_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    invoice_id: &str,
-) -> Result<Vec<InvoiceLineInput>, AppError> {
-    let rows = sqlx::query(
-        r#"
-        SELECT description, quantity, unit_price_minor, vat_rate_bp, account_number
-        FROM invoice_lines
-        WHERE invoice_id = ?1
-        ORDER BY line_order ASC
-        "#,
-    )
-    .bind(invoice_id)
-    .fetch_all(&mut **tx)
-    .await?;
-    Ok(rows
-        .into_iter()
-        .map(|row| InvoiceLineInput {
-            description: row.get("description"),
-            quantity: row.get("quantity"),
-            unit_price_minor: row.get("unit_price_minor"),
-            vat_rate: row.get::<i64, _>("vat_rate_bp") as f64 / 10_000.0,
-            account_number: Some(row.get("account_number")),
-        })
-        .collect())
 }
 
 async fn find_credit_invoice_by_source(
@@ -1805,21 +1668,13 @@ pub async fn issue_invoice(
     }
 
     crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
-    let draft_lines = lines_as_input(pool, &input.invoice_id).await?;
-    if draft_lines.is_empty() {
-        return Err(AppError::validation(
-            "Draft invoice must have at least one line before issue",
-            "lines",
-        ));
-    }
-    validate_vat_lines(pool, workspace_id, &draft_lines).await?;
-
     let preflight = invoice_issue_preflight(
         pool,
         workspace_id,
         &InvoiceIssuePreflightInput {
             invoice_id: input.invoice_id.clone(),
             issue_date: input.issue_date.clone(),
+            eligibility_facts: input.eligibility_facts.clone(),
         },
     )
     .await?;
@@ -1836,14 +1691,6 @@ pub async fn issue_invoice(
 
 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
-    let tax_status = match validate_issue_tax_status_tx(&mut tx, workspace_id).await {
-        Ok(tax_status) => tax_status,
-        Err(error) => {
-            tx.rollback().await?;
-            return Err(error);
-        }
-    };
     sqlx::query(
         r#"
         UPDATE invoices
@@ -1858,7 +1705,7 @@ pub async fn issue_invoice(
 
     let row = sqlx::query(
         r#"
-        SELECT id, status, invoice_kind, total_ex_vat_minor, total_vat_minor
+        SELECT id, status, invoice_kind
         FROM invoices
         WHERE workspace_id = ?1 AND id = ?2
         LIMIT 1
@@ -1873,8 +1720,6 @@ pub async fn issue_invoice(
     let invoice_id: String = row.get("id");
     let status: String = row.get("status");
     let invoice_kind: String = row.get("invoice_kind");
-    let total_ex_vat_minor: i64 = row.get("total_ex_vat_minor");
-    let total_vat_minor: i64 = row.get("total_vat_minor");
 
 
     if status != "draft" {
@@ -1895,72 +1740,32 @@ pub async fn issue_invoice(
         return Err(AppError::validation("Only draft invoices can be issued", "invoiceId"));
     }
 
-    let locked_draft_lines = lines_as_input_tx(&mut tx, &invoice_id).await?;
-    if locked_draft_lines.is_empty() {
-        tx.rollback().await?;
+    let evaluation = eligibility::evaluate_tx(
+        &mut tx, workspace_id, &invoice_id, &issue_date, input.eligibility_facts.as_ref(),
+    ).await?;
+    if input.review_fingerprint.as_deref() != Some(evaluation.assessment.review_fingerprint.as_str()) {
         return Err(AppError::validation(
-            "Draft invoice must have at least one line before issue",
-            "lines",
+            "Eligibility review is missing or stale; review the current facts, date, profile, lines and rules again",
+            "eligibility",
         ));
     }
-    let vat_status: Option<String> = sqlx::query_scalar(
-        "SELECT vat_status FROM vat_profiles WHERE workspace_id = ?1 LIMIT 1",
-    )
-    .bind(workspace_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let vat_status = vat_status
-        .ok_or_else(|| AppError::validation("VAT profile is required before issuing", "vatProfile"))?;
-    if vat_status == "exempt_low_turnover"
-        && locked_draft_lines.iter().any(|line| line.vat_rate > 0.0)
-    {
-        tx.rollback().await?;
-        return Err(AppError::validation(
-            "VAT-exempt profile cannot issue VAT-charging invoices",
-            "vatStatus",
-        ));
+    if evaluation.fiscal_year_id != fiscal_year_id {
+        return Err(AppError::validation("Accounting year changed since review", "eligibility"));
     }
-    let vat_buckets = vat_buckets_from_rate_lines(locked_draft_lines.iter().map(|line| {
-        (
-            line.quantity,
-            line.unit_price_minor,
-            vat_rate_to_bp(line.vat_rate),
-        )
-    }))?;
+    let tax_status = validate_issue_tax_status_tx(&mut tx, workspace_id).await?;
+    eligibility::record_tx(&mut tx, workspace_id, &invoice_id,
+        input.eligibility_facts.as_ref().ok_or_else(|| AppError::validation("Eligibility facts are required", "eligibility"))?,
+        &evaluation).await?;
 
-    if vat_status == "exempt_low_turnover" && total_vat_minor == 0 {
-        let (rule_version, threshold_minor) = vat_threshold_rule_tx(&mut tx, &issue_date).await?;
-        let current_turnover_minor =
-            net_revenue_minor_for_fiscal_year_tx(&mut tx, workspace_id, &fiscal_year_id).await?;
-        let enforced_preflight = build_invoice_issue_preflight(
-            invoice_id.clone(),
-            issue_date.clone(),
-            current_turnover_minor,
-            total_ex_vat_minor,
-            &vat_status,
-            total_vat_minor,
-            Some(rule_version),
-            Some(threshold_minor),
-            preflight.tax_year,
-        )?;
-        if enforced_preflight.requires_vat_treatment_review {
-            tx.rollback().await?;
-            record_event(
-                pool,
-                workspace_id,
-                "invoice_issue_blocked_vat_threshold",
-                "invoice",
-                Some(&input.invoice_id),
-                &serde_json::to_string(&enforced_preflight)
-                    .map_err(|error| AppError::internal(error.to_string()))?,
-            )
-            .await?;
-            return Err(AppError::validation(
-                "VAT treatment review is required before issuing this invoice",
-                "vatStatus",
-            ));
-        }
-    }
+    let vat_status: String = sqlx::query_scalar(
+        "SELECT vat_status FROM vat_profiles WHERE workspace_id = ?1",
+    ).bind(workspace_id).fetch_one(&mut *tx).await?;
+    // Use the evaluator's checked exact amounts, never the legacy rounded path.
+    let vat_buckets = vec![VatBucket {
+        vat_code: "VAT25".to_string(),
+        ex_vat_minor: evaluation.net,
+        vat_minor: evaluation.vat,
+    }];
 
     let snapshot = capture_issued_invoice_snapshot_tx(
         &mut tx,

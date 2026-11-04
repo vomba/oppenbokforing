@@ -75,7 +75,7 @@ Task navigation is ordered as **Översikt** / Overview, **Fakturor** / Invoices,
 
 ### Material-action review
 
-Issue invoice, credit invoice, payment/reconciliation, expense posting, VAT approval, and year-end approval require a localized review panel before their existing command. The panel explains user-visible facts, permanent consequence, a correction path where one exists, Cancel, and one confirm action. Cancel makes no mutation invoke. A backend validation or lock failure closes the panel and leaves its existing localized error visible.
+Issue invoice, credit invoice, payment/reconciliation, expense posting, VAT approval, and year-end approval require a localized review panel before their existing command. The panel explains user-visible facts, permanent consequence, a correction path where one exists, Cancel, and one confirm action. Cancel makes no mutation invoke. Most backend validation or lock failures close the panel and leave the existing localized error visible. The bounded new-invoice eligibility flow instead retains the facts step and answers after a blocked preflight or freshness failure; the draft remains available.
 
 ## Workspace Picker
 
@@ -156,11 +156,19 @@ Required states:
 Controls:
 
 - Create draft.
-- Issue invoice after backend preflight; a VAT-treatment review blocks issue and directs setup correction.
+- For new standard invoices, collect explicit transaction/year eligibility facts before backend preflight, then review the same facts and sending date before issuance. Unknown/contradictory or uncovered cases stop without posting; a stale review returns to the retained facts step.
+- Show the backend recognition identity, evidence digest, accounting/completion dates and applicable deadline, with inspectable source citations for that specific bundled validation. The owner sends the invoice on the chosen date; the app does not email it.
+- Read immutable recognition provenance for issued history. Missing historical provenance is explicit, not inferred from current profiles.
 - Preview/refresh PDF from historical issue data. Legacy invoices without snapshots require preserved evidence and explicit historical-value attestation before recovery.
 - Mark paid.
 - Credit invoice.
 - Open ledger trace.
+
+`tax-rules` owns the one bounded recognition case. Drafts and historical reads remain
+available for uncovered cases, but their availability is not new-issuance eligibility,
+legal PDF completeness, or whole-book/return validation. `invoice-lifecycle` owns
+retained facts and authoritative transaction checks; the renderer submits no support
+boolean and cannot waive the gate.
 
 ## Ledger
 

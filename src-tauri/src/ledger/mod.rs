@@ -133,6 +133,9 @@ pub async fn post_invoice_voucher_tx(
     buckets: &[VatBucket],
 ) -> Result<String, AppError> {
     crate::profiles::ensure_invoice_timing_supported(&mut **tx, workspace_id).await?;
+    crate::invoicing::eligibility::authorize_post_tx(
+        tx, workspace_id, fiscal_year_id, invoice_id, accounting_date, buckets,
+    ).await?;
     let accounts = bas_account_ids_tx(tx, workspace_id).await?;
     let total_ex_vat_minor: i64 = buckets.iter().map(|b| b.ex_vat_minor).sum();
     let total_vat_minor: i64 = buckets.iter().map(|b| b.vat_minor).sum();

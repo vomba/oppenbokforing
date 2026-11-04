@@ -4,7 +4,7 @@ use sqlx::{Row, SqlitePool};
 
 use crate::error::AppError;
 
-pub const ACTIVE_RULE_VERSION_ID: &str = "rv-2026-active";
+pub const ACTIVE_RULE_VERSION_ID: &str = "rv-2026-domestic-service25-exact-v1";
 
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]

@@ -44,6 +44,10 @@ by status/date/ID. Approved-plus-export-path state becomes
 `prepared_external_submission_required`: metadata does not prove submission or
 that an exported file still exists. `prepare-only-tax` owns that product boundary.
 
+The new invoice-case rule version corrects the annual no-EU accounting-period
+2026 deadline to 2027-05-12. Old rule payloads remain retained. This does not
+validate the copied engineering schedules for other calendars.
+
 Current selection uses the latest active rule year, not the caller's as-of year.
 The year-end task targets the preceding fiscal year. This does not establish the
 required accounting-year/filing-calendar coverage.

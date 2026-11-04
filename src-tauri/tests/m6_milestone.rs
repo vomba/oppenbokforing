@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     accountant_package::{
         self, AccountantPackageExportCreateInput, AccountantPackageImportValidateInput,
@@ -116,10 +118,12 @@ async fn setup_workspace_with_invoice(
     .await
     .expect("draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "m6-invoice-issue".to_string(),
             issue_date: Some("2026-03-15".to_string()),

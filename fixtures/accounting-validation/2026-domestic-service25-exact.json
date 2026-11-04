@@ -22,6 +22,12 @@
     "filingYear": 2027,
     "dueOn": "2027-05-12"
   },
+  "sourceReferences": [
+    {"id":"bfn-timing", "url":"https://www.bfn.se/wp-content/uploads/vl13-2-bokforing.pdf", "pinpoint":"BFNAR 2013:2, updated 2024-09-16, paragraph 3.4 and commentary page 34; effective provisions page 98", "retrievedOn":"2026-11-04", "retainedExtract":"Bokföring av fordringar och skulder får anstå till dess faktura eller motsvarande handling har utfärdats eller mottagits eller sådan handling enligt god affärssed borde ha utfärdats eller mottagits."},
+    {"id":"skv-2026-method", "url":"https://www.skatteverket.se/download/18.9567cda19bf6c0027216f6/1770379535285/bokforing-bokslut-och-deklaration-skv282utgava09.pdf", "pinpoint":"SKV 282 edition 9, February 2026; pages 20, 54 and 56", "retrievedOn":"2026-11-04", "retainedExtract":"Om du väljer att använda faktureringsmetoden ska du redovisa moms i din momsdeklaration i den period du har fått eller har upprättat en faktura."},
+    {"id":"skv-2026-rate", "url":"https://www.skatteverket.se/download/18.1522bf3f19aea8075ba3285/1767885159120/belopp-och-procentsatser-for-inkomstaaret-2026.pdf", "pinpoint":"2026-01-07 publication, page 2, Mervärdesskatt (moms)", "retrievedOn":"2026-11-04", "retainedExtract":"25 procent (20 procent av priset), generella skattesatsen för moms."},
+    {"id":"skv-annual-no-eu", "url":"https://www.skatteverket.se/foretag/moms/deklareramoms/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html", "pinpoint":"Enskilda näringsidkare och dödsbon utan EU-handel", "retrievedOn":"2026-11-04", "retainedExtract":"En enskild näringsidkare eller ett dödsbo som ska lämna inkomstdeklaration och inte har handel med andra EU-länder ska redovisa och betala moms för beskattningsåret senast den 12 maj året efter beskattningsårets utgång."}
+  ],
   "expected": [
     {"id":"ordinary", "lines":[{"quantity":1,"unitPriceMinor":1000000}], "netMinor":1000000,"vatMinor":250000,"grossMinor":1250000},
     {"id":"minimum-exact", "lines":[{"quantity":1,"unitPriceMinor":4}], "netMinor":4,"vatMinor":1,"grossMinor":5},

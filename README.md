@@ -22,9 +22,17 @@ Local-first open-source bookkeeping for Swedish **enskild firma** (sole traders)
 | **Export** | SIE type 4 ledger export, accountant packages, encrypted `.skatbackup` backups |
 | **UX** | Swedish-first UI, simple mode, dashboard checklist, guided tour, contextual help |
 
-**Prepare-only by design** — the app produces filing-ready figures and exports. It does **not** submit returns to Skatteverket or initiate payments. See [ADR-0004](docs/adr/0004-prepare-only-tax-workflows.md).
+**Current new-invoice boundary:** new issuance is limited to the reviewed 2026
+invoice-method recognition case: ordinary completed domestic SEK services at 25%,
+no prior payment, annual VAT without EU trade, and exact whole-öre VAT on every
+line. Explicit transaction/year answers and a fresh review are required. Other
+new invoice cases stop; drafts, historical records and retained evidence remain
+available. This gate does not establish complete legal PDF, books, VAT-return or
+year-end validation. See the [evidence and coverage record](docs/accounting-validation/2026-domestic-service25-exact.md).
 
-Behaviour is defined by executable **golden scenarios** in [`fixtures/golden-scenarios/`](fixtures/golden-scenarios/README.md) — change a rule, update a fixture, make tests pass.
+**Prepare-only by design** — the app produces preparation figures and exports. It does **not** submit returns to Skatteverket or initiate payments. See [ADR-0004](docs/adr/0004-prepare-only-tax-workflows.md).
+
+Executable **golden scenarios** in [`fixtures/golden-scenarios/`](fixtures/golden-scenarios/README.md) preserve engineering behavior. They are not independent tax validation. Active specs define the contract; calculation eligibility additionally needs source-backed expectations, reproducible checks and recorded coverage review.
 
 ## Roadmap
 

@@ -40,7 +40,9 @@ where they change the boundary.
 
 - Issuance/credits call ledger primitives and archive verification. PDF jobs call
   invoice snapshot/rendering and archive storage; issuance enqueues rows directly,
-  rather than calling the PDF worker.
+  rather than calling the PDF worker. Invoice posting also calls back into the
+  invoice-owned recognition evaluator to revalidate pending provenance; this
+  defensive service cycle is not a second authorization permit.
 - CSV import calls evidence import. Expense and payment services verify evidence
   but write their own vouchers and staged/match rows; they do not funnel writes
   through ledger posting primitives.

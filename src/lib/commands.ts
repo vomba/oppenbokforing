@@ -24,6 +24,8 @@ import type {
   FiscalPeriodSummary,
   InvoiceCreateDraftInput,
   InvoiceCreditInput,
+  InvoiceIssueValidation,
+  InvoiceIssueValidationGetInput,
   InvoiceIssueInput,
   InvoiceIssuePreflight,
   InvoiceIssuePreflightInput,
@@ -297,6 +299,13 @@ export async function invoiceIssuePreflight(input: InvoiceIssuePreflightInput) {
   const response = await invoke<CommandResponse<InvoiceIssuePreflight>>(
     "invoice_issue_preflight",
     { input },
+  )
+  return response.data
+}
+
+export async function invoiceIssueValidationGet(input: InvoiceIssueValidationGetInput) {
+  const response = await invoke<CommandResponse<InvoiceIssueValidation | null>>(
+    "invoice_issue_validation_get", { input },
   )
   return response.data
 }

@@ -78,11 +78,19 @@ export type InvoiceCreateDraftInput = { counterpartyId: string; dueDate: string 
 
 export type InvoiceCreditInput = { sourceInvoiceId: string; idempotencyKey: string; reason: string | null; issueDate: string | null }
 
-export type InvoiceIssueInput = { invoiceId: string; idempotencyKey: string; issueDate: string | null }
+export type InvoiceEligibilityAssessment = { validationId: string; evidenceDigest: string; reviewFingerprint: string; accountingDate: string; completedOn: string; deadlineRegime: string; periodKey: string; dueOn: string; coverageSummary: string; ruleVersionId: string; accountingYear: number }
 
-export type InvoiceIssuePreflight = { invoiceId: string; issueDate: string; currentTurnoverMinor: number; projectedTurnoverMinor: number; thresholdMinor: number | null; requiresVatTreatmentReview: boolean; nextAction: string | null; ruleVersionId: string | null; taxYear: number; sourceUrl: string | null }
+export type InvoiceEligibilityFacts = { ordinaryDomesticService: boolean | null; serviceCompletedOn: string | null; priorPaymentReceived: boolean | null; noEuTradeInYear: boolean | null; annualVatRegistrationConfirmed: boolean | null; expectedTaxableBaseWithinLimit: boolean | null; ordinaryInvoiceTimingConfirmed: boolean | null }
 
-export type InvoiceIssuePreflightInput = { invoiceId: string; issueDate: string | null }
+export type InvoiceIssueInput = { invoiceId: string; idempotencyKey: string; issueDate: string | null; eligibilityFacts: InvoiceEligibilityFacts | null; reviewFingerprint: string | null }
+
+export type InvoiceIssuePreflight = { eligibility: InvoiceEligibilityAssessment | null; invoiceId: string; issueDate: string; currentTurnoverMinor: number; projectedTurnoverMinor: number; thresholdMinor: number | null; requiresVatTreatmentReview: boolean; nextAction: string | null; ruleVersionId: string | null; taxYear: number; sourceUrl: string | null }
+
+export type InvoiceIssuePreflightInput = { invoiceId: string; issueDate: string | null; eligibilityFacts: InvoiceEligibilityFacts | null }
+
+export type InvoiceIssueValidation = { invoiceId: string; facts: InvoiceEligibilityFacts; assessment: InvoiceEligibilityAssessment; recordedAt: string }
+
+export type InvoiceIssueValidationGetInput = { invoiceId: string }
 
 export type InvoiceLine = { id: string; lineOrder: number; description: string; quantity: number; unitPriceMinor: number; vatRateBp: number; accountNumber: string; lineExVatMinor: number; lineVatMinor: number }
 

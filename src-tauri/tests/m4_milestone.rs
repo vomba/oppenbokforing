@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     cashflow,
     counterparties::{self, CounterpartyCreateInput},
@@ -212,10 +214,12 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
     .await
     .expect("draft");
 
-    let issued_invoice = invoicing::issue_invoice(
+    let issued_invoice = common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft_invoice.id.clone(),
             idempotency_key: "issue-pre-lock".to_string(),
             issue_date: Some("2026-02-01".to_string()),
@@ -431,10 +435,12 @@ async fn m4_cashflow_tax_reserve_from_ledger_profit() {
     .await
     .expect("draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "cashflow-tax".to_string(),
             issue_date: Some("2026-06-01".to_string()),
@@ -547,10 +553,12 @@ async fn m4_vat_boxes_net_credit_reversal() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "vat-net-issue".to_string(),
             issue_date: Some("2026-02-01".to_string()),
@@ -634,10 +642,12 @@ async fn m4_vat_threshold_monitoring() {
     .await
     .expect("first draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: first_sale.id,
             idempotency_key: "thresh-first".to_string(),
             issue_date: Some("2026-06-01".to_string()),
@@ -664,10 +674,12 @@ async fn m4_vat_threshold_monitoring() {
     .await
     .expect("exempt breach draft");
 
-    let err = invoicing::issue_invoice(
+    let err = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: exempt_breach_draft.id,
             idempotency_key: "thresh-exempt-breach".to_string(),
             issue_date: Some("2026-06-01".to_string()),
@@ -676,10 +688,7 @@ async fn m4_vat_threshold_monitoring() {
     .await
     .expect_err("exempt breach sale must be blocked");
     assert_eq!(err.code, "validation_error");
-    assert_eq!(
-        err.message,
-        "VAT treatment review is required before issuing this invoice"
-    );
+    assert_eq!(err.details.unwrap()[0].field.as_deref(), Some("eligibility"));
 
     profiles::save_vat_profile(
         &pool,
@@ -713,10 +722,12 @@ async fn m4_vat_threshold_monitoring() {
     .await
     .expect("registered breach draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: registered_breach_sale.id,
             idempotency_key: "thresh-registered-breach".to_string(),
             issue_date: Some("2026-06-01".to_string()),
@@ -770,10 +781,12 @@ async fn m4_vat_12_percent_maps_to_correct_boxes() {
     .await
     .expect("draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "vat12-issue".to_string(),
             issue_date: Some("2026-02-15".to_string()),
@@ -854,10 +867,12 @@ async fn m4_vat_mixed_rates_split_sales_boxes() {
     .await
     .expect("draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "mixed-rate-issue".to_string(),
             issue_date: Some("2026-03-15".to_string()),
@@ -1056,10 +1071,12 @@ async fn m4_vat_approve_rejects_stale_review_after_late_posting() {
     .await
     .expect("invoice draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: invoice_draft.id,
             idempotency_key: "late-issue".to_string(),
             issue_date: Some("2026-03-01".to_string()),

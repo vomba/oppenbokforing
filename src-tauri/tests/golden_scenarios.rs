@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     backup::{self, backup_plaintext_is_sqlite, BackupRestoreInput},
     compliance::{evaluate_scenario, ScenarioProfile, ScenarioTransaction},
@@ -316,9 +318,9 @@ async fn m2_credit_invoice_fixture() {
         &pool,
         &workspace_id,
         &VatProfileSaveInput { vat_status: "registered".to_string(),
-        reporting_period: "quarterly".to_string(),
+        reporting_period: "yearly".to_string(),
         accounting_method: "invoice_method".to_string(),
-        voluntary_registration_date: None, vat_filing_deadline_regime: Some("quarterly_12".to_string()) },
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
     )
     .await
     .expect("vat");
@@ -354,10 +356,12 @@ async fn m2_credit_invoice_fixture() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-2026-0001".to_string(),
             issue_date: Some("2026-01-15".to_string()),

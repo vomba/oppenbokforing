@@ -4,7 +4,7 @@ type: submodule-design
 status: active
 title: Posting primitives and ledger reads
 parent: rust-backend
-depends-on: [vat-returns, business-profiles]
+depends-on: [vat-returns, business-profiles, invoice-lifecycle]
 references: [storage-contract, expense-posting, product-goal, prepare-only-tax, local-sqlite]
 ---
 
@@ -39,7 +39,12 @@ to approved periods/years, which cannot become an unlock-and-overwrite shortcut.
 
 Invoice posting and reversal primitives check `business-profiles`' interim timing
 policy in the caller's transaction before creating vouchers or lines. Their
-standalone wrappers use immediate transactions. Expense/payment services write
+standalone wrappers use immediate transactions. Invoice posting also delegates to
+`invoice-lifecycle`'s case evaluator: immutable pending issuance provenance must
+match the actual unposted invoice, workspace, date/year and VAT buckets. Raw
+buckets or a completed record cannot authorize another posting. This does not
+extend recognition coverage to reversal, expense or payment workflows.
+Expense/payment services write
 vouchers directly and need their own transition guards. This is not an exclusive
 ledger repository. `rust-backend` owns the service graph.
 

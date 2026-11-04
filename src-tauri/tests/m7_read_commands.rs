@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     counterparties::{self, CounterpartyCreateInput},
     db::connect_workspace,
@@ -120,10 +122,12 @@ async fn m7_voucher_list_and_get_after_invoice_issue() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-read-1".to_string(),
             issue_date: Some("2026-02-01".to_string()),
@@ -568,10 +572,12 @@ async fn m7_voucher_count_filters_posted_status() {
     .await
     .expect("draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "count-issue".to_string(),
             issue_date: Some("2026-03-01".to_string()),

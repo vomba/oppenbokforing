@@ -5,7 +5,7 @@ status: active
 title: Business tax and VAT profiles
 parent: rust-backend
 depends-on: [profile-compliance]
-references: [local-sqlite, product-goal, tax-rules, security-privacy]
+references: [local-sqlite, product-goal, tax-rules, security-privacy, invoice-lifecycle]
 ---
 
 # Business, tax, and VAT profiles
@@ -68,4 +68,5 @@ or complete preparation.
 
 This guard is not cash-method recognition or closing support. Reviewed method
 transitions, legacy remediation, and full eligibility screening remain gaps.
-Allowing invoice-method timing does not satisfy `tax-rules`' validation gate.
+Allowing invoice-method timing does not satisfy `tax-rules`' validation gate;
+`invoice-lifecycle` separately enforces its bounded recognition case on new issue.

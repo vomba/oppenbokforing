@@ -1,9 +1,11 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     counterparties::{self, CounterpartyCreateInput},
     db::connect_workspace,
     invoicing::{
         self, InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput,
-        InvoiceIssuePreflightInput, InvoiceLineInput, InvoiceUpdateDraftInput,
+        InvoiceLineInput, InvoiceUpdateDraftInput,
     },
     profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
     workspace::ensure_workspace_ready,
@@ -67,9 +69,9 @@ async fn setup_workspace() -> (tempfile::TempDir, String, sqlx::SqlitePool) {
         &pool,
         &workspace_id,
         &VatProfileSaveInput { vat_status: "registered".to_string(),
-        reporting_period: "quarterly".to_string(),
+        reporting_period: "yearly".to_string(),
         accounting_method: "invoice_method".to_string(),
-        voluntary_registration_date: None, vat_filing_deadline_regime: Some("quarterly_12".to_string()) },
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
     )
     .await
     .expect("vat");
@@ -118,10 +120,12 @@ async fn issue_invoice_idempotency_replay_returns_cached() {
     .await
     .expect("draft");
 
-    let first = invoicing::issue_invoice(
+    let first = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-replay-key".to_string(),
             issue_date: Some("2026-01-20".to_string()),
@@ -130,10 +134,12 @@ async fn issue_invoice_idempotency_replay_returns_cached() {
     .await
     .expect("issue");
 
-    let replay = invoicing::issue_invoice(
+    let replay = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-replay-key".to_string(),
             issue_date: Some("2026-01-20".to_string()),
@@ -181,10 +187,12 @@ async fn planning_tax_profile_rejects_issue_before_persisting_anything() {
     .await
     .expect("planning tax profile");
 
-    let error = invoicing::issue_invoice(
+    let error = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "planning-tax-status".to_string(),
             issue_date: Some("2026-01-20".to_string()),
@@ -263,10 +271,12 @@ async fn issue_rechecks_tax_status_after_the_draft_was_created() {
     .await
     .expect("downgrade tax profile");
 
-    let error = invoicing::issue_invoice(
+    let error = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "tax-status-downgrade-before-issue".to_string(),
             issue_date: Some("2026-01-20".to_string()),
@@ -315,10 +325,12 @@ async fn credit_invoice_idempotency_replay_returns_cached() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-for-credit".to_string(),
             issue_date: Some("2026-02-01".to_string()),
@@ -479,10 +491,12 @@ async fn credit_invoice_rejects_second_credit_for_same_source() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-multi-line".to_string(),
             issue_date: Some("2026-02-10".to_string()),
@@ -562,10 +576,12 @@ async fn issue_idempotency_rejects_key_reused_for_different_invoice() {
     .await
     .expect("second draft");
 
-    invoicing::issue_invoice(
+    common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: first_draft.id,
             idempotency_key: "shared-issue-key".to_string(),
             issue_date: Some("2026-01-10".to_string()),
@@ -574,10 +590,12 @@ async fn issue_idempotency_rejects_key_reused_for_different_invoice() {
     .await
     .expect("issue first");
 
-    let err = invoicing::issue_invoice(
+    let err = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: second_draft.id,
             idempotency_key: "shared-issue-key".to_string(),
             issue_date: Some("2026-01-11".to_string()),
@@ -590,7 +608,7 @@ async fn issue_idempotency_rejects_key_reused_for_different_invoice() {
 }
 
 #[tokio::test]
-async fn issue_uses_fiscal_year_from_issue_date() {
+async fn historical_issue_preserves_fiscal_year_from_issue_date() {
     let (_dir, workspace_id, pool) = setup_workspace().await;
     let customer = create_customer(&pool, &workspace_id).await;
 
@@ -623,10 +641,12 @@ async fn issue_uses_fiscal_year_from_issue_date() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-2027".to_string(),
             issue_date: Some("2027-01-15".to_string()),
@@ -672,10 +692,12 @@ async fn issue_requires_active_rule_provenance_for_the_issue_year() {
     .await
     .expect("draft");
 
-    let error = invoicing::issue_invoice(
+    let error = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-without-2027-rule".to_string(),
             issue_date: Some("2027-01-15".to_string()),
@@ -689,7 +711,7 @@ async fn issue_requires_active_rule_provenance_for_the_issue_year() {
             .as_ref()
             .and_then(|details| details.first())
             .and_then(|detail| detail.field.as_deref()),
-        Some("ruleVersion")
+        Some("eligibility")
     );
 
     let (status, fiscal_year_count, snapshot_count): (String, i64, i64) = sqlx::query_as(
@@ -731,10 +753,12 @@ async fn issue_already_issued_invoice_with_new_key_returns_success() {
     .await
     .expect("draft");
 
-    let first = invoicing::issue_invoice(
+    let first = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-first-key".to_string(),
             issue_date: Some("2026-03-01".to_string()),
@@ -743,10 +767,12 @@ async fn issue_already_issued_invoice_with_new_key_returns_success() {
     .await
     .expect("issue");
 
-    let retry = invoicing::issue_invoice(
+    let retry = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-retry-new-key".to_string(),
             issue_date: Some("2026-03-01".to_string()),
@@ -761,14 +787,14 @@ async fn issue_already_issued_invoice_with_new_key_returns_success() {
 }
 
 #[tokio::test]
-async fn exempt_threshold_breach_preflight_blocks_issue_and_records_provenance() {
+async fn historical_exempt_threshold_math_and_new_issue_rejection() {
     let (_dir, workspace_id, pool) = setup_workspace().await;
     profiles::save_vat_profile(
         &pool,
         &workspace_id,
         &VatProfileSaveInput {
             vat_status: "exempt_low_turnover".to_string(),
-            reporting_period: "quarterly".to_string(),
+            reporting_period: "yearly".to_string(),
             accounting_method: "invoice_method".to_string(),
             voluntary_registration_date: None,
             vat_filing_deadline_regime: None,
@@ -795,10 +821,12 @@ async fn exempt_threshold_breach_preflight_blocks_issue_and_records_provenance()
     )
     .await
     .expect("draft at threshold");
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: at_threshold.id,
             idempotency_key: "issue-at-threshold".to_string(),
             issue_date: Some("2026-01-10".to_string()),
@@ -825,53 +853,37 @@ async fn exempt_threshold_breach_preflight_blocks_issue_and_records_provenance()
     .await
     .expect("breach draft");
 
-    let preflight = invoicing::invoice_issue_preflight(
-        &pool,
-        &workspace_id,
-        &InvoiceIssuePreflightInput {
-            invoice_id: breach.id.clone(),
-            issue_date: Some("2026-02-10".to_string()),
-        },
-    )
-    .await
-    .expect("preflight");
-
-    assert!(preflight.requires_vat_treatment_review);
-    assert_eq!(preflight.projected_turnover_minor, 12_000_001);
-    assert_eq!(preflight.rule_version_id.as_deref(), Some("rv-2026-active"));
-    assert_eq!(preflight.tax_year, 2026);
-    assert!(preflight.source_url.as_deref().is_some_and(|source_url| !source_url.is_empty()));
-
-    let error = invoicing::issue_invoice(
-        &pool,
-        &workspace_id,
+    // New exempt issuance is outside coverage, even with favorable answers.
+    let error = common::issue_reviewed(
+        &pool, &workspace_id,
         &InvoiceIssueInput {
-            invoice_id: breach.id,
-            idempotency_key: "issue-threshold-breach".to_string(),
-            issue_date: Some("2026-02-10".to_string()),
+            invoice_id: breach.id.clone(), idempotency_key: "unsupported-exempt".into(),
+            issue_date: Some("2026-02-10".into()), eligibility_facts: None, review_fingerprint: None,
         },
-    )
-    .await
-    .expect_err("zero-VAT exempt invoice must be blocked after threshold breach");
-
-    assert_eq!(error.code, "validation_error");
-    assert_eq!(
-        error
-            .details
-            .as_ref()
-            .and_then(|details| details.first())
-            .and_then(|detail| detail.field.as_deref()),
-        Some("vatStatus")
-    );
-    let block_event_metadata: String = sqlx::query_scalar(
-        "SELECT metadata_json FROM audit_events WHERE workspace_id = ?1 AND action = 'invoice_issue_blocked_vat_threshold' LIMIT 1",
-    )
-    .bind(&workspace_id)
-    .fetch_one(&pool)
-    .await
-    .expect("block audit event");
-    assert!(block_event_metadata.contains("\"ruleVersionId\":\"rv-2026-active\""));
-    assert!(block_event_metadata.contains("\"sourceUrl\":\"https://"));
+    ).await.expect_err("exempt new issuance is unsupported");
+    assert_eq!(error.details.unwrap()[0].field.as_deref(), Some("eligibility"));
+    let before = oppenbokforing_desktop_lib::vat::vat_threshold_status(&pool, &workspace_id, 2026).await.unwrap();
+    assert_eq!(before.annual_turnover_minor, 12_000_000);
+    assert_eq!(before.threshold_minor, 12_000_000);
+    assert!(!before.must_register_for_vat);
+    assert!(!before.must_charge_vat);
+    assert_eq!(before.warning, "approaching");
+    // Historical diagnostics retain the one-ore crossing calculation; they are
+    // not a successful new exempt preflight or an eligibility assertion.
+    common::seed_historical_invoice(&pool, &workspace_id, &InvoiceIssueInput {
+        invoice_id: breach.id, idempotency_key: "historical-exempt-crossing".into(),
+        issue_date: Some("2026-02-10".into()), eligibility_facts: None, review_fingerprint: None,
+    }).await.unwrap();
+    let after = oppenbokforing_desktop_lib::vat::vat_threshold_status(&pool, &workspace_id, 2026).await.unwrap();
+    assert_eq!(after.annual_turnover_minor, 12_000_001);
+    assert_eq!(after.threshold_minor, 12_000_000);
+    assert_eq!(after.warning, "breached");
+    assert!(after.must_register_for_vat);
+    assert!(after.must_charge_vat);
+    let (rule_id, source): (String, String) = sqlx::query_as("SELECT r.id,r.source_url FROM tax_rules t JOIN rule_versions r ON r.id=t.rule_version_id WHERE r.status='active' AND r.tax_year=2026 AND t.family='vat' AND t.key='annual_turnover_threshold_minor'")
+        .fetch_one(&pool).await.unwrap();
+    assert_eq!(rule_id, "rv-2026-domestic-service25-exact-v1");
+    assert!(source.starts_with("https://"));
 }
 
 #[tokio::test]
@@ -895,10 +907,12 @@ async fn credit_after_locked_original_period_posts_in_selected_open_year() {
     )
     .await
     .expect("draft");
-    let source = invoicing::issue_invoice(
+    let source = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-before-lock".to_string(),
             issue_date: Some("2026-12-20".to_string()),
@@ -972,10 +986,12 @@ async fn credit_preserves_historical_vat_after_profile_becomes_exempt() {
     )
     .await
     .expect("draft");
-    let source = invoicing::issue_invoice(
+    let source = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-before-vat-exemption".to_string(),
             issue_date: Some("2026-01-20".to_string()),
@@ -1023,10 +1039,12 @@ async fn credit_preserves_historical_vat_after_profile_becomes_exempt() {
 async fn issue_unknown_invoice_returns_not_found() {
     let (_dir, workspace_id, pool) = setup_workspace().await;
 
-    let err = invoicing::issue_invoice(
+    let err = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: Uuid::new_v4().to_string(),
             idempotency_key: "issue-missing".to_string(),
             issue_date: Some("2026-01-01".to_string()),
@@ -1129,10 +1147,12 @@ async fn update_draft_rejects_when_invoice_is_issued() {
     .await
     .expect("draft");
 
-    invoicing::issue_invoice(
+    common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-before-update".to_string(),
             issue_date: Some("2026-04-01".to_string()),
@@ -1192,10 +1212,12 @@ async fn issue_invoice_rejects_invalid_issue_date_format() {
     .await
     .expect("draft");
 
-    let err = invoicing::issue_invoice(
+    let err = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "bad-date".to_string(),
             issue_date: Some("2026-not-a-date".to_string()),
@@ -1251,10 +1273,12 @@ async fn issue_rejects_a_year_closed_after_fiscal_year_resolution_without_period
         .await
         .expect("close fiscal year");
 
-    let error = invoicing::issue_invoice(
+    let error = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-closed-year".to_string(),
             issue_date: Some("2026-05-01".to_string()),
@@ -1307,10 +1331,12 @@ async fn credit_rejects_a_selected_year_closed_after_fiscal_year_resolution_with
     )
     .await
     .expect("draft");
-    let source = invoicing::issue_invoice(
+    let source = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-before-closed-credit".to_string(),
             issue_date: Some("2026-06-01".to_string()),
@@ -1416,10 +1442,12 @@ async fn cash_method_issue_rejects_invoice_timing_without_posting() {
     )
     .await
     .expect("draft retention remains available");
-    let error = invoicing::issue_invoice(
+    let error = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "cash-method-issue".to_string(),
             issue_date: Some("2026-02-01".to_string()),
@@ -1438,4 +1466,46 @@ async fn cash_method_issue_rejects_invoice_timing_without_posting() {
         .await
         .unwrap();
     assert_eq!(posted, 0);
+}
+
+#[tokio::test]
+async fn new_invoice_requires_case_eligibility_not_just_invoice_method() {
+    let (_dir, workspace_id, pool) = setup_workspace().await;
+    let customer = create_customer(&pool, &workspace_id).await;
+    let draft = invoicing::create_draft(
+        &pool,
+        &workspace_id,
+        &InvoiceCreateDraftInput {
+            counterparty_id: customer.id,
+            due_date: None,
+            lines: vec![InvoiceLineInput {
+                description: "Unreviewed service".to_string(),
+                quantity: 1,
+                unit_price_minor: 100_000,
+                vat_rate: 0.25,
+                account_number: Some("3041".to_string()),
+            }],
+        },
+    )
+    .await
+    .expect("draft retention is not eligibility");
+    let error = invoicing::issue_invoice(
+        &pool,
+        &workspace_id,
+        &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
+            invoice_id: draft.id.clone(),
+            idempotency_key: "unvalidated-case".to_string(),
+            issue_date: Some("2026-02-01".to_string()),
+        },
+    )
+    .await
+    .expect_err("stored invoice method alone must not authorize an unreviewed case");
+    assert_eq!(error.code, "validation_error");
+    let retained = invoicing::get_invoice(&pool, &workspace_id, &draft.id)
+        .await
+        .unwrap();
+    assert_eq!(retained.status, "draft");
+    assert!(retained.voucher_id.is_none());
 }

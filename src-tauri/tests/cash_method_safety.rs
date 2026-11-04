@@ -1,6 +1,8 @@
 //! Interim safety contract: selection is retained, but only invoice_method may
 //! authorize new affected postings/approvals. Legacy books are simulated with SQL,
 //! never by treating an ordinary post-posting profile save as a migration.
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     counterparties::{self, CounterpartyCreateInput},
     db::connect_workspace,
@@ -136,6 +138,8 @@ impl Fixture {
 
     fn issue_input(&self, invoice: &str, key: &str) -> InvoiceIssueInput {
         InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: invoice.into(),
             idempotency_key: key.into(),
             issue_date: Some("2026-01-20".into()),
@@ -144,7 +148,7 @@ impl Fixture {
 
     async fn issued(&self, key: &str) -> invoicing::InvoiceSummary {
         let draft = self.draft().await;
-        invoicing::issue_invoice(
+        common::issue_reviewed(
             &self.pool,
             &self.workspace,
             &self.issue_input(&draft.id, key),
@@ -457,6 +461,7 @@ async fn rejects_new_mutation(mutation: Mutation, cash: bool) {
             &f.pool,
             &f.workspace,
             &invoicing::InvoiceIssuePreflightInput {
+                eligibility_facts: None,
                 invoice_id: draft.id.clone(),
                 issue_date: Some("2026-01-20".into()),
             },
@@ -1064,10 +1069,10 @@ async fn already_issued_new_key_retry_under_cash_does_not_post_again_or_rewrite_
 }
 
 #[tokio::test]
-async fn invoice_method_authorizes_both_low_level_ledger_entrypoints_and_tx_variants() {
+async fn invoice_posting_requires_validated_context_but_reversals_remain_available() {
     let f = Fixture::new().await;
     let invoice = f.draft().await;
-    let voucher = ledger::post_invoice_voucher(
+    let error = ledger::post_invoice_voucher(
         &f.pool,
         &f.workspace,
         &f.fiscal_year(),
@@ -1076,7 +1081,10 @@ async fn invoice_method_authorizes_both_low_level_ledger_entrypoints_and_tx_vari
         &buckets(),
     )
     .await
-    .expect("invoice-method low-level invoice");
+    .expect_err("method alone cannot authorize low-level invoice posting");
+    assert_eq!(error.details.unwrap()[0].field.as_deref(), Some("eligibility"));
+    let issued = f.issued("reviewed-low-level-source").await;
+    let voucher = issued.voucher_id.unwrap();
     let credit = f.draft().await;
     ledger::post_reversal_voucher(
         &f.pool,
@@ -1092,7 +1100,7 @@ async fn invoice_method_authorizes_both_low_level_ledger_entrypoints_and_tx_vari
     let invoice_tx = f.draft().await;
     let credit_tx = f.draft().await;
     let mut tx = f.pool.begin_with("BEGIN IMMEDIATE").await.unwrap();
-    ledger::post_invoice_voucher_tx(
+    let error = ledger::post_invoice_voucher_tx(
         &mut tx,
         &f.workspace,
         &f.fiscal_year(),
@@ -1101,7 +1109,12 @@ async fn invoice_method_authorizes_both_low_level_ledger_entrypoints_and_tx_vari
         &buckets(),
     )
     .await
-    .expect("invoice-method invoice tx");
+    .expect_err("tx entrypoint also needs validated pending context");
+    assert_eq!(error.details.unwrap()[0].field.as_deref(), Some("eligibility"));
+    tx.rollback().await.unwrap();
+    let issued_tx = f.issued("reviewed-low-level-tx-source").await;
+    assert!(issued_tx.voucher_id.is_some());
+    let mut tx = f.pool.begin_with("BEGIN IMMEDIATE").await.unwrap();
     ledger::post_reversal_voucher_tx(
         &mut tx,
         &f.workspace,
@@ -1147,7 +1160,7 @@ async fn issue_waiting_for_writer_rechecks_committed_method_inside_transaction()
     let files = artifact_snapshot(f.dir.path());
     let pool = f.pool.clone();
     let workspace = f.workspace.clone();
-    let input = f.issue_input(&draft.id, "racing-issue");
+    let input = common::reviewed_input(&f.pool, &f.workspace, &f.issue_input(&draft.id, "racing-issue")).await.unwrap();
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
     let mutation = tokio::spawn(async move {
         started_tx.send(()).unwrap();

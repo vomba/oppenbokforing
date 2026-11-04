@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     counterparties::{self, CounterpartyCreateInput},
     db::connect_workspace,
@@ -117,10 +119,12 @@ async fn issue_standard_invoice(
     .await
     .expect("draft");
 
-    invoicing::issue_invoice(
+    common::seed_historical_invoice(
         pool,
         workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: issue_key.to_string(),
             issue_date: Some("2026-02-01".to_string()),

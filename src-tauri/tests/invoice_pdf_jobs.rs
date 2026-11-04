@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     counterparties::{self, CounterpartyCreateInput},
     db::connect_workspace,
@@ -72,9 +74,9 @@ async fn setup_invoice_workspace() -> (tempfile::TempDir, String, sqlx::SqlitePo
         &pool,
         &workspace_id,
         &VatProfileSaveInput { vat_status: "registered".to_string(),
-        reporting_period: "quarterly".to_string(),
+        reporting_period: "yearly".to_string(),
         accounting_method: "invoice_method".to_string(),
-        voluntary_registration_date: None, vat_filing_deadline_regime: Some("quarterly_12".to_string()) },
+        voluntary_registration_date: None, vat_filing_deadline_regime: Some("annual_may_12".to_string()) },
     )
     .await
     .expect("vat");
@@ -168,10 +170,12 @@ async fn issued_invoice_pdf_job_archives_document() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "pdf-issue-1".to_string(),
             issue_date: Some("2026-01-15".to_string()),
@@ -276,10 +280,12 @@ async fn invoice_pdf_job_uses_issued_snapshot_after_profile_removal() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "pdf-retry-issue".to_string(),
             issue_date: Some("2026-01-15".to_string()),
@@ -306,7 +312,7 @@ async fn invoice_pdf_job_uses_issued_snapshot_after_profile_removal() {
     assert_eq!(snapshot.get::<String, _>("vat_status"), "registered");
     assert_eq!(
         snapshot.get::<String, _>("rule_version_id"),
-        "rv-2026-active"
+        "rv-2026-domestic-service25-exact-v1"
     );
     assert_eq!(snapshot.get::<i64, _>("tax_year"), 2026);
     assert!(
@@ -327,7 +333,7 @@ async fn invoice_pdf_job_uses_issued_snapshot_after_profile_removal() {
     .await
     .expect("issue audit event");
     assert!(issue_audit_metadata.contains("\"businessName\":\"PDF Test Firma\""));
-    assert!(issue_audit_metadata.contains("\"ruleVersionId\":\"rv-2026-active\""));
+    assert!(issue_audit_metadata.contains("\"ruleVersionId\":\"rv-2026-domestic-service25-exact-v1\""));
 
     profiles::save_tax_profile(
         &pool,
@@ -575,10 +581,12 @@ async fn invoice_pdf_batch_uses_issued_snapshots_after_profile_removal() {
         .await
         .expect("draft");
 
-        let invoice = invoicing::issue_invoice(
+        let invoice = common::issue_reviewed(
             &pool,
             &workspace_id,
             &InvoiceIssueInput {
+                eligibility_facts: None,
+                review_fingerprint: None,
                 invoice_id: draft.id.clone(),
                 idempotency_key: format!("pdf-batch-issue-{index}"),
                 issue_date: Some("2026-01-15".to_string()),
@@ -665,10 +673,12 @@ async fn invoice_pdf_status_ignores_orphaned_document_reference() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "pdf-status-issue".to_string(),
             issue_date: Some("2026-01-15".to_string()),
@@ -743,10 +753,12 @@ async fn refresh_invoice_pdf_skips_duplicate_queued_job() {
     .await
     .expect("draft");
 
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "pdf-refresh-dedupe".to_string(),
             issue_date: Some("2026-01-15".to_string()),
@@ -996,7 +1008,7 @@ async fn explicit_legacy_snapshot_recovery_uses_attested_historical_values_not_p
     )
     .await
     .expect("change tax profile");
-    sqlx::query("UPDATE rule_versions SET status = 'retired' WHERE id = 'rv-2026-active'")
+    sqlx::query("UPDATE rule_versions SET status = 'retired' WHERE tax_year = 2026 AND status = 'active'")
         .execute(&pool)
         .await
         .expect("retire historical rule");

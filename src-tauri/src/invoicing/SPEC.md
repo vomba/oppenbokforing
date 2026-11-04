@@ -40,17 +40,42 @@ not permission to skip revalidation at issue time. Direct preflight and new
 issuance/credit transitions enforce `business-profiles`' interim timing policy;
 completed-result recovery follows that policy's preservation exceptions.
 
-Planning tax status cannot issue. VAT-exempt invoices cannot charge VAT; a sale
-that crosses the exemption threshold is blocked for VAT-treatment review rather
-than silently choosing a tax treatment. The UI's narrower draft capabilities
-belong to `ui-workflows`, not to the backend's line-input contract.
+Planning tax status cannot issue. New standard invoices additionally require
+`tax-rules`' bounded recognition case. Exempt, reduced/mixed-rate and other
+uncovered cases now stop at eligibility, not a warning-only threshold permission.
+Historical threshold calculations remain engineering regression coverage. The UI's
+narrower draft capabilities belong to `ui-workflows`, not to the backend's line-input
+contract.
+
+Guided, initially unanswered facts identify the ordinary domestic service,
+completion date, prior receipts, year-wide no-EU circumstances, registered annual
+VAT, expected taxable base within SEK 1 million, and ordinary timely invoicing.
+The last confirmation includes consistent invoice-date treatment for incoming and
+outgoing invoices throughout the year, and invoice date as the owner's sending
+date. These are retained user declarations, not independently observed facts.
+
+Preflight and issuance share an evaluator over actual workspace-scoped profiles,
+lines, amounts, year and reviewed rules. Checked multiplication/addition and stored
+header comparisons reject saturation, overflow or inconsistent amounts. A context
+fingerprint binds the reviewed facts/date, relevant profile and rule payloads,
+line identities and evidence digest. It is a freshness check, not authorization:
+issuance recomputes all predicates under its immediate transaction.
+
+New issuance atomically saves immutable recognition provenance with the issue
+snapshot, number, voucher, PDF job, audit and replay result. `storage-contract` owns
+row protection. Completed replay/already-issued recovery precedes new-case checks;
+legacy invoices are not backfilled as eligible. Workspace-scoped provenance reads
+use retained facts and identity, not current profile substitutions. `ui-workflows`
+owns fact collection, stale-review behavior and source inspection.
 
 Only drafts are editable through draft APIs. A source can receive one full credit.
 The credit date cannot precede issue but can use a later open period/year.
 Original VAT and historical identity remain intact.
 
-These guards do not establish method-specific recognition, partial settlement,
-or guided opening/remediation support.
+These guards do not establish cash-method recognition, partial settlement,
+or guided opening/remediation support. The bounded recognition evidence also does
+not establish all legal invoice/PDF particulars; seller VAT-number/address and
+other document-completeness coverage remain separate gaps.
 
 Issue-time identity, tax posture, and rule source are snapshotted so later profile
 changes cannot rewrite the issued PDF's meaning. Legacy invoices without that

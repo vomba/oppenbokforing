@@ -70,12 +70,37 @@ Mechanical execution verification on 2026-11-04:
 - Final post-commit `npm run ci:public` passed fixtures, golden/M8 gates, **262 Rust tests**, **152 frontend tests**, TypeScript/production build and the generated-binding HEAD-diff check. The earlier legitimate pending DTO diff is no longer a failed gate.
 - The final review now displays the actual customer, due date, lines and checked totals returned by preflight, bound in its fingerprint and immutable context. Backend and component regressions reproduced missing/stale snapshots before the fix; changed customer identity also invalidates confirmation.
 - Source actions dispatch only compiled validation/source IDs to the native macOS browser opener. Tests verify exact command construction, off-async-worker execution, denied arbitrary IDs/URLs, navigation prevention and visible launch failures. No browser was opened by automated tests; other platforms fail explicitly as unsupported.
-- Desktop compilation and integration-mode smoke pass. New-file Rust formatting and spec validation pass. Packaged GUI install/launch and actual browser-launch UAT are **not verified**.
+- Desktop compilation and integration-mode smoke pass. New-file Rust formatting and spec validation pass. At the `5916918` handoff, packaged native and actual browser-launch UAT were **not yet verified**; the later bounded runtime addendum below records the completed subset and remaining exclusions.
 - Strict Clippy remains blocked by pre-existing findings: 9 library diagnostics, 16 including library tests. One obsolete preflight-builder argument-count diagnostic disappeared during the gate refactor; no suppressions were added to hide the remaining debt.
 
 ## Independent implementation review and disposition
 
 The independent implementation review of `5a0bf15` requested corrections for stale final-review amounts, nonfunctional webview source links and the ignored RED transcript. After those fixes, re-review of **`59169189bf6d` approved** the change and independently reran 262 Rust tests, 152 frontend tests, build, desktop, formatting and transcript checks. This is an AI implementation review, not a human/professional or tax-authority attestation. Its remaining manual browser/package UAT limitation is preserved above.
+
+## Follow-up packaged native verification
+
+The [2026-11-04 packaged macOS record](../verification/packaged-macos-2026-11-04.md)
+retains an initial native failure, the test-first correction and a separately
+identified corrected app/DMG. The real run exposed registered F-skatt incorrectly
+selecting FA salary guidance. Revision `47369a1` fixes that profile-only
+classification; FA salary checks and this invoice-recognition policy remain intact.
+Independent review passed 267 Rust / 158 frontend tests for that fix.
+
+The corrected unsigned app was copied from the read-only DMG into disposable
+Applications/data directories and launched outside the repository. Native controls
+verified ordinary F-skatt setup with zero salary, missing-fact stops, stale-review
+rejection without posting/number consumption, the updated SEK 2,500 review,
+2026-0001 issuance, retained PDF bytes and cold workspace reopening with the same
+immutable facts/context/fingerprint. A pointer click on the annual/no-EU reference
+was confirmed against that public Skatteverket document path in Firefox without
+recording other URLs or page content.
+
+This is bounded functional UAT, not signed/notarized distribution or
+Finder/Gatekeeper admission. Visual PDF correctness and the BFN PDF's actual
+viewer display were not established. A native sandbox-extension diagnostic is
+retained rather than hidden; no OS security bypass or application test-mode hook
+was used. Other methods/years/cases and full product/release readiness are not
+established by that run.
 
 The source review, independent expected arithmetic, public-boundary execution checks and recorded implementation review support only the declared exact-VAT case. A citation, digest, active row or regression pass alone is not the basis for eligibility. Excluded fractional rounding and whole-PDF/books/return validation remain unestablished.
 

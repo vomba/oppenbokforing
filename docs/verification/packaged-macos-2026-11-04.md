@@ -162,6 +162,20 @@ security control was disabled to avoid it. No signed distribution, normal global
 installation, all-platform source opening, visual PDF correctness, full tax
 preparation or cash-method posting has been verified by this run.
 
+## Post-native automated gate and handoff
+
+The complete post-native `npm run ci:public` returned exit 0: **267 Rust tests,
+158 frontend tests**, fixtures/golden/M8, production build and generated bindings
+check passed. The single-run output is retained in
+`artifacts/post-native-public-ci-2026-11-04.txt`. Strict Clippy was rerun separately
+and remains blocked by the same 9 library / 16 including-test findings, retained in
+`artifacts/post-native-clippy-2026-11-04.txt`; no suppressions were introduced.
+
+Independent review approved both the F-skatt source fix and the corrected native
+evidence step. The blocking setup gap is closed for this tested flow. Broader
+release/platform/PDF/tax claims remain excluded, and actual cash-method recognition
+has not been implemented or enabled by this verification.
+
 ## Original runtime procedure and coverage
 
 Use only disposable test data. Rust app-data resolution in the installed Tauri/dirs sources respects an explicit `HOME`; verify actual paths during launch rather than assume all macOS webview/preferences storage is isolated. Do not open real working books or overwrite an installed application.

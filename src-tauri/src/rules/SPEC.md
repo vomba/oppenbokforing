@@ -56,5 +56,11 @@ Latest-active and active-for-year APIs are distinct. Issuance uses issue-year
 lookup. Optional typed lookups treat malformed data as absent, and required integer
 lookup returns a validation error.
 
-The repository seeds 2026 rules. It does not establish independently validated
-coverage for the required years or the eligibility gate described here.
+The repository seeds engineering rules. It does not establish validated coverage
+for all required years or the eligibility gate described here.
+
+A [2026 exact-VAT domestic-service evidence dossier](../../../docs/accounting-validation/2026-domestic-service25-exact.md)
+records source applicability, independently derived expectations and an AI evidence
+review for a bounded invoice-recognition case. Its companion arithmetic checks do
+not establish execution verification or activate calculation eligibility. Fractional-
+öre rounding remains outside that candidate coverage.

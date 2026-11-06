@@ -507,6 +507,79 @@ async fn concurrent_posting_and_approval_cannot_both_commit_against_old_review()
 }
 
 #[tokio::test]
+async fn posting_commit_while_approval_waits_requires_fresh_review() {
+    let (dir, pool, workspace) = setup().await;
+    let writer = connect_workspace(&dir.path().join("workspace.sqlite"))
+        .await
+        .unwrap();
+    let reviewed = draft(&pool, &workspace, "review").await;
+    let before = approval_state(&pool).await;
+    let mut posting = writer.begin_with("BEGIN IMMEDIATE").await.unwrap();
+    ledger::post_invoice_voucher_tx(
+        &mut posting,
+        &workspace,
+        &format!("fy-{workspace}-2026"),
+        "committing-sale",
+        "2026-02-01",
+        &buckets(),
+    )
+    .await
+    .unwrap();
+    let approval_pool = pool.clone();
+    let approval_workspace = workspace.clone();
+    let input = approval(&reviewed, "queued-approve");
+    let (started, ready) = tokio::sync::oneshot::channel();
+    let pending = tokio::spawn(async move {
+        started.send(()).unwrap();
+        vat::vat_return_approve(&approval_pool, &approval_workspace, &input).await
+    });
+    ready.await.unwrap();
+    assert!(
+        !pending.is_finished(),
+        "approval cannot finish while another writer owns the transaction"
+    );
+    posting.commit().await.unwrap();
+    let rejected = pending
+        .await
+        .unwrap()
+        .expect_err("approval must observe the just-committed source");
+    assert_eq!(rejected.code, "validation_error");
+    assert!(rejected.message.contains("Regenerate"));
+    assert_eq!(before, approval_state(&pool).await);
+    let fresh = draft(&pool, &workspace, "fresh").await;
+    assert_eq!(fresh.box49_amount_minor, 2_500);
+    vat::vat_return_approve(&pool, &workspace, &approval(&fresh, "fresh-approve"))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn approval_failure_rolls_back_status_lock_audit_and_replay_together() {
+    for trigger in [
+        "CREATE TRIGGER reject_approval_audit BEFORE INSERT ON audit_events WHEN NEW.action = 'vat_return_approved' BEGIN SELECT RAISE(ABORT, 'test audit failure'); END",
+        "CREATE TRIGGER reject_approval_replay BEFORE INSERT ON local_jobs WHEN NEW.job_type = 'vat_return_approve' BEGIN SELECT RAISE(ABORT, 'test replay failure'); END",
+    ] {
+        let (_dir, pool, workspace) = setup().await;
+        post(&pool, &workspace, "sale").await.unwrap();
+        let reviewed = draft(&pool, &workspace, "review").await;
+        sqlx::query(trigger).execute(&pool).await.unwrap();
+        let before = approval_state(&pool).await;
+        let result = vat::vat_return_approve(&pool, &workspace, &approval(&reviewed, "approve")).await;
+        assert!(result.is_err(), "injected failure must abort the approval transaction");
+        assert_eq!(before, approval_state(&pool).await);
+    }
+}
+
+#[tokio::test]
+async fn posted_vouchers_without_lines_are_part_of_the_review_identity() {
+    let (_dir, pool, workspace) = setup().await;
+    let reviewed = draft(&pool, &workspace, "review").await;
+    sqlx::query("INSERT INTO vouchers(id,workspace_id,fiscal_year_id,status,source_type,posted_at,accounting_date) VALUES ('empty-voucher',?1,?2,'posted','legacy','2026-02-01','2026-02-01')")
+        .bind(&workspace).bind(format!("fy-{workspace}-2026")).execute(&pool).await.unwrap();
+    assert_stale_unchanged(&pool, &workspace, &approval(&reviewed, "approve")).await;
+}
+
+#[tokio::test]
 async fn concurrent_regeneration_and_approval_never_approve_an_unreviewed_revision() {
     for _ in 0..6 {
         let (dir, pool, workspace) = setup().await;

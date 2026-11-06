@@ -53,10 +53,15 @@ async fn forward_migration_preserves_seeded_history_and_legacy_drafts_require_fr
             "approved",
         ),
     ] {
-        sqlx::query("INSERT INTO fiscal_periods(id,workspace_id,fiscal_year_id,period_key,starts_on,ends_on,status) VALUES ('fp-w-' || ?1,'w','fy-w-2026',?1,?2,?3,?4)")
-            .bind(period).bind(start).bind(end).bind(status).execute(&prior).await.unwrap();
-        sqlx::query("INSERT INTO vat_returns(id,workspace_id,fiscal_period_id,status,rule_version_id,approved_at) VALUES (?1,'w','fp-w-' || ?2,?3,'rv-2026-active',?4)")
-            .bind(return_id).bind(period).bind(return_status).bind(if return_status == "approved" { Some("2026-07-01") } else { None })
+        let period_id = if period == "2026-Q1" {
+            "legacy-period-q1".to_string()
+        } else {
+            format!("fp-w-{period}")
+        };
+        sqlx::query("INSERT INTO fiscal_periods(id,workspace_id,fiscal_year_id,period_key,starts_on,ends_on,status) VALUES (?1,'w','fy-w-2026',?2,?3,?4,?5)")
+            .bind(&period_id).bind(period).bind(start).bind(end).bind(status).execute(&prior).await.unwrap();
+        sqlx::query("INSERT INTO vat_returns(id,workspace_id,fiscal_period_id,status,rule_version_id,approved_at) VALUES (?1,'w',?2,?3,'rv-2026-active',?4)")
+            .bind(return_id).bind(&period_id).bind(return_status).bind(if return_status == "approved" { Some("2026-07-01") } else { None })
             .execute(&prior).await.unwrap();
         sqlx::query("INSERT INTO vat_return_boxes(id,vat_return_id,box_code,amount_minor,source_query_hash) VALUES (?1,?1,'49',1234,'legacy-query')")
             .bind(return_id).execute(&prior).await.unwrap();
@@ -116,7 +121,7 @@ async fn forward_migration_preserves_seeded_history_and_legacy_drafts_require_fr
     assert_eq!(legacy.status, "draft");
     assert_eq!(legacy.box49_amount_minor, 1234);
     assert_eq!(legacy.review_revision, None);
-    let counts: (i64, i64, String) = sqlx::query_as("SELECT (SELECT COUNT(*) FROM audit_events), (SELECT COUNT(*) FROM local_jobs), (SELECT status FROM fiscal_periods WHERE id='fp-w-2026-Q1')")
+    let counts: (i64, i64, String) = sqlx::query_as("SELECT (SELECT COUNT(*) FROM audit_events), (SELECT COUNT(*) FROM local_jobs), (SELECT status FROM fiscal_periods WHERE id='legacy-period-q1')")
         .fetch_one(&pool).await.unwrap();
     assert_eq!(counts, (1, 1, "open".into()));
     let after: (String, String, String) = sqlx::query_as(

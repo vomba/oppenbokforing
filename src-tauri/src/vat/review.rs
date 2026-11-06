@@ -1,27 +1,5 @@
-//! Version 1 review identity. All objects below have fixed struct field order or
-//! sorted BTreeMap keys; every row collection has an explicit SQL ORDER BY.
-//!
-//! Bound fields (the SELECT lists below are the exhaustive v1 contract):
-//! - workspace ID + active rule year; return ID + assigned rule version;
-//!   period ID/workspace/year/key/bounds; fiscal year ID/workspace/bounds.
-//! - ALL posted vouchers in the accounting-date range, including vouchers without
-//!   lines: ID, workspace/year, status, source type/ID, accounting date and the
-//!   effective accounting date (posted_at is only semantic as its fallback).
-//! - ALL their lines: ID, voucher/account IDs, debit/credit, nullable VAT code;
-//!   referenced accounts: ID, workspace, number, name, type and normal balance.
-//! - all business/tax/VAT profile rows and all their semantic fields (not row
-//!   IDs or created/updated timestamps), including nullable registration/deadline
-//!   state. Missing profiles are represented by empty arrays.
-//! - the active version for the PERIOD'S tax year: ID/year/effective bounds,
-//!   source URL/checksum/status, and ALL its rules sorted by family/key/ID,
-//!   including rule ID, family/key and exact value_json contents. This purposely
-//!   conservative binding also detects changes outside today's box arithmetic.
-//! - workspace VAT code configuration, explicit required user inputs (empty
-//!   today), stored displayed boxes including query hashes, and stored trace.
-//!
-//! Excluded: incidental timestamps, filesystem paths, locale/UI settings,
-//! approval/lock status, and generated box row IDs. A new UUID revision is bound
-//! into every regenerated snapshot even when every semantic field is unchanged.
+//! Canonical VAT review snapshot v1. See SPEC.md for the bound fields and
+//! versioning contract; preserve deterministic object and row ordering here.
 
 use std::collections::BTreeMap;
 

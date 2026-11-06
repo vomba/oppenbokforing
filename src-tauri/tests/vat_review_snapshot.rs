@@ -205,6 +205,58 @@ async fn unchanged_approval_preserves_exact_reviewed_rows_and_trace_and_binds_re
 }
 
 #[tokio::test]
+async fn fresh_key_on_an_already_approved_return_is_bound_without_reapproving_history() {
+    let (_dir, pool, workspace) = setup().await;
+    let reviewed = draft(&pool, &workspace, "q1").await;
+    vat::vat_return_approve(&pool, &workspace, &approval(&reviewed, "first-key"))
+        .await
+        .unwrap();
+    let other = vat::vat_return_draft_create(
+        &pool,
+        &workspace,
+        &VatReturnDraftCreateInput {
+            period_key: "2026-Q2".into(),
+            idempotency_key: "q2".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let before = approval_state(&pool).await;
+    let fresh_input = approval(&reviewed, "fresh-key");
+    let repeated = vat::vat_return_approve(&pool, &workspace, &fresh_input)
+        .await
+        .unwrap();
+    assert_eq!(repeated.review_revision, reviewed.review_revision);
+    let after = approval_state(&pool).await;
+    assert_eq!(
+        &before[..4],
+        &after[..4],
+        "fresh replay binding must not change figures, status, locks or approval audit"
+    );
+    let binding: String = sqlx::query_scalar("SELECT payload_json FROM local_jobs WHERE job_type = 'vat_return_approve' AND idempotency_key = 'fresh-key'")
+        .fetch_one(&pool).await.expect("every successful key is bound");
+    let binding: serde_json::Value = serde_json::from_str(&binding).unwrap();
+    assert_eq!(binding["vatReturnId"], reviewed.id);
+    assert_eq!(
+        binding["reviewedRevision"],
+        reviewed.review_revision.unwrap()
+    );
+    vat::vat_return_approve(&pool, &workspace, &fresh_input)
+        .await
+        .unwrap();
+    assert_eq!(
+        after,
+        approval_state(&pool).await,
+        "same-key replay adds no records"
+    );
+    let error = vat::vat_return_approve(&pool, &workspace, &approval(&other, "fresh-key"))
+        .await
+        .expect_err("fresh key is reserved to the first return/revision");
+    assert_eq!(error.code, "validation_error");
+    assert_eq!(after, approval_state(&pool).await);
+}
+
+#[tokio::test]
 async fn late_posting_requires_regeneration_and_old_review_cannot_approve_new_draft() {
     let (_dir, pool, workspace) = setup().await;
     let scenario =
@@ -361,9 +413,9 @@ async fn unchanged_regeneration_replaces_revision_not_review_and_replay_cannot_r
         },
     )
     .await;
-    if let Ok(result) = retry {
-        assert_eq!(result.review_revision, old.review_revision);
-    }
+    let superseded =
+        retry.expect_err("superseded requests must be distinguishable from uncertain failures");
+    assert_eq!(superseded.code, "vat_draft_superseded");
     let current = vat::vat_return_get(
         &pool,
         &workspace,

@@ -882,10 +882,12 @@ pub async fn vat_return_draft_create(
         validate_draft_idempotency_match(period_key, &cached)?;
         let summary = load_vat_return_summary_tx(&mut tx, workspace_id, &cached.vat_return_id).await?;
         if cached.review_revision.is_none() || cached.review_revision != summary.review_revision {
-            return Err(AppError::validation(
+            let mut error = AppError::validation(
                 "This VAT draft request was superseded. Regenerate with a new request key and review the new draft",
                 "idempotencyKey",
-            ));
+            );
+            error.code = "vat_draft_superseded".to_string();
+            return Err(error);
         }
         tx.commit().await?;
         return Ok(summary);
@@ -1258,6 +1260,34 @@ async fn persist_vat_return_boxes_tx(
     Ok(())
 }
 
+async fn persist_approval_replay_tx(
+    tx: &mut Transaction<'_, Sqlite>,
+    workspace_id: &str,
+    input: &VatReturnApproveInput,
+    idempotency_key: &str,
+) -> Result<(), AppError> {
+    let payload = IdempotentVatApprovePayload {
+        vat_return_id: input.vat_return_id.clone(),
+        reviewed_revision: Some(input.reviewed_revision.clone()),
+    };
+    let payload_json =
+        serde_json::to_string(&payload).map_err(|e| AppError::internal(e.to_string()))?;
+    sqlx::query(
+        r#"
+        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
+        VALUES (?1, ?2, ?3, 'succeeded', ?4, ?5)
+        "#,
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind(workspace_id)
+    .bind(JOB_VAT_RETURN_APPROVE)
+    .bind(payload_json)
+    .bind(idempotency_key)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 pub async fn vat_return_approve(
     pool: &SqlitePool,
     workspace_id: &str,
@@ -1298,6 +1328,7 @@ pub async fn vat_return_approve(
         if summary.review_revision.as_deref() != Some(input.reviewed_revision.as_str()) {
             return Err(review::stale_review());
         }
+        persist_approval_replay_tx(&mut tx, workspace_id, input, idempotency_key).await?;
         tx.commit().await?;
         return Ok(summary);
     }
@@ -1353,26 +1384,7 @@ pub async fn vat_return_approve(
         return Err(AppError::locked_period("Fiscal period is already locked"));
     }
 
-    let payload = IdempotentVatApprovePayload {
-        vat_return_id: input.vat_return_id.clone(),
-        reviewed_revision: Some(input.reviewed_revision.clone()),
-    };
-    let payload_json =
-        serde_json::to_string(&payload).map_err(|e| AppError::internal(e.to_string()))?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
-        VALUES (?1, ?2, ?3, 'succeeded', ?4, ?5)
-        "#,
-    )
-    .bind(Uuid::new_v4().to_string())
-    .bind(workspace_id)
-    .bind(JOB_VAT_RETURN_APPROVE)
-    .bind(payload_json)
-    .bind(idempotency_key)
-    .execute(&mut *tx)
-    .await?;
+    persist_approval_replay_tx(&mut tx, workspace_id, input, idempotency_key).await?;
 
     record_event_tx(
         &mut *tx,

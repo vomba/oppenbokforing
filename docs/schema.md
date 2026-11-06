@@ -9,7 +9,7 @@ references: [local-sqlite, retained-evidence, product-goal]
 
 # SQLite Storage Contract
 
-The current schema uses the 20 forward-only SQLx migrations in this document.
+The current schema uses the 21 forward-only SQLx migrations in this document.
 This inventory does not establish implementation of every product requirement.
 
 `product-goal` and the owning module specs define required behavior.
@@ -43,6 +43,7 @@ This schema supports v1 local desktop workflows: workspace setup, profiles, comp
 | `202609180001_year_end_artifact_integrity.sql` | Year-end artifact hashes |
 | `202609180002_invoice_issue_snapshots.sql` | Immutable issue-time invoice provenance |
 | `202609180003_invoice_snapshot_recovery.sql` | Explicit historical snapshot recovery audit |
+| `202609180004_vat_review_snapshots.sql` | Nullable VAT review revision, canonical snapshot JSON and SHA-256 digest; no historical backfill |
 
 ## Tables
 
@@ -77,6 +78,7 @@ This schema supports v1 local desktop workflows: workspace setup, profiles, comp
 
 - `invoice_issue_snapshots` retains immutable issue-time provenance; `invoice_snapshot_recovery_requirements` records legacy evidence requirements. Historical recovery attestation is recorded in audit metadata.
 - `vat_profiles.vat_filing_deadline_regime` selects a rule-backed schedule; tax tasks are derived, not stored as task rows.
+- `vat_returns` carries nullable `review_revision`, `review_snapshot_json` and `review_snapshot_hash`; `vat-returns` owns versioning, stale rejection and legacy compatibility.
 - Year-end packages carry artifact hashes; their ledger fingerprints are retained in audit metadata.
 - Backup manifests are files, not database tables; calculation traces are assembled from existing records.
 

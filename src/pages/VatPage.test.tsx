@@ -167,6 +167,30 @@ describe("VatPage", () => {
     expect(vatReturnApprove.mock.calls[2][0].idempotencyKey).not.toBe(vatReturnApprove.mock.calls[0][0].idempotencyKey)
   })
 
+  it("recovers from a lost draft response and a superseded key without navigating away", async () => {
+    vatReturnDraftCreate
+      .mockRejectedValueOnce(new Error("Response lost"))
+      .mockRejectedValueOnce({ code: "vat_draft_superseded", message: "Regenerate and review with a new request key" })
+      .mockResolvedValueOnce(draft({ reviewRevision: "fresh-revision" }))
+    render(page())
+    const create = await screen.findByRole("button", { name: "Skapa utkast" })
+    await waitFor(() => expect(create).toBeEnabled())
+    fireEvent.click(create)
+    await screen.findByText("Response lost")
+    fireEvent.click(create)
+    await waitFor(() => expect(vatReturnDraftCreate).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(create).toBeEnabled())
+    expect(vatReturnDraftCreate.mock.calls[1][0].idempotencyKey).toBe(vatReturnDraftCreate.mock.calls[0][0].idempotencyKey)
+    expect(vatReturnDraftCreate).toHaveBeenCalledTimes(2)
+    await createDraft()
+    expect(vatReturnDraftCreate).toHaveBeenCalledTimes(3)
+    expect(vatReturnDraftCreate.mock.calls[2][0].idempotencyKey).not.toBe(vatReturnDraftCreate.mock.calls[0][0].idempotencyKey)
+    expect(vatReturnApprove).not.toHaveBeenCalled()
+    openReview()
+    confirmReview()
+    await waitFor(() => expect(vatReturnApprove).toHaveBeenCalledWith(expect.objectContaining({ reviewedRevision: "fresh-revision" })))
+  })
+
   it("uses stored box amounts even when the trace supplies different amounts or extra boxes", async () => {
     vatReturnTrace.mockResolvedValue(trace({ boxes: [
       { boxNumber: "49", amountMinor: 999999, voucherIds: ["voucher-1"] },

@@ -195,7 +195,11 @@ export function VatPage() {
       setVatReturn(draft)
       setStatus(t(locale, "vat.draftCreated"))
     } catch (error) {
-      if (isCurrent(contextVersion)) setStatus(appErrorMessage(error, t(locale, "vat.draftFailed")))
+      if (!isCurrent(contextVersion)) return
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "vat_draft_superseded") {
+        delete draftKeyRef.current[draftKey]
+      }
+      setStatus(appErrorMessage(error, t(locale, "vat.draftFailed")))
     } finally {
       if (isCurrent(contextVersion)) setBusy(false)
     }

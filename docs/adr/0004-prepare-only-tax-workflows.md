@@ -55,6 +55,12 @@ qualified-person sign-off.
 
 ## Current implementation gaps
 
+`vat-returns` implements revision-bound canonical source/configuration snapshots
+and approval of stored reviewed figures. Legacy VAT drafts require regeneration;
+legacy approved history is preserved without claiming a canonical review snapshot.
+Year-end aggregate ledger fingerprints are not equivalent to that source-record
+identity and do not establish the same guarantee for equal-total source changes.
+
 VAT/year-end artifacts are JSON preparation files. Their existence does not prove
 validated coverage, a readable filing handoff, or authority-format compatibility.
 Guided amendments and recorded external submission are not implemented.

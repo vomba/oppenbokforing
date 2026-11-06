@@ -1,4 +1,4 @@
-# Pre-eligibility invoice engineering regressions
+# Historical invoice engineering regressions
 
 These are **engineering regression artifacts**, not independent accounting
 validation. They preserve historical behavior outside the newly accepted case;
@@ -32,6 +32,32 @@ baseline issuance returns an **issued** invoice with voucher/PDF job despite no
 case facts. This is behavioral RED proof, not a new-DTO compile failure. The
 current integration test retains this regression with both optional new input
 fields set to `None`.
+
+## Packaged native invoice-v1 archive
+
+`invoice-v1-native-2026.json` preserves genuine disposable native data from the
+unsigned macOS application at revision `47369a1`, described in
+[`packaged-macos-2026-11-04.md`](../../docs/verification/packaged-macos-2026-11-04.md).
+It is historical engineering evidence, **not independent accounting validation**.
+The exact facts, assessment/context strings, invoice snapshots, journal/history,
+replay/job records, original rule payloads and retained PDF bytes are archived;
+do not regenerate them with the successor policy or backfill their provenance.
+
+- Original review fingerprint:
+  `f9b6933df5ff7e7f643c8e72f3eeef843918c9db80d9701dbb05ea44f773da5d`.
+- Retained PDF: 2,328 bytes, SHA-256
+  `46ead1a55e6d3081faace1f6f12259aefc4de79207832361cd183129ecd8c292`.
+- Archive SHA-256:
+  `f8803465317a8b13c93cfcd88151b32fbd0aade5df25d350a1d7d3d7db8b12df`.
+
+Read-only comparison confirmed every archived table row matches the preserved
+native original, and decoded PDF bytes match its retained source. Recorded
+absolute paths point to that disposable UAT workspace, not a portable destination.
+Future schema21-to-successor/backup/replay tests must restore into an owned
+temporary directory and deliberately map file locations without changing the
+archived raw context, fingerprint, rule payloads or published invoice-v1 manifest.
+The original disposable native database remains untouched. This archive alone
+does not prove that a successor migration or cash implementation works.
 
 ## Current fixture boundary
 

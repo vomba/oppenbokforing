@@ -19,6 +19,10 @@ use crate::{
 };
 
 mod crypto;
+mod verify;
+
+#[cfg(test)]
+mod verification_tests;
 
 pub use crypto::{backup_plaintext_is_sqlite, is_encrypted_backup_file, BACKUP_FILE_EXTENSION};
 
@@ -52,8 +56,8 @@ const BACKUP_CREATE_JOB_TYPE: &str = "workspace_backup_create";
 const PRIVATE_STAGING_PREFIX: &str = "oppenbokforing-backup-";
 const PRIVATE_STAGED_FILE_NAME: &str = "package.skatbackup";
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BackupManifestEntry {
     pub relative_path: String,
     pub sha256: String,
@@ -61,8 +65,8 @@ pub struct BackupManifestEntry {
     pub entry_type: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BackupManifest {
     pub version: u32,
     pub workspace_id: String,
@@ -234,16 +238,6 @@ fn collect_backup_entries(backup_root: &Path) -> Result<Vec<BackupManifestEntry>
     }
     entries.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     Ok(entries)
-}
-
-fn safe_backup_join(backup_root: &Path, relative: &str) -> Result<PathBuf, AppError> {
-    if relative.contains("..") {
-        return Err(AppError::validation(
-            "Manifest entry path escapes backup root",
-            "backupPath",
-        ));
-    }
-    Ok(backup_root.join(relative))
 }
 
 #[derive(Debug, Clone)]
@@ -497,59 +491,6 @@ fn write_staged_backup(path: &Path, bytes: &[u8]) -> Result<(), AppError> {
     sync_parent_directory(path)
 }
 
-fn verify_backup_artifact(
-    path: &Path,
-    passphrase: &str,
-    expected_manifest: &BackupManifest,
-) -> Result<(), AppError> {
-    let encrypted = fs::read(path)?;
-    let tar_bytes = crypto::decrypt_bytes(passphrase, &encrypted)?;
-    let verification_dir = tempfile::tempdir().map_err(redacted_storage_from)?;
-    crypto::extract_tar_archive(&tar_bytes, verification_dir.path())?;
-    let manifest_path = verification_dir.path().join("manifest.json");
-    let manifest_raw = fs::read_to_string(&manifest_path)?;
-    let manifest_value: serde_json::Value = serde_json::from_str(&manifest_raw)
-        .map_err(|_| AppError::validation("Invalid backup manifest", "backupPath"))?;
-    let expected_hash = manifest_value["manifestSha256"]
-        .as_str()
-        .ok_or_else(|| AppError::validation("Manifest hash missing", "backupPath"))?;
-    let body_for_hash = serde_json::json!({
-        "version": manifest_value["version"],
-        "workspaceId": manifest_value["workspaceId"],
-        "workspaceName": manifest_value["workspaceName"],
-        "createdAt": manifest_value["createdAt"],
-        "entries": manifest_value["entries"],
-    });
-    let computed_hash = hash_string(
-        &serde_json::to_string(&body_for_hash).map_err(redacted_internal_from)?,
-    );
-    if computed_hash != expected_hash || expected_hash != expected_manifest.manifest_sha256 {
-        return Err(AppError::validation("Backup manifest hash mismatch", "backupPath"));
-    }
-
-    for entry in manifest_value["entries"]
-        .as_array()
-        .ok_or_else(|| AppError::validation("Invalid manifest entries", "backupPath"))?
-    {
-        if entry["entryType"].as_str() != Some("file") {
-            continue;
-        }
-        let relative = entry["relativePath"]
-            .as_str()
-            .ok_or_else(|| AppError::validation("Invalid manifest entry", "backupPath"))?;
-        let file_path = safe_backup_join(verification_dir.path(), relative)?;
-        let (actual_hash, actual_bytes) = hash_file(&file_path)?;
-        if actual_hash != entry["sha256"].as_str().unwrap_or_default()
-            || actual_bytes != entry["bytes"].as_u64().unwrap_or(0)
-        {
-            return Err(AppError::validation(
-                format!("Backup file hash mismatch for {relative}"),
-                "backupPath",
-            ));
-        }
-    }
-    Ok(())
-}
 async fn stage_backup_package_at_path(
     pool: &SqlitePool,
     workspace_id: &str,
@@ -673,8 +614,9 @@ async fn stage_backup_package_at_path(
         })
         .await
         .map_err(redacted_internal_from)??;
+        crypto::validate_encrypted_size(encrypted.len() as u64)?;
         write_staged_backup(&staging_path, &encrypted)?;
-        verify_backup_artifact(&staging_path, passphrase, &manifest)?;
+        verify::artifact(&staging_path, passphrase, &manifest).await?;
         Ok(StagedBackupPackage {
             summary: BackupSummary {
                 backup_path: final_path.to_string_lossy().to_string(),
@@ -926,16 +868,7 @@ pub async fn restore_backup_package(
 
     let temp_dir = tempfile::tempdir().map_err(redacted_storage_from)?;
     let backup_root = if crypto::is_encrypted_backup_file(&backup_path) {
-        let metadata = fs::metadata(&backup_path)?;
-        if metadata.len() > crypto::MAX_ENCRYPTED_BACKUP_BYTES {
-            return Err(AppError::validation(
-                "Backup file exceeds maximum allowed size",
-                "backupPath",
-            ));
-        }
-        let encrypted = fs::read(&backup_path)?;
-        let tar_bytes = crypto::decrypt_bytes(&input.passphrase, &encrypted)?;
-        crypto::extract_tar_archive(&tar_bytes, temp_dir.path())?;
+        verify::extract_artifact(&backup_path, &input.passphrase, temp_dir.path())?;
         temp_dir.path().to_path_buf()
     } else if backup_path.is_dir() {
         return Err(AppError::validation(
@@ -953,64 +886,9 @@ async fn restore_from_staged_backup(
     backup_path: &Path,
     workspaces_root: &Path,
 ) -> Result<BackupRestoreSummary, AppError> {
-
-    let manifest_path = backup_path.join("manifest.json");
-    if !manifest_path.exists() {
-        return Err(AppError::validation("Backup manifest missing", "backupPath"));
-    }
-
-    let manifest_raw = fs::read_to_string(&manifest_path)?;
-    let manifest_value: serde_json::Value = serde_json::from_str(&manifest_raw)
-        .map_err(|_| AppError::validation("Invalid backup manifest", "backupPath"))?;
-    let expected_hash = manifest_value["manifestSha256"]
-        .as_str()
-        .ok_or_else(|| AppError::validation("Manifest hash missing", "backupPath"))?;
-
-    let body_for_hash = serde_json::json!({
-        "version": manifest_value["version"],
-        "workspaceId": manifest_value["workspaceId"],
-        "workspaceName": manifest_value["workspaceName"],
-        "createdAt": manifest_value["createdAt"],
-        "entries": manifest_value["entries"],
-    });
-    let computed_hash = hash_string(
-        &serde_json::to_string(&body_for_hash)
-            .map_err(redacted_internal_from)?,
-    );
-    if computed_hash != expected_hash {
-        return Err(AppError::validation("Backup manifest hash mismatch", "backupPath"));
-    }
-
-    for entry in manifest_value["entries"]
-        .as_array()
-        .ok_or_else(|| AppError::validation("Invalid manifest entries", "backupPath"))?
-    {
-        if entry["entryType"].as_str() != Some("file") {
-            continue;
-        }
-        let relative = entry["relativePath"]
-            .as_str()
-            .ok_or_else(|| AppError::validation("Invalid manifest entry", "backupPath"))?;
-        let file_path = safe_backup_join(backup_path, relative)?;
-        let (actual_hash, actual_bytes) = hash_file(&file_path)?;
-        if actual_hash != entry["sha256"].as_str().unwrap_or_default()
-            || actual_bytes != entry["bytes"].as_u64().unwrap_or(0)
-        {
-            return Err(AppError::validation(
-                format!("Backup file hash mismatch for {relative}"),
-                "backupPath",
-            ));
-        }
-    }
-
-    let workspace_id = manifest_value["workspaceId"]
-        .as_str()
-        .ok_or_else(|| AppError::validation("Workspace id missing in manifest", "backupPath"))?
-        .to_string();
-    let workspace_name = manifest_value["workspaceName"]
-        .as_str()
-        .unwrap_or("Restored workspace")
-        .to_string();
+    let manifest = verify::staged_package(backup_path).await?;
+    let workspace_id = manifest.workspace_id;
+    let workspace_name = manifest.workspace_name;
 
     fs::create_dir_all(workspaces_root)?;
     let restore_workspace_id = Uuid::new_v4().to_string();
@@ -1024,7 +902,7 @@ async fn restore_from_staged_backup(
     let final_exports_path = workspace_dir.join("exports");
 
     let restore_result = async {
-        fs::create_dir_all(&staging_dir)?;
+        fs::create_dir(&staging_dir)?;
         let staging_documents_path = staging_dir.join("documents");
         let staging_exports_path = staging_dir.join("exports");
         fs::create_dir_all(&staging_documents_path)?;
@@ -1070,7 +948,7 @@ async fn restore_from_staged_backup(
         )
         .await?;
 
-        drop(pool);
+        pool.close().await;
         fs::rename(&staging_dir, &workspace_dir)?;
         Ok(BackupRestoreSummary {
             database_path: final_database_path.to_string_lossy().to_string(),
@@ -1763,7 +1641,7 @@ pub async fn recover_backup_create(
     }
 
     if final_path.exists() {
-        match verify_backup_artifact(final_path, passphrase, &payload.summary.manifest) {
+        match verify::artifact(final_path, passphrase, &payload.summary.manifest).await {
             Ok(()) => {
                 remove_recorded_staging_artifacts(
                     final_path,

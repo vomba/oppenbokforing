@@ -513,7 +513,7 @@ fn retained_document_object_path(
     Ok(current)
 }
 
-fn verify_retained_document_object(
+pub(crate) fn verify_retained_document_object(
     documents_dir: &Path,
     database_path: &str,
     object_path: &str,

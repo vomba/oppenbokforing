@@ -34,7 +34,11 @@ The app stores sensitive accounting records, personal tax assumptions, invoices,
 - Evidence files are copied into the workspace document archive.
 - Imported files are stored by content hash.
 - Backups include database, documents, exports, rules, and manifest hash.
-- Backup encryption is implemented for `.skatbackup` files.
+- Backup encryption is implemented for `.skatbackup` files. `encrypted-backups`
+  defines the shared creation/recovery/restore verifier, supported manifest-v1 schema
+  and entry rules, and enforced archive/encrypted size and entry-count limits.
+  Verification reconciles the complete staged inventory, database integrity and
+  workspace identity, and actual retained-evidence bytes before accepting a package.
 - Restore requires explicit confirmation and creates a fresh directory; it never
   overwrites an existing workspace despite the input name `confirmOverwrite`.
 
@@ -100,10 +104,6 @@ sources and figures.
   accepting an absolute path in a command is not proof it came from a native picker.
 - Retained evidence verification checks canonical containment, symlinks, and hashes.
   This does not establish universal filesystem safety for every export/backup path.
-- Backup archive extraction rejects traversal, links, and special files. The separate
-  manifest-entry join has weaker validation; completeness and manifest-version
-  rejection are not comprehensive. Creation does not enforce all restore size/count
-  limits. These observed gaps must not be described as resolved by secure extraction.
 - Backup database snapshots and subsequent document/export copies are not one
   encompassing atomic snapshot.
 - Generic export publication may overwrite destinations. Export replay validation
@@ -115,8 +115,9 @@ sources and figures.
 - Posting, VAT approval, and composite onboarding include transactional audit;
   some draft/profile/export writes and their audit happen separately.
 
-These are documented gaps, not completed fixes. This spec revision changes no
-application controls and runs no security certification.
+These remaining gaps are not completed fixes. Implemented backup verification does
+not establish snapshot coordination, universal filesystem safety, or a security
+certification.
 
 ## Release Blocking Checklist
 

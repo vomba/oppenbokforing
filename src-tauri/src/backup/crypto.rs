@@ -1,6 +1,7 @@
 use std::{
+    collections::HashSet,
     fs,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::{Component, Path, PathBuf},
 };
 
@@ -11,7 +12,7 @@ use aes_gcm::{
 use argon2::Argon2;
 use rand::RngCore;
 
-use crate::error::{AppError, redacted_internal_from, redacted_storage_from};
+use crate::error::{redacted_internal_from, redacted_storage_from, AppError};
 
 pub const BACKUP_MAGIC: &[u8; 9] = b"SKATBKUP1";
 pub const BACKUP_FORMAT_VERSION: u32 = 2;
@@ -24,12 +25,61 @@ pub const MAX_TAR_ENTRIES: usize = 10_000;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 
+pub(super) fn validate_encrypted_size(bytes: u64) -> Result<(), AppError> {
+    if bytes > MAX_ENCRYPTED_BACKUP_BYTES {
+        return Err(AppError::validation(
+            "Backup file exceeds maximum allowed size",
+            "backupPath",
+        ));
+    }
+    Ok(())
+}
+
+/// A single portable path grammar for manifest entries and tar extraction.
+pub(super) fn confined_relative_path(relative: &str) -> Result<PathBuf, AppError> {
+    let path = relative.strip_suffix('/').unwrap_or(relative);
+    if path.is_empty()
+        || path.contains(['\\', ':', '\0'])
+        || path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || Path::new(path)
+            .components()
+            .any(|part| !matches!(part, Component::Normal(_)))
+    {
+        return Err(AppError::validation(
+            "Backup entry path is invalid",
+            "backupPath",
+        ));
+    }
+    Ok(PathBuf::from(path))
+}
+
+struct BoundedArchiveBuffer {
+    bytes: Vec<u8>,
+    limit: usize,
+}
+
+impl Write for BoundedArchiveBuffer {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if bytes.len() > self.limit.saturating_sub(self.bytes.len()) {
+            return Err(io::Error::other(
+                "Backup archive exceeds maximum allowed size",
+            ));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 pub fn validate_passphrase(passphrase: &str) -> Result<(), AppError> {
     if passphrase.trim().len() < MIN_PASSPHRASE_LEN {
         return Err(AppError::validation(
-            format!(
-                "Backup passphrase must be at least {MIN_PASSPHRASE_LEN} characters"
-            ),
+            format!("Backup passphrase must be at least {MIN_PASSPHRASE_LEN} characters"),
             "passphrase",
         ));
     }
@@ -64,16 +114,14 @@ pub fn encrypt_bytes(passphrase: &str, plaintext: &[u8]) -> Result<Vec<u8>, AppE
     rand::thread_rng().fill_bytes(&mut nonce_bytes);
 
     let key = derive_key(passphrase, &salt)?;
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(redacted_internal_from)?;
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(redacted_internal_from)?;
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
         .encrypt(nonce, plaintext)
         .map_err(|_| AppError::validation("Backup encryption failed", "passphrase"))?;
 
-    let mut output = Vec::with_capacity(
-        BACKUP_MAGIC.len() + 4 + SALT_LEN + NONCE_LEN + ciphertext.len(),
-    );
+    let mut output =
+        Vec::with_capacity(BACKUP_MAGIC.len() + 4 + SALT_LEN + NONCE_LEN + ciphertext.len());
     output.extend_from_slice(BACKUP_MAGIC);
     output.extend_from_slice(&BACKUP_FORMAT_VERSION.to_le_bytes());
     output.extend_from_slice(&salt);
@@ -84,10 +132,16 @@ pub fn encrypt_bytes(passphrase: &str, plaintext: &[u8]) -> Result<Vec<u8>, AppE
 
 pub fn decrypt_bytes(passphrase: &str, encrypted: &[u8]) -> Result<Vec<u8>, AppError> {
     if encrypted.len() < BACKUP_MAGIC.len() + 4 + SALT_LEN + NONCE_LEN + 16 {
-        return Err(AppError::validation("Backup file is too small", "backupPath"));
+        return Err(AppError::validation(
+            "Backup file is too small",
+            "backupPath",
+        ));
     }
     if &encrypted[..BACKUP_MAGIC.len()] != BACKUP_MAGIC {
-        return Err(AppError::validation("Unsupported backup format", "backupPath"));
+        return Err(AppError::validation(
+            "Unsupported backup format",
+            "backupPath",
+        ));
     }
 
     let version = u32::from_le_bytes(
@@ -108,8 +162,7 @@ pub fn decrypt_bytes(passphrase: &str, encrypted: &[u8]) -> Result<Vec<u8>, AppE
     let ciphertext = &encrypted[header_end + SALT_LEN + NONCE_LEN..];
 
     let key = derive_key(passphrase, salt)?;
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(redacted_internal_from)?;
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(redacted_internal_from)?;
     let nonce = Nonce::from_slice(nonce_bytes);
     cipher
         .decrypt(nonce, ciphertext)
@@ -141,6 +194,12 @@ fn collect_archive_entries(
                 "backupPath",
             ));
         }
+        if entries.len() >= MAX_TAR_ENTRIES {
+            return Err(AppError::validation(
+                "Backup archive contains too many entries",
+                "backupPath",
+            ));
+        }
         entries.push((child_relative.clone(), file_type.is_dir()));
         if file_type.is_dir() {
             collect_archive_entries(root, &child_relative, entries)?;
@@ -168,7 +227,10 @@ pub fn create_tar_archive(root: &Path) -> Result<Vec<u8>, AppError> {
     let mut entries = Vec::new();
     collect_archive_entries(root, Path::new(""), &mut entries)?;
 
-    let mut buffer = Vec::new();
+    let mut buffer = BoundedArchiveBuffer {
+        bytes: Vec::new(),
+        limit: MAX_TAR_ARCHIVE_BYTES,
+    };
     {
         let mut builder = tar::Builder::new(&mut buffer);
         for (relative, is_directory) in entries {
@@ -190,7 +252,7 @@ pub fn create_tar_archive(root: &Path) -> Result<Vec<u8>, AppError> {
         }
         builder.finish()?;
     }
-    Ok(buffer)
+    Ok(buffer.bytes)
 }
 
 pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppError> {
@@ -206,10 +268,9 @@ pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppEr
         .unwrap_or_else(|_| destination.to_path_buf());
 
     let mut archive = tar::Archive::new(bytes);
-    let entries = archive
-        .entries()
-        .map_err(redacted_storage_from)?;
+    let entries = archive.entries().map_err(redacted_storage_from)?;
 
+    let mut paths = HashSet::new();
     for (entry_count, entry) in entries.enumerate() {
         if entry_count >= MAX_TAR_ENTRIES {
             return Err(AppError::validation(
@@ -227,26 +288,23 @@ pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppEr
             ));
         }
 
-        let entry_path = entry
-            .path()
-            .map_err(redacted_storage_from)?
-            .into_owned();
+        let entry_path = entry.path().map_err(redacted_storage_from)?.into_owned();
 
-        if entry_path.is_absolute()
-            || entry_path
-                .components()
-                .any(|component| matches!(component, Component::ParentDir))
-        {
+        let relative = entry_path.to_str().ok_or_else(|| {
+            AppError::validation("Backup archive entry path is invalid", "backupPath")
+        })?;
+        let entry_path = confined_relative_path(relative)?;
+        if !paths.insert(entry_path.clone()) {
             return Err(AppError::validation(
-                "Backup archive entry path is invalid",
+                "Backup archive contains duplicate paths",
                 "backupPath",
             ));
         }
 
         let out_path = dest_root.join(&entry_path);
-        let parent = out_path
-            .parent()
-            .ok_or_else(|| AppError::validation("Backup archive entry path is invalid", "backupPath"))?;
+        let parent = out_path.parent().ok_or_else(|| {
+            AppError::validation("Backup archive entry path is invalid", "backupPath")
+        })?;
         let parent = parent
             .canonicalize()
             .unwrap_or_else(|_| parent.to_path_buf());
@@ -257,13 +315,93 @@ pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppEr
             ));
         }
 
-        entry
-            .unpack_in(&dest_root)
-            .map_err(redacted_storage_from)?;
+        entry.unpack_in(&dest_root).map_err(redacted_storage_from)?;
     }
     Ok(())
 }
 
 pub fn backup_plaintext_is_sqlite(bytes: &[u8]) -> bool {
     bytes.starts_with(b"SQLite format 3")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn archive_buffer_and_encrypted_size_enforce_boundaries() {
+        let mut buffer = BoundedArchiveBuffer {
+            bytes: Vec::new(),
+            limit: 1024,
+        };
+        buffer.write_all(&[0; 1024]).unwrap();
+        assert!(buffer.write_all(&[0]).is_err());
+        assert_eq!(buffer.bytes.len(), 1024);
+        validate_encrypted_size(MAX_ENCRYPTED_BACKUP_BYTES).unwrap();
+        assert!(validate_encrypted_size(MAX_ENCRYPTED_BACKUP_BYTES + 1).is_err());
+    }
+
+    fn archive_with_paths(paths: &[(&str, tar::EntryType)]) -> Vec<u8> {
+        let mut builder = tar::Builder::new(Vec::new());
+        for (path, kind) in paths {
+            let mut header = tar::Header::new_gnu();
+            // Write raw names so the test can exercise paths tar::Header::set_path refuses.
+            header.as_mut_bytes()[..path.len()].copy_from_slice(path.as_bytes());
+            header.set_size(0);
+            header.set_entry_type(*kind);
+            header.set_mode(0o600);
+            header.set_cksum();
+            builder.append(&header, io::empty()).unwrap();
+        }
+        builder.into_inner().unwrap()
+    }
+
+    #[test]
+    fn extraction_rejects_unsafe_duplicate_link_and_special_entries() {
+        for paths in [
+            vec![("/outside", tar::EntryType::Regular)],
+            vec![("../outside", tar::EntryType::Regular)],
+            vec![("documents/../../outside", tar::EntryType::Regular)],
+            vec![("C:/outside", tar::EntryType::Regular)],
+            vec![("documents\\outside", tar::EntryType::Regular)],
+            vec![
+                ("documents/", tar::EntryType::Directory),
+                ("documents", tar::EntryType::Directory),
+            ],
+            vec![
+                ("same", tar::EntryType::Regular),
+                ("same", tar::EntryType::Regular),
+            ],
+            vec![("link", tar::EntryType::Symlink)],
+            vec![("hardlink", tar::EntryType::Link)],
+            vec![("special", tar::EntryType::Fifo)],
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let destination = dir.path().join("extracted");
+            assert!(
+                extract_tar_archive(&archive_with_paths(&paths), &destination).is_err(),
+                "{paths:?}"
+            );
+            assert!(!dir.path().join("outside").exists());
+        }
+    }
+
+    #[test]
+    fn extraction_enforces_physical_entry_count_including_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let names: Vec<_> = (0..MAX_TAR_ENTRIES + 1).map(|i| format!("{i}")).collect();
+        let paths: Vec<_> = names
+            .iter()
+            .map(|name| (name.as_str(), tar::EntryType::Regular))
+            .collect();
+        extract_tar_archive(
+            &archive_with_paths(&paths[..MAX_TAR_ENTRIES]),
+            &dir.path().join("at-limit"),
+        )
+        .unwrap();
+        let error =
+            extract_tar_archive(&archive_with_paths(&paths), &dir.path().join("over-limit"))
+                .unwrap_err();
+        assert!(error.message.contains("too many"));
+    }
 }

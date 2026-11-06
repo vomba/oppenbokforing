@@ -102,7 +102,9 @@ revenue or output VAT; its accounting date is null. Proven later cash activity a
 ordinary expenses are continuation, not automatically legacy. Every expense voucher
 must match the immutable origin/year dates, original scoped expense-job provenance
 and balanced ordinary expense lines. Optional bank staging adds link checks, not an
-exemption from that common predicate. Contradictory unstaged history blocks both
+exemption from that common predicate. Retained expense references use the writer's
+`expense-posting` normalization, not SQLite's different whitespace rules.
+Contradictory unstaged history blocks both
 new issue and receipt, just as contradictory staged history does. Unknown or mixed
 income history cannot be grandfathered. `business-profiles` owns method freeze.
 

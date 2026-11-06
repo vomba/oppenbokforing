@@ -43,6 +43,13 @@ an explicit reason for its absence. An omitted date defaults to today's UTC date
 A linked staged row must be an unconsumed negative payment matching the gross expense.
 The service verifies retained bytes, not an identifier alone.
 
+Account and optional document/staging references use Rust whitespace trimming.
+A blank optional reference means absent, including non-ASCII whitespace recognized
+by Rust. Posting and retained-history comparison share this normalization.
+History consumers normalize only an in-memory view of present reference fields.
+Raw replay/audit bytes and exact-input replay identity remain unchanged. Missing
+history fields are not populated to make a provenance check pass.
+
 The service writes its own voucher and lines, verifies balance, consumes optional
 staging, and records audit within the posting transaction. It checks both fiscal
 year and period locks. `storage-contract` owns database guarantees; parent

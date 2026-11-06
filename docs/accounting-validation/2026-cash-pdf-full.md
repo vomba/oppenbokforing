@@ -572,7 +572,13 @@ observed incorrect success in preflight, issuance and receipt. One common expens
 predicate now checks all vouchers against origin dates and original scoped posting
 provenance. Valid staged and unstaged controls remain supported. The correction
 passes focused regressions and the full public gate; fresh step review is required.
-Earlier bundle hashes do not identify this later correction. Installed GUI cash
+A later review (`rc_3e8ff58b`) found normalization differences between the expense
+writer and the SQL history comparison. Shared Rust normalization now supplies an
+in-memory reference view for the common predicate. Blank optional values and
+padded real references follow writer semantics in both staging branches. Raw
+history remains untouched, missing fields are not synthesized, and invalid links
+still stop continuation. Public positive/negative regressions cover that parity.
+Earlier bundle hashes do not identify these later corrections. Installed GUI cash
 UAT therefore requires a rebuilt artifact.
 
 ## Independent review and remaining obligations

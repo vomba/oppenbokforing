@@ -134,9 +134,23 @@ pub(super) async fn history_supported(
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM vouchers WHERE workspace_id=?1 AND status!='draft') OR EXISTS(SELECT 1 FROM invoices WHERE workspace_id=?1 AND status!='draft') OR EXISTS(SELECT 1 FROM reconciliation_matches WHERE workspace_id=?1)")
             .bind(workspace).fetch_one(&mut **tx).await?
     } else {
-        // invoice-lifecycle owns the same origin/provenance boundary for every expense.
+        let retained_jobs: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id,payload_json FROM local_jobs WHERE workspace_id=?1 AND job_type='expense_post' AND status='succeeded'",
+        ).bind(workspace).fetch_all(&mut **tx).await?;
+        let mut normalized_jobs = Vec::with_capacity(retained_jobs.len());
+        for (id, raw) in retained_jobs {
+            normalized_jobs.push(
+                json!({"id": id, "payload": crate::expenses::normalized_history_payload(&raw)?}),
+            );
+        }
+        // Normalized in memory only; raw replay/audit history remains unchanged.
         sqlx::query_scalar(r#"
-            WITH expense_totals AS (
+            WITH normalized_jobs AS (
+                SELECT stored.id,stored.workspace_id,stored.job_type,stored.status,stored.idempotency_key,
+                    json_extract(normal.value,'$.payload') AS payload_json
+                FROM json_each(?2) normal
+                JOIN local_jobs stored ON stored.id=json_extract(normal.value,'$.id')
+            ), expense_totals AS (
                 SELECT v.id,
                     SUM(j.debit_minor) AS debits, SUM(j.credit_minor) AS credits,
                     SUM(CASE WHEN a.account_type='expense' AND a.number BETWEEN '4000' AND '8999' THEN j.debit_minor ELSE 0 END) AS expense_minor,
@@ -159,7 +173,7 @@ pub(super) async fn history_supported(
                 JOIN expense_totals t ON t.id=v.id
                 JOIN fiscal_years y ON y.id=v.fiscal_year_id AND y.workspace_id=v.workspace_id
                 JOIN cash_business_origins o ON o.workspace_id=v.workspace_id AND o.fiscal_year_id=y.id
-                JOIN local_jobs job ON job.workspace_id=v.workspace_id
+                JOIN normalized_jobs job ON job.workspace_id=v.workspace_id
                     AND job.job_type='expense_post' AND job.status='succeeded'
                     AND json_extract(job.payload_json,'$.result.voucherId')=v.id
                 WHERE v.workspace_id=?1 AND v.status='posted'
@@ -170,14 +184,14 @@ pub(super) async fn history_supported(
                     AND t.debits=t.bank_minor AND t.credits=t.bank_minor
                     AND t.expense_minor+t.vat_minor=t.bank_minor
                     AND t.expense_account=t.last_expense_account
-                    AND trim(json_extract(job.payload_json,'$.expenseAccountNumber'))=t.expense_account
-                    AND trim(json_extract(job.payload_json,'$.paymentAccountNumber'))='1930'
+                    AND json_extract(job.payload_json,'$.expenseAccountNumber')=t.expense_account
+                    AND json_extract(job.payload_json,'$.paymentAccountNumber')='1930'
                     AND json_extract(job.payload_json,'$.amountMinorExVat')=t.expense_minor
                     AND json_extract(job.payload_json,'$.result.debitExpenseMinor')=t.expense_minor
                     AND json_extract(job.payload_json,'$.result.debitInputVatMinor')=t.vat_minor
                     AND json_extract(job.payload_json,'$.result.creditPaymentMinor')=t.bank_minor
                     AND json_extract(job.payload_json,'$.idempotencyKey')=job.idempotency_key
-                    AND NULLIF(trim(json_extract(job.payload_json,'$.documentId')),'') IS v.document_id
+                    AND json_extract(job.payload_json,'$.documentId') IS v.document_id
                     AND json_extract(job.payload_json,'$.noDocumentReason') IS v.no_document_reason
                     AND json_type(job.payload_json,'$.date') IN ('null','text')
                     AND (json_extract(job.payload_json,'$.date') IS NULL OR json_extract(job.payload_json,'$.date')=v.accounting_date)
@@ -208,7 +222,7 @@ pub(super) async fn history_supported(
                 AND NOT EXISTS(SELECT 1 FROM ordinary_expenses e WHERE e.id=v.id)
             )
         "#)
-            .bind(workspace).fetch_one(&mut **tx).await?
+            .bind(workspace).bind(encode(&normalized_jobs)?).fetch_one(&mut **tx).await?
     };
     if incompatible {
         return Err(blocked("Actual posted, issued or payment history contradicts the reviewed cash origin or continuation"));

@@ -1,0 +1,26 @@
+Review rc_3e8ff58b: writer-accepted expense normalization RED
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_staged_expense_continuation writer_accepted_blank_and_padded_references_allow_cash_continuation -- --exact --nocapture
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.17s
+     Running tests/cash_staged_expense_continuation.rs (src-tauri/target/debug/deps/cash_staged_expense_continuation-08337e4e56e13664)
+
+running 1 test
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+PUBLIC NORMALIZED EXPENSE COMMITTED: empty staging; raw replay payload preserved
+
+thread 'writer_accepted_blank_and_padded_references_allow_cash_continuation' (21967150) panicked at tests/cash_staged_expense_continuation.rs:282:33:
+writer-accepted empty staging must allow preflight: AppError { code: "validation_error", message: "Actual posted, issued or payment history contradicts the reviewed cash origin or continuation", details: Some([FieldError { field: Some("eligibility"), message: "Invalid value", code: "invalid_value" }]), unique_violation: false }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test writer_accepted_blank_and_padded_references_allow_cash_continuation ... FAILED
+
+failures:
+
+failures:
+    writer_accepted_blank_and_padded_references_allow_cash_continuation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `--test cash_staged_expense_continuation`
+
+Cargo exit status: 101

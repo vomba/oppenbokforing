@@ -201,6 +201,8 @@ async fn unstaged_expense_requires_original_ordinary_posting_provenance() {
     for corruption in [
         "DELETE FROM local_jobs WHERE job_type='expense_post'",
         "UPDATE local_jobs SET status='failed' WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_remove(payload_json,'$.stagedTransactionId') WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_remove(payload_json,'$.date') WHERE job_type='expense_post'",
         "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.result.voucherId','unrelated') WHERE job_type='expense_post'",
         "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.stagedTransactionId','invented-staging') WHERE job_type='expense_post'",
         "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.result.debitExpenseMinor',9999) WHERE job_type='expense_post'",
@@ -209,6 +211,156 @@ async fn unstaged_expense_requires_original_ordinary_posting_provenance() {
     ] {
         let f = CashFixture::issued().await;
         unstaged_expense(&f, "2026-01-22").await;
+        let input = next_issue_input(&f).await;
+        let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &input).await.unwrap();
+        let issue = issue_input(input.clone(), review.assessment.review_fingerprint);
+        let receipt = receipt_input(&f).await;
+        sqlx::query(corruption).execute(&f.pool).await.unwrap();
+        assert_unstaged_history_blocks_all_transitions(&f, input, issue, receipt).await;
+    }
+}
+
+async fn post_normalized_expense(f: &CashFixture, variant: &str) -> String {
+    let mut input = ExpensePostInput {
+        amount_minor_ex_vat: 10000,
+        vat_rate: 0.25,
+        expense_account_number: "5610".into(),
+        payment_account_number: "1930".into(),
+        document_id: None,
+        no_document_reason: Some("Synthetic normalization regression".into()),
+        staged_transaction_id: None,
+        idempotency_key: "normalization-expense".into(),
+        date: Some("2026-01-22".into()),
+    };
+    match variant {
+        "empty staging" => input.staged_transaction_id = Some(String::new()),
+        "blank references" => {
+            input.staged_transaction_id = Some("\t\r\n\u{2003}\u{a0}".into());
+            input.document_id = Some("\u{2003}\t".into());
+        }
+        "padded accounts" => {
+            input.expense_account_number = "\t5610\r\n".into();
+            input.payment_account_number = "\u{2003}1930\u{a0}".into();
+        }
+        "padded document" | "padded staged/document/accounts" => {
+            let document = documents::store_document_bytes(
+                &f.pool,
+                &f.workspace,
+                &synthetic_bank_pdf_for("2026-01-22", "SYNTHETIC-EXPENSE", "EXPENSE-001"),
+                "synthetic-expense-document.pdf",
+                "application/pdf",
+            )
+            .await
+            .unwrap();
+            input.document_id = Some(format!("\t\u{2003}{}\u{a0}\n", document.id));
+            input.no_document_reason = None;
+            if variant == "padded staged/document/accounts" {
+                let path = f.dir.path().join("normalization.csv");
+                std::fs::write(
+                    &path,
+                    "date,description,amount_minor\n2026-01-22,Synthetic ordinary expense,-12500\n",
+                )
+                .unwrap();
+                imports::csv_import_create(
+                    &f.pool,
+                    &f.workspace,
+                    &CsvImportCreateInput {
+                        source_path: path.to_string_lossy().into(),
+                        idempotency_key: "normalization-import".into(),
+                    },
+                )
+                .await
+                .unwrap();
+                let staged = imports::staged_transactions_list(
+                    &f.pool,
+                    &f.workspace,
+                    &StagedTransactionsListInput {
+                        status: Some("staged".into()),
+                        limit: None,
+                        before_id: None,
+                    },
+                )
+                .await
+                .unwrap();
+                assert_eq!(staged.len(), 1);
+                input.staged_transaction_id = Some(format!("\u{2003}{}\t", staged[0].id));
+                input.expense_account_number = "\u{a0}5610\t".into();
+                input.payment_account_number = "\t1930\u{2003}".into();
+            }
+        }
+        _ => panic!("unknown normalization scenario"),
+    }
+    let expense = expenses::expense_post(&f.pool, &f.workspace, &input)
+        .await
+        .expect("the public expense writer accepts these blank/padded references");
+    assert!(expense.voucher_id.is_some());
+    let retained: String = sqlx::query_scalar(
+        "SELECT payload_json FROM local_jobs WHERE workspace_id=?1 AND job_type='expense_post'",
+    )
+    .bind(&f.workspace)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    let raw: serde_json::Value = serde_json::from_str(&retained).unwrap();
+    assert_eq!(
+        raw["stagedTransactionId"],
+        json!(input.staged_transaction_id)
+    );
+    assert_eq!(raw["documentId"], json!(input.document_id));
+    assert_eq!(raw["expenseAccountNumber"], input.expense_account_number);
+    println!("PUBLIC NORMALIZED EXPENSE COMMITTED: {variant}; raw replay payload preserved");
+    retained
+}
+
+#[tokio::test]
+async fn writer_accepted_blank_and_padded_references_allow_cash_continuation() {
+    for variant in [
+        "empty staging",
+        "blank references",
+        "padded accounts",
+        "padded document",
+        "padded staged/document/accounts",
+    ] {
+        let f = CashFixture::issued().await;
+        let retained = post_normalized_expense(&f, variant).await;
+        let input = next_issue_input(&f).await;
+        let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &input)
+            .await
+            .unwrap_or_else(|e| panic!("writer-accepted {variant} must allow preflight: {e:?}"));
+        cash::invoice_cash_issue(
+            &f.pool,
+            &f.workspace,
+            &issue_input(input, review.assessment.review_fingerprint),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("writer-accepted {variant} must allow issuance: {e:?}"));
+        cash::invoice_cash_receipt_record(&f.pool, &f.workspace, &receipt_input(&f).await)
+            .await
+            .unwrap_or_else(|e| panic!("writer-accepted {variant} must allow receipt: {e:?}"));
+        let after: String = sqlx::query_scalar(
+            "SELECT payload_json FROM local_jobs WHERE workspace_id=?1 AND job_type='expense_post'",
+        )
+        .bind(&f.workspace)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            after, retained,
+            "normalization must not rewrite historical replay bytes"
+        );
+    }
+}
+
+#[tokio::test]
+async fn padded_references_do_not_authorize_mismatched_expense_sources() {
+    for corruption in [
+        "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.stagedTransactionId',char(9)||'unrelated-staging'||char(9)) WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.stagedTransactionId','') WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.documentId',char(9)||'unrelated-document'||char(9)) WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.expenseAccountNumber',char(9)||'3041'||char(9)) WHERE job_type='expense_post'",
+    ] {
+        let f = CashFixture::issued().await;
+        post_normalized_expense(&f, "padded staged/document/accounts").await;
         let input = next_issue_input(&f).await;
         let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &input).await.unwrap();
         let issue = issue_input(input.clone(), review.assessment.review_fingerprint);

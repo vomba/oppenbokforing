@@ -53,6 +53,41 @@ struct IdempotentExpensePayload {
 
 use crate::idempotency::normalize_idempotency_key;
 
+fn normalized_account_reference(value: &str) -> &str {
+    value.trim()
+}
+
+fn normalized_optional_reference(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+pub(crate) fn normalized_history_payload(raw: &str) -> Result<serde_json::Value, AppError> {
+    let invalid = || AppError::validation("Retained expense posting is invalid", "expenseHistory");
+    let mut value: serde_json::Value = serde_json::from_str(raw).map_err(|_| invalid())?;
+    let mut payload: IdempotentExpensePayload =
+        serde_json::from_value(value.clone()).map_err(|_| invalid())?;
+    payload.expense_account_number =
+        normalized_account_reference(&payload.expense_account_number).to_owned();
+    payload.payment_account_number =
+        normalized_account_reference(&payload.payment_account_number).to_owned();
+    payload.document_id =
+        normalized_optional_reference(payload.document_id.as_deref()).map(str::to_owned);
+    payload.staged_transaction_id =
+        normalized_optional_reference(payload.staged_transaction_id.as_deref()).map(str::to_owned);
+    let normalized = serde_json::to_value(payload).map_err(|_| invalid())?;
+    for field in [
+        "expenseAccountNumber",
+        "paymentAccountNumber",
+        "documentId",
+        "stagedTransactionId",
+    ] {
+        if value.get(field).is_some() {
+            value[field] = normalized[field].clone();
+        }
+    }
+    Ok(value)
+}
+
 fn vat_rate_to_bp(rate: f64) -> Result<i64, AppError> {
     if !(0.0..=1.0).contains(&rate) {
         return Err(AppError::validation("VAT rate must be between 0 and 1", "vatRate"));
@@ -294,12 +329,8 @@ pub async fn expense_post(
         ));
     }
 
-    let document_id_trimmed: Option<String> = input
-        .document_id
-        .as_ref()
-        .map(|id| id.trim())
-        .filter(|id| !id.is_empty())
-        .map(|s| s.to_string());
+    let document_id_trimmed =
+        normalized_optional_reference(input.document_id.as_deref()).map(str::to_owned);
     let has_document = document_id_trimmed.is_some();
     let has_reason = input
         .no_document_reason
@@ -331,10 +362,18 @@ pub async fn expense_post(
         &mut *tx, workspace_id, &fiscal_year_id, &date,
     ).await?;
 
-    let expense_account_id =
-        lookup_account_id_tx(&mut tx, workspace_id, input.expense_account_number.trim()).await?;
-    let payment_account_id =
-        lookup_account_id_tx(&mut tx, workspace_id, input.payment_account_number.trim()).await?;
+    let expense_account_id = lookup_account_id_tx(
+        &mut tx,
+        workspace_id,
+        normalized_account_reference(&input.expense_account_number),
+    )
+    .await?;
+    let payment_account_id = lookup_account_id_tx(
+        &mut tx,
+        workspace_id,
+        normalized_account_reference(&input.payment_account_number),
+    )
+    .await?;
 
     let input_vat_account_id = if input_vat_minor > 0 {
         Some(lookup_account_id_tx(&mut tx, workspace_id, "2641").await?)
@@ -430,12 +469,7 @@ pub async fn expense_post(
 
     verify_balanced_tx(&mut tx, &voucher_id).await?;
 
-    if let Some(staged_id) = input
-        .staged_transaction_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
+    if let Some(staged_id) = normalized_optional_reference(input.staged_transaction_id.as_deref()) {
         mark_staged_expense_matched_tx(&mut tx, workspace_id, staged_id, &voucher_id, total_inc).await?;
     }
 

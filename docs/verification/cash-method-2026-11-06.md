@@ -82,7 +82,13 @@ Valid staged and unstaged expenses remain supported, and first-origin emptiness 
 The continuation suite passes8 tests, including seven new unstaged corruption scenarios.
 The full public CI gate also passes after this correction.
 
-The artifact hashes above identify the earlier implementation build, not this review correction.
+Follow-up review `rc_3e8ff58b` found a writer/reader normalization mismatch.
+The writer accepts blank optional references and Rust-whitespace-padded account, document and staging IDs.
+Continuation checks now use the same Rust helpers and normalize present reference fields only in memory.
+Raw history and exact-input replay identity remain unchanged, and absent history fields are not populated.
+Public regressions cover five valid input variants, invalid padded links and the existing origin/provenance guards.
+
+The artifact hashes above identify the earlier implementation build, not these review corrections.
 Rebuild the app/DMG before using them for post-fix GUI UAT.
 
 ## Remaining verification

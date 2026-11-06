@@ -214,6 +214,7 @@ async fn tax_task_calendar_keeps_exported_approved_return_external_submission_re
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
             vat_return_id: draft.id.clone(),
             idempotency_key: "tax-task-approve".to_string(),
         },
@@ -327,7 +328,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
         &pool,
         &workspace_id,
         &VatReturnTraceInput {
-            vat_return_id: vat_return.id,
+            vat_return_id: vat_return.id.clone(),
         },
     )
     .await
@@ -338,11 +339,26 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
         .iter()
         .find(|box_trace| box_trace.box_number == "10")
         .expect("box 10 trace");
-    assert_eq!(trace_box.amount_minor, 3_750);
+    assert_eq!(trace.review_revision, vat_return.review_revision);
+    assert_eq!(trace_box.amount_minor, 2_500);
     assert!(trace_box
         .voucher_ids
         .contains(&issued.voucher_id.clone().expect("voucher id")));
-    assert!(trace_box
+    assert!(!trace_box
         .voucher_ids
         .contains(&later_issued.voucher_id.clone().expect("later voucher id")));
+
+    let regenerated = vat::vat_return_draft_create(
+        &pool, &workspace_id,
+        &VatReturnDraftCreateInput { period_key: "2026-Q1".into(), idempotency_key: "trace-regenerated".into() },
+    ).await.expect("explicit regeneration includes later sources");
+    let fresh_trace = vat::vat_return_trace(
+        &pool, &workspace_id, &VatReturnTraceInput { vat_return_id: regenerated.id },
+    ).await.expect("regenerated trace");
+    assert_eq!(fresh_trace.review_revision, regenerated.review_revision);
+    assert_ne!(fresh_trace.review_revision, vat_return.review_revision);
+    let fresh_box = fresh_trace.boxes.iter().find(|b| b.box_number == "10").expect("fresh box 10");
+    assert_eq!(fresh_box.amount_minor, 3_750);
+    assert!(fresh_box.voucher_ids.contains(&issued.voucher_id.expect("voucher id")));
+    assert!(fresh_box.voucher_ids.contains(&later_issued.voucher_id.expect("later voucher id")));
 }

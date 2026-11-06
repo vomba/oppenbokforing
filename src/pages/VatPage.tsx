@@ -41,6 +41,12 @@ function periodKeysForYear(reportingPeriod: string, year: number): string[] {
   return [`${year}-Q1`, `${year}-Q2`, `${year}-Q3`, `${year}-Q4`]
 }
 
+type ApprovalReview = {
+  summary: VatReturnSummary
+  workspaceId: string
+  periodKey: string
+  contextVersion: number
+}
 
 export function VatPage() {
   const { workspace } = useWorkspace()
@@ -56,12 +62,29 @@ export function VatPage() {
   const [status, setStatus] = useState("")
   const [busy, setBusy] = useState(false)
   const [defaultExportDirectory, setDefaultExportDirectory] = useState<string | null>(null)
-  const [approveReviewOpen, setApproveReviewOpen] = useState(false)
+  const [approvalReview, setApprovalReview] = useState<ApprovalReview | null>(null)
   const [vatTrace, setVatTrace] = useState<VatReturnTrace | null>(null)
   const [vatDataAvailable, setVatDataAvailable] = useState(false)
   const [vatReload, setVatReload] = useState(0)
   const draftKeyRef = useRef<Record<string, string>>({})
   const approveKeyRef = useRef<Record<string, string>>({})
+
+  const workspaceId = workspace?.id ?? ""
+  // A version (not just an identity comparison) also rejects results after A → B → A.
+  const contextKey = JSON.stringify([workspaceId, periodKey])
+  const contextRef = useRef({ key: contextKey, version: 0 })
+  if (contextRef.current.key !== contextKey) {
+    contextRef.current = { key: contextKey, version: contextRef.current.version + 1 }
+  }
+  const contextVersion = contextRef.current.version
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  function isCurrent(version: number) {
+    return mountedRef.current && contextRef.current.version === version
+  }
 
   const vatRegistered =
     vatProfile?.vatStatus === "registered" ||
@@ -72,8 +95,11 @@ export function VatPage() {
   }, [locale])
 
   useEffect(() => {
-    if (!workspace) {
-      setVatDataAvailable(false)
+    setVatDataAvailable(false)
+    setVatProfile(null)
+    setPeriodOptions([])
+    setDefaultExportDirectory(null)
+    if (!workspaceId) {
       setStatus(t(locale, "yearEnd.noWorkspace"))
       return
     }
@@ -112,29 +138,41 @@ export function VatPage() {
         setStatus(t(locale, "vat.dataUnavailable"))
       })
     workspaceSettingsGet()
-      .then((settings) => setDefaultExportDirectory(settings.defaultExportDirectory))
-      .catch(() => setDefaultExportDirectory(null))
+      .then((settings) => { if (active) setDefaultExportDirectory(settings.defaultExportDirectory) })
+      .catch(() => { if (active) setDefaultExportDirectory(null) })
     return () => {
       active = false
     }
-  }, [workspace, location.key, locale, searchParams, vatReload])
+  }, [workspaceId, location.key, locale, searchParams, vatReload])
 
   useEffect(() => {
     setVatReturn(null)
     setVatTrace(null)
+    setApprovalReview(null)
+    setBusy(false)
+    setStatus(t(locale, !workspaceId ? "yearEnd.noWorkspace" :
+      vatProfile && !vatRegistered ? "vat.notRegistered" : "vat.status"))
     draftKeyRef.current = {}
     approveKeyRef.current = {}
-  }, [periodKey])
+  }, [workspaceId, periodKey])
 
+  // Fetch only for a newly received summary, never an old return in a new context.
   useEffect(() => {
+    setVatTrace(null)
     if (!vatReturn) return
+    let active = true
     vatReturnTrace({ vatReturnId: vatReturn.id })
-      .then(setVatTrace)
-      .catch(() => setVatTrace(null))
+      .then((trace) => {
+        if (active && isCurrent(contextVersion) && trace.reviewRevision === vatReturn.reviewRevision) {
+          setVatTrace(trace)
+        }
+      })
+      .catch(() => { if (active && isCurrent(contextVersion)) setVatTrace(null) })
+    return () => { active = false }
   }, [vatReturn])
 
   async function handleDraftCreate() {
-    if (busy) return
+    if (busy || !workspaceId || !vatDataAvailable) return
     if (!periodKey.trim()) {
       setStatus(t(locale, "vat.selectPeriod"))
       return
@@ -144,54 +182,63 @@ export function VatPage() {
       return
     }
     setBusy(true)
-    const idempotencyKey = draftKeyRef.current[periodKey] ??= crypto.randomUUID()
+    const draftKey = JSON.stringify([workspaceId, periodKey])
+    const idempotencyKey = draftKeyRef.current[draftKey] ??= crypto.randomUUID()
     try {
       const draft = await vatReturnDraftCreate({
         periodKey: periodKey.trim(),
         idempotencyKey,
       })
-      delete draftKeyRef.current[periodKey]
+      if (!isCurrent(contextVersion)) return
+      delete draftKeyRef.current[draftKey]
+      setApprovalReview(null)
       setVatReturn(draft)
       setStatus(t(locale, "vat.draftCreated"))
     } catch (error) {
-      setStatus(appErrorMessage(error, t(locale, "vat.draftFailed")))
+      if (isCurrent(contextVersion)) setStatus(appErrorMessage(error, t(locale, "vat.draftFailed")))
     } finally {
-      setBusy(false)
+      if (isCurrent(contextVersion)) setBusy(false)
     }
   }
 
-  async function handleApprove() {
-    if (busy || !vatReturn || vatReturn.status === "approved") return
-    if (vatReturn.periodKey !== periodKey.trim()) {
+  async function handleApprove(review: ApprovalReview) {
+    const { summary, contextVersion: reviewedContext } = review
+    if (busy || !isCurrent(reviewedContext) || review.workspaceId !== workspaceId ||
+        review.periodKey !== periodKey || !summary.reviewRevision || summary.status === "approved") return
+    if (summary.periodKey !== review.periodKey.trim()) {
       setStatus(t(locale, "vat.periodMismatch"))
       return
     }
     setBusy(true)
-    const idempotencyKey = approveKeyRef.current[vatReturn.id] ??= crypto.randomUUID()
+    const approveKey = JSON.stringify([review.workspaceId, summary.id, summary.reviewRevision])
+    const idempotencyKey = approveKeyRef.current[approveKey] ??= crypto.randomUUID()
     try {
       const approved = await vatReturnApprove({
-        vatReturnId: vatReturn.id,
+        vatReturnId: summary.id,
+        reviewedRevision: summary.reviewRevision,
         idempotencyKey,
       })
-      delete approveKeyRef.current[vatReturn.id]
+      if (!isCurrent(reviewedContext)) return
+      delete approveKeyRef.current[approveKey]
       setVatReturn(approved)
       setStatus(t(locale, "vat.approved"))
     } catch (error) {
-      setStatus(appErrorMessage(error, t(locale, "vat.approveFailed")))
+      if (isCurrent(reviewedContext)) setStatus(appErrorMessage(error, t(locale, "vat.approveFailed")))
     } finally {
-      setBusy(false)
+      if (isCurrent(reviewedContext)) setBusy(false)
     }
   }
 
   function openApproveReview() {
-    if (vatReturn && vatReturn.status !== "approved" && !busy) {
-      setApproveReviewOpen(true)
+    if (workspaceId && vatReturn?.reviewRevision && vatReturn.status !== "approved" && !busy) {
+      setApprovalReview({ summary: vatReturn, workspaceId, periodKey, contextVersion })
     }
   }
 
   function confirmApproveReview() {
-    setApproveReviewOpen(false)
-    void handleApprove()
+    const review = approvalReview
+    setApprovalReview(null)
+    if (review) void handleApprove(review)
   }
 
   async function handleExport() {
@@ -202,22 +249,23 @@ export function VatPage() {
         t(locale, "vat.chooseExportFolder"),
         defaultExportDirectory,
       )
+      if (!isCurrent(contextVersion)) return
       if (!exportDirectory) {
         setStatus(t(locale, "vat.exportCancelled"))
         return
       }
       const exported = await vatReturnExport({ vatReturnId: vatReturn.id, exportDirectory })
+      if (!isCurrent(contextVersion)) return
       setVatReturn(exported)
       setStatus(t(locale, "vat.exported"))
     } catch (error) {
-      setStatus(appErrorMessage(error, t(locale, "vat.exportFailed")))
+      if (isCurrent(contextVersion)) setStatus(appErrorMessage(error, t(locale, "vat.exportFailed")))
     } finally {
-      setBusy(false)
+      if (isCurrent(contextVersion)) setBusy(false)
     }
   }
-  const displayedBoxes = vatTrace
-    ? vatTrace.boxes.map(({ boxNumber, amountMinor }) => ({ boxCode: boxNumber, amountMinor }))
-    : vatReturn?.boxes ?? []
+  const displayedBoxes = vatReturn?.boxes ?? []
+  const displayedTrace = vatTrace?.reviewRevision === vatReturn?.reviewRevision ? vatTrace : null
 
   return (
     <main className="app-shell">
@@ -330,7 +378,7 @@ export function VatPage() {
                 type="button"
                 className="secondary"
                 onClick={openApproveReview}
-                disabled={!vatDataAvailable || busy || !vatReturn || vatReturn.status === "approved"}
+                disabled={!vatDataAvailable || busy || !vatReturn?.reviewRevision || vatReturn.status === "approved"}
               >
                 {t(locale, "vat.approve")}
               </button>
@@ -374,7 +422,7 @@ export function VatPage() {
                           <td>{box.boxCode}</td>
                           <td>{formatSekMinor(box.amountMinor)}</td>
                           <td>
-                            {vatTrace?.boxes
+                            {displayedTrace?.boxes
                               .find((trace) => trace.boxNumber === box.boxCode)
                               ?.voucherIds.map((voucherId) => (
                                 <VoucherTraceLink
@@ -393,14 +441,14 @@ export function VatPage() {
             ) : null}
           </div>
         </section>
-        {vatReturn ? (
+        {approvalReview && approvalReview.contextVersion === contextVersion ? (
           <ActionReviewDialog
-            open={approveReviewOpen}
+            open={true}
             title={t(locale, "actionReview.vat.title")}
             summary={tVars(locale, "actionReview.vat.summary", {
-              period: vatReturn.periodKey,
-              amount: formatSekMinor(vatReturn.box49AmountMinor),
-              status: vatReturnStatusLabel(locale, vatReturn.status),
+              period: approvalReview.summary.periodKey,
+              amount: formatSekMinor(approvalReview.summary.box49AmountMinor),
+              status: vatReturnStatusLabel(locale, approvalReview.summary.status),
             })}
             consequences={[t(locale, "actionReview.vat.consequence")]}
             correction={null}
@@ -408,7 +456,7 @@ export function VatPage() {
             cancelLabel={t(locale, "actionReview.cancel")}
             busy={busy}
             onConfirm={confirmApproveReview}
-            onCancel={() => setApproveReviewOpen(false)}
+            onCancel={() => setApprovalReview(null)}
           />
         ) : null}
       </section>

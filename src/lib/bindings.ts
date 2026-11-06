@@ -140,7 +140,7 @@ export type VatProfile = { id: string; vatStatus: string; reportingPeriod: strin
 
 export type VatProfileSaveInput = { vatStatus: string; reportingPeriod: string; accountingMethod: string; voluntaryRegistrationDate: string | null; vatFilingDeadlineRegime: string | null }
 
-export type VatReturnApproveInput = { vatReturnId: string; idempotencyKey: string }
+export type VatReturnApproveInput = { reviewedRevision: string; vatReturnId: string; idempotencyKey: string }
 
 export type VatReturnBox = { boxCode: string; amountMinor: number; sourceQueryHash: string | null }
 
@@ -152,9 +152,9 @@ export type VatReturnExportInput = { vatReturnId: string; exportDirectory: strin
 
 export type VatReturnGetInput = { vatReturnId: string }
 
-export type VatReturnSummary = { id: string; fiscalPeriodId: string; periodKey: string; status: string; ruleVersionId: string; boxes: VatReturnBox[]; box49AmountMinor: number; zeroReturn: boolean; exportPath: string | null }
+export type VatReturnSummary = { reviewRevision: string | null; id: string; fiscalPeriodId: string; periodKey: string; status: string; ruleVersionId: string; boxes: VatReturnBox[]; box49AmountMinor: number; zeroReturn: boolean; exportPath: string | null }
 
-export type VatReturnTrace = { ruleVersionId: string; taxYear: number; sourceUrl: string; boxes: VatReturnBoxTrace[] }
+export type VatReturnTrace = { reviewRevision: string | null; ruleVersionId: string; taxYear: number; sourceUrl: string; boxes: VatReturnBoxTrace[] }
 
 export type VatReturnTraceInput = { vatReturnId: string }
 

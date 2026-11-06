@@ -302,6 +302,7 @@ async fn m7_fiscal_period_list_includes_locked_after_vat_approve() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
             vat_return_id: draft.id,
             idempotency_key: "vat-approve-read".to_string(),
         },
@@ -522,6 +523,7 @@ async fn approve_all_vat_quarters(pool: &sqlx::SqlitePool, workspace_id: &str) {
             pool,
             workspace_id,
             &VatReturnApproveInput {
+                reviewed_revision: draft.review_revision.clone().expect("review revision"),
                 vat_return_id: draft.id,
                 idempotency_key: format!("m7-vat-approve-{quarter}"),
             },

@@ -87,6 +87,7 @@ async fn approve_vat_year(pool: &sqlx::SqlitePool, workspace_id: &str, fiscal_ye
         pool,
         workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
             vat_return_id: draft.id,
             idempotency_key: format!("m5-vat-approve-{fiscal_year}"),
         },

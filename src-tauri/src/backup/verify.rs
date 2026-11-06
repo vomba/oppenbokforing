@@ -109,7 +109,7 @@ async fn verify_database(root: &Path, manifest: &BackupManifest) -> Result<(), A
         )
         .await?;
     let result = async {
-        let check: String = sqlx::query_scalar("PRAGMA quick_check")
+        let check: String = sqlx::query_scalar("PRAGMA integrity_check")
             .fetch_one(&pool)
             .await?;
         if check != "ok"

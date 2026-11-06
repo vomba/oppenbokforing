@@ -323,3 +323,85 @@ pub fn extract_tar_archive(bytes: &[u8], destination: &Path) -> Result<(), AppEr
 pub fn backup_plaintext_is_sqlite(bytes: &[u8]) -> bool {
     bytes.starts_with(b"SQLite format 3")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn archive_buffer_and_encrypted_size_enforce_boundaries() {
+        let mut buffer = BoundedArchiveBuffer {
+            bytes: Vec::new(),
+            limit: 1024,
+        };
+        buffer.write_all(&[0; 1024]).unwrap();
+        assert!(buffer.write_all(&[0]).is_err());
+        assert_eq!(buffer.bytes.len(), 1024);
+        validate_encrypted_size(MAX_ENCRYPTED_BACKUP_BYTES).unwrap();
+        assert!(validate_encrypted_size(MAX_ENCRYPTED_BACKUP_BYTES + 1).is_err());
+    }
+
+    fn archive_with_paths(paths: &[(&str, tar::EntryType)]) -> Vec<u8> {
+        let mut builder = tar::Builder::new(Vec::new());
+        for (path, kind) in paths {
+            let mut header = tar::Header::new_gnu();
+            // Write raw names so the test can exercise paths tar::Header::set_path refuses.
+            header.as_mut_bytes()[..path.len()].copy_from_slice(path.as_bytes());
+            header.set_size(0);
+            header.set_entry_type(*kind);
+            header.set_mode(0o600);
+            header.set_cksum();
+            builder.append(&header, io::empty()).unwrap();
+        }
+        builder.into_inner().unwrap()
+    }
+
+    #[test]
+    fn extraction_rejects_unsafe_duplicate_link_and_special_entries() {
+        for paths in [
+            vec![("/outside", tar::EntryType::Regular)],
+            vec![("../outside", tar::EntryType::Regular)],
+            vec![("documents/../../outside", tar::EntryType::Regular)],
+            vec![("C:/outside", tar::EntryType::Regular)],
+            vec![("documents\\outside", tar::EntryType::Regular)],
+            vec![
+                ("documents/", tar::EntryType::Directory),
+                ("documents", tar::EntryType::Directory),
+            ],
+            vec![
+                ("same", tar::EntryType::Regular),
+                ("same", tar::EntryType::Regular),
+            ],
+            vec![("link", tar::EntryType::Symlink)],
+            vec![("hardlink", tar::EntryType::Link)],
+            vec![("special", tar::EntryType::Fifo)],
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let destination = dir.path().join("extracted");
+            assert!(
+                extract_tar_archive(&archive_with_paths(&paths), &destination).is_err(),
+                "{paths:?}"
+            );
+            assert!(!dir.path().join("outside").exists());
+        }
+    }
+
+    #[test]
+    fn extraction_enforces_physical_entry_count_including_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let names: Vec<_> = (0..MAX_TAR_ENTRIES + 1).map(|i| format!("{i}")).collect();
+        let paths: Vec<_> = names
+            .iter()
+            .map(|name| (name.as_str(), tar::EntryType::Regular))
+            .collect();
+        extract_tar_archive(
+            &archive_with_paths(&paths[..MAX_TAR_ENTRIES]),
+            &dir.path().join("at-limit"),
+        )
+        .unwrap();
+        let error =
+            extract_tar_archive(&archive_with_paths(&paths), &dir.path().join("over-limit"))
+                .unwrap_err();
+        assert!(error.message.contains("too many"));
+    }
+}

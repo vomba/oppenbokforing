@@ -566,6 +566,15 @@ qualifications are retained in [the November6 verification record](../verificati
 Installed GUI cash UAT, final step review and broader platform/signing checks remain
 separate, unfinished gates.
 
+Formal step review also found an unstaged-expense continuation gap (`rc_c993d9f2`).
+The public regression committed a prior-year expense without a bank match, then
+observed incorrect success in preflight, issuance and receipt. One common expense
+predicate now checks all vouchers against origin dates and original scoped posting
+provenance. Valid staged and unstaged controls remain supported. The correction
+passes focused regressions and the full public gate; fresh step review is required.
+Earlier bundle hashes do not identify this later correction. Installed GUI cash
+UAT therefore requires a rebuilt artifact.
+
 ## Independent review and remaining obligations
 
 Two read-only AI reviewers approved the concept/source package without material

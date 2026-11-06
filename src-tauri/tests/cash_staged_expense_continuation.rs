@@ -89,6 +89,135 @@ async fn staged_expense(f: &CashFixture, day: &str) -> (String, String) {
     (staged[0].id.clone(), voucher)
 }
 
+async fn unstaged_expense(f: &CashFixture, day: &str) {
+    let expense = expenses::expense_post(
+        &f.pool,
+        &f.workspace,
+        &ExpensePostInput {
+            amount_minor_ex_vat: 10000,
+            vat_rate: 0.25,
+            expense_account_number: "5610".into(),
+            payment_account_number: "1930".into(),
+            document_id: None,
+            no_document_reason: Some("Synthetic unstaged expense review regression".into()),
+            staged_transaction_id: None,
+            idempotency_key: "ordinary-unstaged-expense".into(),
+            date: Some(day.into()),
+        },
+    )
+    .await
+    .expect("public unstaged expense posting reproduces existing service behavior");
+    assert!(expense.voucher_id.is_some());
+    let matches: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM reconciliation_matches WHERE workspace_id=?1")
+            .bind(&f.workspace)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        matches, 0,
+        "this regression must not rely on a staging/match guard"
+    );
+    println!("UNSTAGED EXPENSE COMMITTED: {day}; public 10000/2500/12500 posting, no reconciliation match");
+}
+
+async fn assert_unstaged_history_blocks_all_transitions(
+    f: &CashFixture,
+    input: CashIssuePreflightInput,
+    issue: CashIssueInput,
+    receipt: CashReceiptRecordInput,
+) {
+    let before = snapshot(f).await;
+    let preflight = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &input).await;
+    let issuance = cash::invoice_cash_issue(&f.pool, &f.workspace, &issue).await;
+    let recognition = cash::invoice_cash_receipt_record(&f.pool, &f.workspace, &receipt).await;
+    assert!(
+        preflight.is_err() && issuance.is_err() && recognition.is_err(),
+        "contradictory unstaged history must deny preflight/issue/receipt, got success={:?}",
+        (preflight.is_ok(), issuance.is_ok(), recognition.is_ok())
+    );
+    for error in [
+        preflight.unwrap_err(),
+        issuance.unwrap_err(),
+        recognition.unwrap_err(),
+    ] {
+        assert!(
+            error.message.contains("history contradicts"),
+            "wrong rejection: {error:?}"
+        );
+    }
+    assert_eq!(
+        snapshot(f).await,
+        before,
+        "rejected continuation must preserve existing expense/history and create no new cash state"
+    );
+}
+
+#[tokio::test]
+async fn unstaged_prior_origin_expense_blocks_cash_preflight_commit_and_receipt() {
+    let f = CashFixture::issued().await;
+    let input = next_issue_input(&f).await;
+    let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    let issue = issue_input(input.clone(), review.assessment.review_fingerprint);
+    let receipt = receipt_input(&f).await;
+    unstaged_expense(&f, "2025-12-31").await;
+    assert_unstaged_history_blocks_all_transitions(&f, input, issue, receipt).await;
+}
+
+#[tokio::test]
+async fn genuine_unstaged_ordinary_expense_preserves_issue_and_receipt_continuation() {
+    let f = CashFixture::issued().await;
+    unstaged_expense(&f, "2026-01-22").await;
+    let input = next_issue_input(&f).await;
+    let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    let issued = cash::invoice_cash_issue(
+        &f.pool,
+        &f.workspace,
+        &issue_input(input, review.assessment.review_fingerprint),
+    )
+    .await
+    .unwrap();
+    assert_eq!(issued.invoice_number.as_deref(), Some("2026-0002"));
+    assert!(issued.voucher_id.is_none());
+    let receipt = receipt_input(&f).await;
+    cash::invoice_cash_receipt_record(&f.pool, &f.workspace, &receipt)
+        .await
+        .unwrap();
+    let counts: (i64,i64) = sqlx::query_as("SELECT (SELECT COUNT(*) FROM vouchers WHERE workspace_id=?1),(SELECT COUNT(*) FROM cash_receipt_recognitions WHERE workspace_id=?1)")
+        .bind(&f.workspace).fetch_one(&f.pool).await.unwrap();
+    assert_eq!(
+        counts,
+        (2, 1),
+        "one ordinary expense and one actual-date cash receipt"
+    );
+}
+
+#[tokio::test]
+async fn unstaged_expense_requires_original_ordinary_posting_provenance() {
+    for corruption in [
+        "DELETE FROM local_jobs WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET status='failed' WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.result.voucherId','unrelated') WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.stagedTransactionId','invented-staging') WHERE job_type='expense_post'",
+        "UPDATE local_jobs SET payload_json=json_set(payload_json,'$.result.debitExpenseMinor',9999) WHERE job_type='expense_post'",
+        "UPDATE accounts SET account_type='asset' WHERE number='5610'",
+        "UPDATE accounts SET number='2640' WHERE number='2641'",
+    ] {
+        let f = CashFixture::issued().await;
+        unstaged_expense(&f, "2026-01-22").await;
+        let input = next_issue_input(&f).await;
+        let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &input).await.unwrap();
+        let issue = issue_input(input.clone(), review.assessment.review_fingerprint);
+        let receipt = receipt_input(&f).await;
+        sqlx::query(corruption).execute(&f.pool).await.unwrap();
+        assert_unstaged_history_blocks_all_transitions(&f, input, issue, receipt).await;
+    }
+}
+
 async fn next_issue_input(f: &CashFixture) -> CashIssuePreflightInput {
     let history = cash::invoice_cash_history_get(
         &f.pool,

@@ -134,52 +134,79 @@ pub(super) async fn history_supported(
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM vouchers WHERE workspace_id=?1 AND status!='draft') OR EXISTS(SELECT 1 FROM invoices WHERE workspace_id=?1 AND status!='draft') OR EXISTS(SELECT 1 FROM reconciliation_matches WHERE workspace_id=?1)")
             .bind(workspace).fetch_one(&mut **tx).await?
     } else {
-        // Ordinary expenses can consume imported bank staging too. The label alone
-        // is not authority: require the scoped posting, its original expense-job
-        // staging link, actual outflow/date and compatible balanced expense lines.
-        // Cash receipt proof remains a separate, unchanged continuation route.
+        // invoice-lifecycle owns the same origin/provenance boundary for every expense.
         sqlx::query_scalar(r#"
+            WITH expense_totals AS (
+                SELECT v.id,
+                    SUM(j.debit_minor) AS debits, SUM(j.credit_minor) AS credits,
+                    SUM(CASE WHEN a.account_type='expense' AND a.number BETWEEN '4000' AND '8999' THEN j.debit_minor ELSE 0 END) AS expense_minor,
+                    MIN(CASE WHEN a.account_type='expense' AND a.number BETWEEN '4000' AND '8999' THEN a.number END) AS expense_account,
+                    MAX(CASE WHEN a.account_type='expense' AND a.number BETWEEN '4000' AND '8999' THEN a.number END) AS last_expense_account,
+                    SUM(CASE WHEN a.number='2641' THEN j.debit_minor ELSE 0 END) AS vat_minor,
+                    SUM(CASE WHEN a.number='1930' THEN j.credit_minor ELSE 0 END) AS bank_minor,
+                    SUM(CASE WHEN a.workspace_id=v.workspace_id AND (
+                        (a.account_type='expense' AND a.number BETWEEN '4000' AND '8999' AND j.debit_minor>0 AND j.credit_minor=0)
+                        OR (a.number='2641' AND j.debit_minor>0 AND j.credit_minor=0)
+                        OR (a.number='1930' AND j.credit_minor>0 AND j.debit_minor=0)
+                    ) THEN 0 ELSE 1 END) AS invalid_lines
+                FROM vouchers v
+                JOIN journal_lines j ON j.voucher_id=v.id
+                LEFT JOIN accounts a ON a.id=j.account_id
+                WHERE v.workspace_id=?1 GROUP BY v.id
+            ), ordinary_expenses AS (
+                SELECT v.id, json_extract(job.payload_json,'$.stagedTransactionId') AS staged_id
+                FROM vouchers v
+                JOIN expense_totals t ON t.id=v.id
+                JOIN fiscal_years y ON y.id=v.fiscal_year_id AND y.workspace_id=v.workspace_id
+                JOIN cash_business_origins o ON o.workspace_id=v.workspace_id AND o.fiscal_year_id=y.id
+                JOIN local_jobs job ON job.workspace_id=v.workspace_id
+                    AND job.job_type='expense_post' AND job.status='succeeded'
+                    AND json_extract(job.payload_json,'$.result.voucherId')=v.id
+                WHERE v.workspace_id=?1 AND v.status='posted'
+                    AND v.source_type='expense' AND v.source_id IS NULL
+                    AND v.accounting_date BETWEEN y.starts_on AND y.ends_on
+                    AND v.accounting_date BETWEEN json_extract(o.facts_json,'$.businessStartedOn') AND json_extract(o.facts_json,'$.firstFinancialYearEndsOn')
+                    AND t.invalid_lines=0 AND t.expense_minor>0 AND t.bank_minor>0
+                    AND t.debits=t.bank_minor AND t.credits=t.bank_minor
+                    AND t.expense_minor+t.vat_minor=t.bank_minor
+                    AND t.expense_account=t.last_expense_account
+                    AND trim(json_extract(job.payload_json,'$.expenseAccountNumber'))=t.expense_account
+                    AND trim(json_extract(job.payload_json,'$.paymentAccountNumber'))='1930'
+                    AND json_extract(job.payload_json,'$.amountMinorExVat')=t.expense_minor
+                    AND json_extract(job.payload_json,'$.result.debitExpenseMinor')=t.expense_minor
+                    AND json_extract(job.payload_json,'$.result.debitInputVatMinor')=t.vat_minor
+                    AND json_extract(job.payload_json,'$.result.creditPaymentMinor')=t.bank_minor
+                    AND json_extract(job.payload_json,'$.idempotencyKey')=job.idempotency_key
+                    AND NULLIF(trim(json_extract(job.payload_json,'$.documentId')),'') IS v.document_id
+                    AND json_extract(job.payload_json,'$.noDocumentReason') IS v.no_document_reason
+                    AND json_type(job.payload_json,'$.date') IN ('null','text')
+                    AND (json_extract(job.payload_json,'$.date') IS NULL OR json_extract(job.payload_json,'$.date')=v.accounting_date)
+                    AND json_type(job.payload_json,'$.stagedTransactionId') IN ('null','text')
+                    AND (
+                        (json_extract(job.payload_json,'$.stagedTransactionId') IS NULL
+                            AND NOT EXISTS(SELECT 1 FROM reconciliation_matches m WHERE m.workspace_id=v.workspace_id AND m.voucher_id=v.id))
+                        OR EXISTS(
+                            SELECT 1 FROM reconciliation_matches m
+                            JOIN staged_transactions s ON s.id=m.staged_transaction_id AND s.workspace_id=m.workspace_id
+                            WHERE m.workspace_id=v.workspace_id AND m.voucher_id=v.id
+                                AND m.match_kind='expense' AND m.invoice_id IS NULL
+                                AND s.id=json_extract(job.payload_json,'$.stagedTransactionId')
+                                AND s.status='matched' AND s.amount_minor=-t.bank_minor
+                                AND s.transaction_date=v.accounting_date
+                        )
+                    )
+            )
             SELECT EXISTS(SELECT 1 FROM invoices i WHERE i.workspace_id=?1 AND i.status!='draft' AND (i.status!='issued' OR i.invoice_kind!='standard' OR i.voucher_id IS NOT NULL OR NOT EXISTS(SELECT 1 FROM cash_invoice_issues c WHERE c.workspace_id=i.workspace_id AND c.invoice_id=i.id)))
             OR EXISTS(
                 SELECT 1 FROM reconciliation_matches m WHERE m.workspace_id=?1
                 AND NOT EXISTS(SELECT 1 FROM cash_receipt_recognitions r WHERE r.workspace_id=m.workspace_id AND r.match_id=m.id)
-                AND NOT EXISTS(
-                    SELECT 1 FROM vouchers v
-                    JOIN staged_transactions s ON s.id=m.staged_transaction_id AND s.workspace_id=m.workspace_id
-                    JOIN fiscal_years y ON y.id=v.fiscal_year_id AND y.workspace_id=v.workspace_id
-                    JOIN cash_business_origins o ON o.workspace_id=v.workspace_id AND o.fiscal_year_id=y.id
-                    WHERE v.id=m.voucher_id AND v.workspace_id=m.workspace_id
-                    AND m.match_kind='expense' AND m.invoice_id IS NULL
-                    AND v.status='posted' AND v.source_type='expense' AND v.source_id IS NULL
-                    AND s.status='matched' AND s.amount_minor<0
-                    AND v.accounting_date=s.transaction_date
-                    AND v.accounting_date BETWEEN y.starts_on AND y.ends_on
-                    AND v.accounting_date BETWEEN json_extract(o.facts_json,'$.businessStartedOn') AND '2026-12-31'
-                    AND EXISTS(
-                        SELECT 1 FROM local_jobs job WHERE job.workspace_id=m.workspace_id
-                        AND job.job_type='expense_post' AND job.status='succeeded'
-                        AND json_extract(job.payload_json,'$.stagedTransactionId')=s.id
-                        AND json_extract(job.payload_json,'$.result.voucherId')=v.id
-                    )
-                    AND EXISTS(
-                        SELECT 1 FROM journal_lines j JOIN accounts a ON a.id=j.account_id
-                        WHERE j.voucher_id=v.id AND a.workspace_id=v.workspace_id
-                        AND a.account_type='expense' AND a.number BETWEEN '4000' AND '8999'
-                        AND j.debit_minor>0 AND j.credit_minor=0
-                    )
-                    AND NOT EXISTS(
-                        SELECT 1 FROM journal_lines j JOIN accounts a ON a.id=j.account_id
-                        WHERE j.voucher_id=v.id AND (a.workspace_id!=v.workspace_id OR NOT (
-                            (a.account_type='expense' AND a.number BETWEEN '4000' AND '8999' AND j.debit_minor>0 AND j.credit_minor=0)
-                            OR (a.number='2641' AND j.debit_minor>0 AND j.credit_minor=0)
-                            OR (a.number='1930' AND j.credit_minor>0 AND j.debit_minor=0)
-                        ))
-                    )
-                    AND (SELECT SUM(j.credit_minor) FROM journal_lines j WHERE j.voucher_id=v.id)=-s.amount_minor
-                    AND (SELECT SUM(j.debit_minor) FROM journal_lines j WHERE j.voucher_id=v.id)=-s.amount_minor
-                )
+                AND NOT EXISTS(SELECT 1 FROM ordinary_expenses e WHERE e.id=m.voucher_id AND e.staged_id=m.staged_transaction_id AND m.match_kind='expense' AND m.invoice_id IS NULL)
             )
-            OR EXISTS(SELECT 1 FROM vouchers v WHERE v.workspace_id=?1 AND v.status!='draft' AND NOT EXISTS(SELECT 1 FROM cash_receipt_recognitions r WHERE r.workspace_id=v.workspace_id AND r.voucher_id=v.id) AND (v.status!='posted' OR v.source_type!='expense' OR EXISTS(SELECT 1 FROM journal_lines j JOIN accounts a ON a.id=j.account_id WHERE j.voucher_id=v.id AND (a.workspace_id!=v.workspace_id OR a.number BETWEEN '3000' AND '3999' OR a.number IN ('1510','2611')))))
+            OR EXISTS(
+                SELECT 1 FROM vouchers v WHERE v.workspace_id=?1 AND v.status!='draft'
+                AND NOT EXISTS(SELECT 1 FROM cash_receipt_recognitions r WHERE r.workspace_id=v.workspace_id AND r.voucher_id=v.id)
+                AND NOT EXISTS(SELECT 1 FROM ordinary_expenses e WHERE e.id=v.id)
+            )
         "#)
             .bind(workspace).fetch_one(&mut **tx).await?
     };

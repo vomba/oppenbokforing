@@ -70,6 +70,21 @@ Exact input hashes, sizes, exits and timing are in [the artifact record](artifac
 These are build-bundle executions, not installed-app GUI transactions.
 Resource limits are not universal RSS or stack-memory ceilings.
 
+## Review correction: unstaged expense continuation
+
+Review `rc_c993d9f2` found that unstaged expenses bypassed checks applied through bank matches.
+A public `2025-12-31` expense after a 2026 origin wrongly allowed preflight, issuance and receipt.
+The retained `cash-unstaged-expense-red.txt` transcript records those three unexpected successes before the fix.
+
+A common predicate now validates every ordinary expense voucher against the immutable origin dates and scoped posting provenance.
+It checks balanced compatible accounts, original expense-job values and any required staging links.
+Valid staged and unstaged expenses remain supported, and first-origin emptiness is unchanged.
+The continuation suite passes8 tests, including seven new unstaged corruption scenarios.
+The full public CI gate also passes after this correction.
+
+The artifact hashes above identify the earlier implementation build, not this review correction.
+Rebuild the app/DMG before using them for post-fix GUI UAT.
+
 ## Remaining verification
 
 - Mount the new DMG read-only and copy the app into a disposable Applications directory.

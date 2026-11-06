@@ -99,7 +99,11 @@ fingerprint-bound. The first successful issue atomically anchors the origin and
 configures/audits the still-empty open fiscal year's real dates. It preserves
 number, snapshot, PDF work and audit but creates no voucher, journal line, 1510,
 revenue or output VAT; its accounting date is null. Proven later cash activity and
-ordinary expenses are continuation, not automatically legacy. Unknown or mixed
+ordinary expenses are continuation, not automatically legacy. Every expense voucher
+must match the immutable origin/year dates, original scoped expense-job provenance
+and balanced ordinary expense lines. Optional bank staging adds link checks, not an
+exemption from that common predicate. Contradictory unstaged history blocks both
+new issue and receipt, just as contradictory staged history does. Unknown or mixed
 income history cannot be grandfathered. `business-profiles` owns method freeze.
 
 A receipt requires a verified retained external PDF plus explicit actual amount,

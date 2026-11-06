@@ -508,12 +508,48 @@ async fn concurrent_posting_and_approval_cannot_both_commit_against_old_review()
 
 #[tokio::test]
 async fn posting_commit_while_approval_waits_requires_fresh_review() {
+    use std::{
+        ffi::c_void,
+        sync::{mpsc, Mutex},
+        time::Duration,
+    };
+    type ContentionGate = (tokio::sync::oneshot::Sender<()>, mpsc::Receiver<()>);
+    static CONTENTION: Mutex<Option<ContentionGate>> = Mutex::new(None);
+
+    unsafe extern "C" fn wait_on_contention(_: *mut c_void, _: i32) -> i32 {
+        let gate = CONTENTION.lock().ok().and_then(|mut gate| gate.take());
+        let Some((contended, release)) = gate else {
+            return 0;
+        };
+        if contended.send(()).is_err() {
+            return 0;
+        }
+        i32::from(release.recv_timeout(Duration::from_secs(10)).is_ok())
+    }
+
     let (dir, pool, workspace) = setup().await;
     let writer = connect_workspace(&dir.path().join("workspace.sqlite"))
         .await
         .unwrap();
     let reviewed = draft(&pool, &workspace, "review").await;
     let before = approval_state(&pool).await;
+    let (contended, contention) = tokio::sync::oneshot::channel();
+    let (release, released) = mpsc::channel();
+    *CONTENTION.lock().unwrap() = Some((contended, released));
+    {
+        let mut connection = pool.acquire().await.unwrap();
+        let mut handle = connection.lock_handle().await.unwrap();
+        // SAFETY: SQLx holds the connection handle exclusively. The callback uses
+        // only static synchronized state, never the opaque pointer, and cannot unwind.
+        let result = unsafe {
+            libsqlite3_sys::sqlite3_busy_handler(
+                handle.as_raw_handle().as_ptr(),
+                Some(wait_on_contention),
+                std::ptr::null_mut(),
+            )
+        };
+        assert_eq!(result, libsqlite3_sys::SQLITE_OK);
+    }
     let mut posting = writer.begin_with("BEGIN IMMEDIATE").await.unwrap();
     ledger::post_invoice_voucher_tx(
         &mut posting,
@@ -528,21 +564,30 @@ async fn posting_commit_while_approval_waits_requires_fresh_review() {
     let approval_pool = pool.clone();
     let approval_workspace = workspace.clone();
     let input = approval(&reviewed, "queued-approve");
-    let (started, ready) = tokio::sync::oneshot::channel();
     let pending = tokio::spawn(async move {
-        started.send(()).unwrap();
         vat::vat_return_approve(&approval_pool, &approval_workspace, &input).await
     });
-    ready.await.unwrap();
+    tokio::time::timeout(Duration::from_secs(10), contention)
+        .await
+        .expect("approval must encounter the held SQLite writer lock")
+        .expect("SQLite busy handler must signal contention");
     assert!(
         !pending.is_finished(),
-        "approval cannot finish while another writer owns the transaction"
+        "approval is held inside SQLite's busy handler"
     );
     posting.commit().await.unwrap();
-    let rejected = pending
+    release
+        .send(())
+        .expect("release approval only after the posting commits");
+    let rejected = tokio::time::timeout(Duration::from_secs(10), pending)
         .await
+        .expect("approval must finish after the writer commits")
         .unwrap()
         .expect_err("approval must observe the just-committed source");
+    sqlx::query("PRAGMA busy_timeout = 5000")
+        .execute(&pool)
+        .await
+        .unwrap();
     assert_eq!(rejected.code, "validation_error");
     assert!(rejected.message.contains("Regenerate"));
     assert_eq!(before, approval_state(&pool).await);

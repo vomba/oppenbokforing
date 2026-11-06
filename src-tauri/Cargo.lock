@@ -2563,6 +2563,7 @@ dependencies = [
  "argon2",
  "chrono",
  "libc",
+ "libsqlite3-sys",
  "printpdf",
  "rand",
  "serde",

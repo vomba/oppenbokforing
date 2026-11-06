@@ -221,7 +221,17 @@ Required interactions:
 - Export filing package.
 - Approval locks the period; there is no separate lock command/button.
 
-Changing the selected period clears the displayed return and trace.
+Confirmation captures the displayed return, figures and review revision. Approval
+sends that captured revision, not whichever revision may exist later. Box amounts
+come from the stored return; trace responses attach only when their revision matches.
+Workspace or period changes clear the return, trace and confirmation; delayed results
+from an earlier selection cannot restore them. A stale approval error requires
+explicit regeneration and fresh review, never automatic refresh-and-approval.
+
+Approval retry keys are scoped to workspace, return and revision. Generation retains
+its request key after an uncertain failure; a definitive superseded-request error
+clears it so the next explicit attempt can regenerate and be reviewed.
+
 Revisiting a period does not reload its existing return. This remains unfinished
 UI coverage, separate from the new eligibility and stale-review requirements.
 

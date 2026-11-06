@@ -115,6 +115,7 @@ async fn reporting_frequency_change_is_rejected_after_vat_return_work_but_allowe
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: quarterly_return.review_revision.clone().expect("review revision"),
             vat_return_id: quarterly_return.id,
             idempotency_key: "approve-quarterly-q1".to_string(),
         },
@@ -244,6 +245,11 @@ async fn vat_return_creation_and_approval_reject_overlapping_periods() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: vat::vat_return_get(
+                &pool,
+                &workspace_id,
+                &vat::VatReturnGetInput { vat_return_id: monthly_return_id.clone() },
+            ).await.expect("legacy draft summary").review_revision.unwrap_or_default(),
             vat_return_id: monthly_return_id,
             idempotency_key: "approve-monthly-m1".to_string(),
         },

@@ -14,6 +14,8 @@ use crate::{
     workspace::{ensure_fiscal_year_open_tx, fiscal_year_id_for_year},
 };
 
+mod review;
+
 const JOB_VAT_RETURN_DRAFT: &str = "vat_return_draft_create";
 const JOB_VAT_RETURN_APPROVE: &str = "vat_return_approve";
 
@@ -22,12 +24,16 @@ const JOB_VAT_RETURN_APPROVE: &str = "vat_return_approve";
 struct IdempotentVatReturnPayload {
     vat_return_id: String,
     period_key: String,
+    #[serde(default)]
+    review_revision: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct IdempotentVatApprovePayload {
     vat_return_id: String,
+    #[serde(default)]
+    reviewed_revision: Option<String>,
 }
 
 struct LedgerLineRow {
@@ -38,7 +44,7 @@ struct LedgerLineRow {
     vat_code: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VatReturnBox {
     pub box_code: String,
@@ -49,6 +55,7 @@ pub struct VatReturnBox {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VatReturnSummary {
+    pub review_revision: Option<String>,
     pub id: String,
     pub fiscal_period_id: String,
     pub period_key: String,
@@ -76,6 +83,7 @@ pub struct VatReturnGetInput {
 #[derive(Debug, Clone, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VatReturnApproveInput {
+    pub reviewed_revision: String,
     pub vat_return_id: String,
     pub idempotency_key: String,
 }
@@ -93,7 +101,7 @@ pub struct VatReturnTraceInput {
     pub vat_return_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VatReturnBoxTrace {
     pub box_number: String,
@@ -101,9 +109,10 @@ pub struct VatReturnBoxTrace {
     pub voucher_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VatReturnTrace {
+    pub review_revision: Option<String>,
     pub rule_version_id: String,
     pub tax_year: i32,
     pub source_url: String,
@@ -367,18 +376,26 @@ async fn ensure_fiscal_period_tx(
     .execute(&mut **tx)
     .await?;
 
-    let status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM fiscal_periods WHERE id = ?1 LIMIT 1",
+    // Legacy/imported periods need not use today's deterministic ID format.
+    let existing_period = sqlx::query(
+        "SELECT id, status, fiscal_year_id, starts_on, ends_on FROM fiscal_periods WHERE workspace_id = ?1 AND period_key = ?2 LIMIT 1",
     )
-    .bind(&period_id)
+    .bind(workspace_id)
+    .bind(period_key)
     .fetch_optional(&mut **tx)
     .await?;
-
-    match status.as_deref() {
-        Some("open") => Ok(period_id),
-        Some("locked") => Err(AppError::locked_period("Fiscal period is already locked")),
-        Some(_) => Err(AppError::validation("Invalid fiscal period status", "periodKey")),
-        None => Err(AppError::internal("Fiscal period was not created")),
+    let row = existing_period.ok_or_else(|| AppError::internal("Fiscal period was not created"))?;
+    if row.get::<String, _>("fiscal_year_id") != fiscal_year_id
+        || row.get::<String, _>("starts_on") != bounds.starts_on
+        || row.get::<String, _>("ends_on") != bounds.ends_on
+    {
+        return Err(AppError::validation("Stored fiscal period does not match the requested period", "periodKey"));
+    }
+    let status: String = row.get("status");
+    match status.as_str() {
+        "open" => Ok(row.get("id")),
+        "locked" => Err(AppError::locked_period("Fiscal period is already locked")),
+        _ => Err(AppError::validation("Invalid fiscal period status", "periodKey")),
     }
 }
 
@@ -741,9 +758,20 @@ async fn load_vat_return_summary(
     workspace_id: &str,
     vat_return_id: &str,
 ) -> Result<VatReturnSummary, AppError> {
+    let mut tx = pool.begin().await?;
+    let summary = load_vat_return_summary_tx(&mut tx, workspace_id, vat_return_id).await?;
+    tx.commit().await?;
+    Ok(summary)
+}
+
+async fn load_vat_return_summary_tx(
+    tx: &mut Transaction<'_, Sqlite>,
+    workspace_id: &str,
+    vat_return_id: &str,
+) -> Result<VatReturnSummary, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT vr.id, vr.fiscal_period_id, fp.period_key, vr.status, vr.rule_version_id, vr.export_path
+        SELECT vr.id, vr.fiscal_period_id, fp.period_key, vr.status, vr.rule_version_id, vr.export_path, vr.review_revision
         FROM vat_returns vr
         JOIN fiscal_periods fp ON fp.id = vr.fiscal_period_id
         WHERE vr.workspace_id = ?1 AND vr.id = ?2
@@ -752,7 +780,7 @@ async fn load_vat_return_summary(
     )
     .bind(workspace_id)
     .bind(vat_return_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| AppError::validation("VAT return not found", "vatReturnId"))?;
 
@@ -765,7 +793,7 @@ async fn load_vat_return_summary(
         "#,
     )
     .bind(vat_return_id)
-    .fetch_all(pool)
+    .fetch_all(&mut **tx)
     .await?;
 
     let boxes: Vec<VatReturnBox> = boxes_rows
@@ -784,6 +812,7 @@ async fn load_vat_return_summary(
         .unwrap_or(0);
 
     Ok(VatReturnSummary {
+        review_revision: row.get("review_revision"),
         id: row.get("id"),
         fiscal_period_id: row.get("fiscal_period_id"),
         period_key: row.get("period_key"),
@@ -797,7 +826,7 @@ async fn load_vat_return_summary(
 }
 
 async fn check_draft_idempotency(
-    pool: &SqlitePool,
+    tx: &mut Transaction<'_, Sqlite>,
     workspace_id: &str,
     idempotency_key: &str,
 ) -> Result<Option<IdempotentVatReturnPayload>, AppError> {
@@ -812,7 +841,7 @@ async fn check_draft_idempotency(
     .bind(workspace_id)
     .bind(JOB_VAT_RETURN_DRAFT)
     .bind(key)
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?;
 
     let Some(json) = payload else {
@@ -844,16 +873,26 @@ pub async fn vat_return_draft_create(
     let idempotency_key = normalize_idempotency_key(&input.idempotency_key)?;
     let period_key = input.period_key.trim();
 
-    if let Some(cached) = check_draft_idempotency(pool, workspace_id, idempotency_key).await? {
-        validate_draft_idempotency_match(period_key, &cached)?;
-        return load_vat_return_summary(pool, workspace_id, &cached.vat_return_id).await;
-    }
-
     let bounds = parse_period_key(period_key)?;
     let fiscal_year_id = fiscal_year_id_for_year(pool, workspace_id, bounds.fiscal_year).await?;
     seed_vat_codes(pool, workspace_id).await?;
 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    if let Some(cached) = check_draft_idempotency(&mut tx, workspace_id, idempotency_key).await? {
+        validate_draft_idempotency_match(period_key, &cached)?;
+        let summary = load_vat_return_summary_tx(&mut tx, workspace_id, &cached.vat_return_id).await?;
+        if cached.review_revision.is_none() || cached.review_revision != summary.review_revision {
+            let mut error = AppError::validation(
+                "This VAT draft request was superseded. Regenerate with a new request key and review the new draft",
+                "idempotencyKey",
+            );
+            error.code = "vat_draft_superseded".to_string();
+            return Err(error);
+        }
+        tx.commit().await?;
+        return Ok(summary);
+    }
+
     ensure_fiscal_year_open_tx(&mut *tx, &fiscal_year_id).await?;
     let vat_profile = sqlx::query(
         r#"
@@ -905,6 +944,7 @@ pub async fn vat_return_draft_create(
         SELECT id
         FROM rule_versions
         WHERE status = 'active' AND tax_year = ?1
+        ORDER BY id
         LIMIT 1
         "#,
     )
@@ -973,15 +1013,18 @@ pub async fn vat_return_draft_create(
     };
 
     persist_vat_return_boxes_tx(&mut tx, &vat_return_id, &boxes).await?;
+    let review_revision = Uuid::new_v4().to_string();
+    review::persist(&mut tx, workspace_id, &vat_return_id, &review_revision, &boxes).await?;
 
     let payload = IdempotentVatReturnPayload {
         vat_return_id: vat_return_id.clone(),
         period_key: period_key.to_string(),
+        review_revision: Some(review_revision.clone()),
     };
     let payload_json =
         serde_json::to_string(&payload).map_err(|e| AppError::internal(e.to_string()))?;
 
-    match sqlx::query(
+    sqlx::query(
         r#"
         INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
         VALUES (?1, ?2, ?3, 'succeeded', ?4, ?5)
@@ -993,23 +1036,7 @@ pub async fn vat_return_draft_create(
     .bind(payload_json)
     .bind(idempotency_key)
     .execute(&mut *tx)
-    .await
-    {
-        Ok(_) => {}
-        Err(error) if crate::error::is_sqlite_unique_violation(&error) => {
-            tx.rollback().await?;
-            if let Some(cached) = check_draft_idempotency(pool, workspace_id, idempotency_key).await?
-            {
-                validate_draft_idempotency_match(period_key, &cached)?;
-                return load_vat_return_summary(pool, workspace_id, &cached.vat_return_id).await;
-            }
-            return Err(error.into());
-        }
-        Err(error) => {
-            tx.rollback().await?;
-            return Err(error.into());
-        }
-    }
+    .await?;
 
     record_event_tx(
         &mut *tx,
@@ -1017,12 +1044,13 @@ pub async fn vat_return_draft_create(
         "vat_return_draft_create",
         "vat_return",
         Some(&vat_return_id),
-        &serde_json::json!({ "periodKey": period_key, "ruleVersionId": rule_version_id }).to_string(),
+        &serde_json::json!({ "periodKey": period_key, "ruleVersionId": rule_version_id, "reviewRevision": review_revision }).to_string(),
     )
     .await?;
 
+    let summary = load_vat_return_summary_tx(&mut tx, workspace_id, &vat_return_id).await?;
     tx.commit().await?;
-    load_vat_return_summary(pool, workspace_id, &vat_return_id).await
+    Ok(summary)
 }
 
 pub async fn vat_return_get(
@@ -1038,6 +1066,20 @@ pub async fn vat_return_trace(
     workspace_id: &str,
     input: &VatReturnTraceInput,
 ) -> Result<VatReturnTrace, AppError> {
+    let mut tx = pool.begin().await?;
+    let trace = match review::load(&mut tx, workspace_id, &input.vat_return_id).await? {
+        Some(snapshot) => snapshot.trace,
+        None => legacy_vat_return_trace_tx(&mut tx, workspace_id, input).await?,
+    };
+    tx.commit().await?;
+    Ok(trace)
+}
+
+async fn legacy_vat_return_trace_tx(
+    tx: &mut Transaction<'_, Sqlite>,
+    workspace_id: &str,
+    input: &VatReturnTraceInput,
+) -> Result<VatReturnTrace, AppError> {
     let return_row = sqlx::query(
         r#"
         SELECT vr.rule_version_id, rv.tax_year, rv.source_url, fp.starts_on, fp.ends_on
@@ -1050,7 +1092,7 @@ pub async fn vat_return_trace(
     )
     .bind(&input.vat_return_id)
     .bind(workspace_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| AppError::validation("VAT return not found", "vatReturnId"))?;
 
@@ -1081,7 +1123,7 @@ pub async fn vat_return_trace(
     .bind(workspace_id)
     .bind(&starts_on)
     .bind(&ends_on)
-    .fetch_all(pool)
+    .fetch_all(&mut **tx)
     .await?;
 
     let mut voucher_lines: std::collections::BTreeMap<String, Vec<LedgerLineRow>> =
@@ -1141,6 +1183,7 @@ pub async fn vat_return_trace(
         .collect();
 
     Ok(VatReturnTrace {
+        review_revision: None,
         rule_version_id,
         tax_year,
         source_url,
@@ -1150,11 +1193,12 @@ pub async fn vat_return_trace(
 
 fn validate_approve_idempotency_match(
     vat_return_id: &str,
+    reviewed_revision: &str,
     cached: &IdempotentVatApprovePayload,
 ) -> Result<(), AppError> {
-    if cached.vat_return_id != vat_return_id {
+    if cached.vat_return_id != vat_return_id || cached.reviewed_revision.as_deref() != Some(reviewed_revision) {
         return Err(AppError::validation(
-            "Idempotency key was already used for a different VAT return",
+            "Idempotency key was already used for a different VAT return or review revision",
             "idempotencyKey",
         ));
     }
@@ -1162,7 +1206,7 @@ fn validate_approve_idempotency_match(
 }
 
 async fn check_approve_idempotency(
-    pool: &SqlitePool,
+    tx: &mut Transaction<'_, Sqlite>,
     workspace_id: &str,
     idempotency_key: &str,
 ) -> Result<Option<IdempotentVatApprovePayload>, AppError> {
@@ -1177,7 +1221,7 @@ async fn check_approve_idempotency(
     .bind(workspace_id)
     .bind(JOB_VAT_RETURN_APPROVE)
     .bind(key)
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?;
 
     let Some(json) = payload else {
@@ -1216,6 +1260,34 @@ async fn persist_vat_return_boxes_tx(
     Ok(())
 }
 
+async fn persist_approval_replay_tx(
+    tx: &mut Transaction<'_, Sqlite>,
+    workspace_id: &str,
+    input: &VatReturnApproveInput,
+    idempotency_key: &str,
+) -> Result<(), AppError> {
+    let payload = IdempotentVatApprovePayload {
+        vat_return_id: input.vat_return_id.clone(),
+        reviewed_revision: Some(input.reviewed_revision.clone()),
+    };
+    let payload_json =
+        serde_json::to_string(&payload).map_err(|e| AppError::internal(e.to_string()))?;
+    sqlx::query(
+        r#"
+        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
+        VALUES (?1, ?2, ?3, 'succeeded', ?4, ?5)
+        "#,
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind(workspace_id)
+    .bind(JOB_VAT_RETURN_APPROVE)
+    .bind(payload_json)
+    .bind(idempotency_key)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 pub async fn vat_return_approve(
     pool: &SqlitePool,
     workspace_id: &str,
@@ -1223,12 +1295,16 @@ pub async fn vat_return_approve(
 ) -> Result<VatReturnSummary, AppError> {
     let idempotency_key = normalize_idempotency_key(&input.idempotency_key)?;
 
-    if let Some(cached) = check_approve_idempotency(pool, workspace_id, idempotency_key).await? {
-        validate_approve_idempotency_match(&input.vat_return_id, &cached)?;
-        return load_vat_return_summary(pool, workspace_id, &cached.vat_return_id).await;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    if let Some(cached) = check_approve_idempotency(&mut tx, workspace_id, idempotency_key).await? {
+        validate_approve_idempotency_match(&input.vat_return_id, &input.reviewed_revision, &cached)?;
+        let summary = load_vat_return_summary_tx(&mut tx, workspace_id, &cached.vat_return_id).await?;
+        if summary.review_revision.as_deref() != Some(input.reviewed_revision.as_str()) {
+            return Err(review::stale_review());
+        }
+        tx.commit().await?;
+        return Ok(summary);
     }
-
-    let mut tx = pool.begin().await?;
 
     let row = sqlx::query(
         r#"
@@ -1246,10 +1322,15 @@ pub async fn vat_return_approve(
     .await?
     .ok_or_else(|| AppError::validation("VAT return not found", "vatReturnId"))?;
 
+    let summary = load_vat_return_summary_tx(&mut tx, workspace_id, &input.vat_return_id).await?;
     let status: String = row.get("status");
     if status == "approved" {
-        tx.rollback().await?;
-        return load_vat_return_summary(pool, workspace_id, &input.vat_return_id).await;
+        if summary.review_revision.as_deref() != Some(input.reviewed_revision.as_str()) {
+            return Err(review::stale_review());
+        }
+        persist_approval_replay_tx(&mut tx, workspace_id, input, idempotency_key).await?;
+        tx.commit().await?;
+        return Ok(summary);
     }
 
     let fiscal_period_id: String = row.get("fiscal_period_id");
@@ -1266,10 +1347,10 @@ pub async fn vat_return_approve(
         &ends_on,
     )
     .await?;
-    let fresh_boxes =
-        aggregate_vat_boxes_tx(&mut tx, workspace_id, &starts_on, &ends_on).await?;
-    persist_vat_return_boxes_tx(&mut tx, &input.vat_return_id, &fresh_boxes).await?;
-
+    if summary.review_revision.as_deref() != Some(input.reviewed_revision.as_str()) {
+        return Err(review::stale_review());
+    }
+    review::validate(&mut tx, workspace_id, &input.vat_return_id, &input.reviewed_revision, &summary.boxes).await?;
     let updated = sqlx::query(
         r#"
         UPDATE vat_returns
@@ -1289,7 +1370,7 @@ pub async fn vat_return_approve(
         ));
     }
 
-    sqlx::query(
+    let locked = sqlx::query(
         r#"
         UPDATE fiscal_periods
         SET status = 'locked'
@@ -1299,43 +1380,11 @@ pub async fn vat_return_approve(
     .bind(&fiscal_period_id)
     .execute(&mut *tx)
     .await?;
-
-    let payload = IdempotentVatApprovePayload {
-        vat_return_id: input.vat_return_id.clone(),
-    };
-    let payload_json =
-        serde_json::to_string(&payload).map_err(|e| AppError::internal(e.to_string()))?;
-
-    match sqlx::query(
-        r#"
-        INSERT INTO local_jobs (id, workspace_id, job_type, status, payload_json, idempotency_key)
-        VALUES (?1, ?2, ?3, 'succeeded', ?4, ?5)
-        "#,
-    )
-    .bind(Uuid::new_v4().to_string())
-    .bind(workspace_id)
-    .bind(JOB_VAT_RETURN_APPROVE)
-    .bind(payload_json)
-    .bind(idempotency_key)
-    .execute(&mut *tx)
-    .await
-    {
-        Ok(_) => {}
-        Err(error) if crate::error::is_sqlite_unique_violation(&error) => {
-            tx.rollback().await?;
-            if let Some(cached) =
-                check_approve_idempotency(pool, workspace_id, idempotency_key).await?
-            {
-                validate_approve_idempotency_match(&input.vat_return_id, &cached)?;
-                return load_vat_return_summary(pool, workspace_id, &cached.vat_return_id).await;
-            }
-            return Err(error.into());
-        }
-        Err(error) => {
-            tx.rollback().await?;
-            return Err(error.into());
-        }
+    if locked.rows_affected() != 1 {
+        return Err(AppError::locked_period("Fiscal period is already locked"));
     }
+
+    persist_approval_replay_tx(&mut tx, workspace_id, input, idempotency_key).await?;
 
     record_event_tx(
         &mut *tx,
@@ -1343,12 +1392,13 @@ pub async fn vat_return_approve(
         "vat_return_approved",
         "vat_return",
         Some(&input.vat_return_id),
-        &serde_json::json!({ "fiscalPeriodId": fiscal_period_id }).to_string(),
+        &serde_json::json!({ "fiscalPeriodId": fiscal_period_id, "reviewRevision": input.reviewed_revision }).to_string(),
     )
     .await?;
 
+    let summary = load_vat_return_summary_tx(&mut tx, workspace_id, &input.vat_return_id).await?;
     tx.commit().await?;
-    load_vat_return_summary(pool, workspace_id, &input.vat_return_id).await
+    Ok(summary)
 }
 
 pub async fn vat_return_export(

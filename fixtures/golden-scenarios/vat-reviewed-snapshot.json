@@ -1,0 +1,30 @@
+{
+  "id": "vat-reviewed-snapshot",
+  "title": "Late posting requires regeneration and fresh VAT review",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "vatStatus": "registered",
+    "vatReportingPeriod": "quarterly",
+    "ruleYear": 2026
+  },
+  "transactions": [
+    { "type": "generate_vat_draft", "periodKey": "2026-Q1" },
+    { "type": "invoice", "amountMinorExVat": 10000, "vatRate": 0.25, "accountingDate": "2026-02-01" },
+    { "type": "approve_original_review" },
+    { "type": "regenerate_and_review_vat_draft", "periodKey": "2026-Q1" }
+  ],
+  "expected": {
+    "originalBox49Minor": 0,
+    "staleApprovalRejected": true,
+    "rejectionChangesApprovalState": false,
+    "regeneratedBox49Minor": 2500,
+    "previousRevisionCanApproveRegeneratedDraft": false,
+    "freshReviewedRevisionCanApprove": true
+  },
+  "sources": [
+    "https://github.com/vomba/oppenbokforing/issues/39",
+    "https://github.com/vomba/oppenbokforing/blob/bfd39e6/docs/adr/0004-prepare-only-tax-workflows.md"
+  ],
+  "milestone": 4,
+  "rfcSection": "Reviewed-snapshot integrity; not independent VAT-law validation"
+}

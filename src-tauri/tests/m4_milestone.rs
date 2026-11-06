@@ -112,6 +112,7 @@ async fn m4_vat_registered_zero_period_fixture() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
             vat_return_id: draft.id.clone(),
             idempotency_key: "approve-zero-q1".to_string(),
         },
@@ -238,6 +239,7 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: vat_draft.review_revision.clone().expect("review revision"),
             vat_return_id: vat_draft.id,
             idempotency_key: "lock-q1-approve".to_string(),
         },
@@ -324,6 +326,7 @@ async fn m4_vat_return_export_offline() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
             vat_return_id: draft.id.clone(),
             idempotency_key: "export-approve".to_string(),
         },
@@ -494,6 +497,7 @@ async fn m4_cashflow_overview_after_vat_approval() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
             vat_return_id: draft.id,
             idempotency_key: "cashflow-approve".to_string(),
         },
@@ -981,6 +985,7 @@ async fn m4_vat_approve_idempotency_rejects_different_return() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: q1.review_revision.clone().expect("review revision"),
             vat_return_id: q1.id.clone(),
             idempotency_key: "shared-approve".to_string(),
         },
@@ -992,6 +997,7 @@ async fn m4_vat_approve_idempotency_rejects_different_return() {
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
+            reviewed_revision: q2.review_revision.clone().expect("review revision"),
             vat_return_id: q2.id,
             idempotency_key: "shared-approve".to_string(),
         },
@@ -1003,7 +1009,7 @@ async fn m4_vat_approve_idempotency_rejects_different_return() {
 }
 
 #[tokio::test]
-async fn m4_vat_approve_refreshes_boxes_after_late_posting() {
+async fn m4_vat_approve_rejects_stale_review_after_late_posting() {
     let dir = tempdir().expect("tempdir");
     let (pool, workspace_id, _) = setup_workspace(&dir).await;
 
@@ -1062,16 +1068,23 @@ async fn m4_vat_approve_refreshes_boxes_after_late_posting() {
     .await
     .expect("issue");
 
-    let approved = vat::vat_return_approve(
+    let error = vat::vat_return_approve(
         &pool,
         &workspace_id,
         &VatReturnApproveInput {
-            vat_return_id: draft.id,
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
+            vat_return_id: draft.id.clone(),
             idempotency_key: "late-approve".to_string(),
         },
     )
     .await
-    .expect("approve");
-
-    assert!(approved.box49_amount_minor > 0);
+    .expect_err("changed source requires regeneration and review");
+    assert_eq!(error.code, "validation_error");
+    assert!(error.message.contains("Regenerate"));
+    let retained = vat::vat_return_get(
+        &pool, &workspace_id, &vat::VatReturnGetInput { vat_return_id: draft.id },
+    ).await.expect("retained draft");
+    assert_eq!(retained.status, "draft");
+    assert_eq!(retained.box49_amount_minor, 0);
+    assert_eq!(retained.review_revision, draft.review_revision);
 }

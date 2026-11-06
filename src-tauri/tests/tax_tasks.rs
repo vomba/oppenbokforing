@@ -132,7 +132,7 @@ async fn tax_task_calendar_uses_fixture_schedule_provenance_and_deterministic_or
     assert_eq!(vat_task.target, registered["target"].as_str().expect("target"));
     assert_eq!(vat_task.period_key, registered["periodKey"].as_str().expect("period key"));
     assert_eq!(vat_task.due_on.as_deref(), registered["dueOn"].as_str());
-    assert_eq!(vat_task.rule_version_id, "rv-2026-domestic-service25-exact-v1");
+    assert_eq!(vat_task.rule_version_id, "rv-2026-method-recognition-v2");
     assert_eq!(vat_task.tax_year, 2026);
     assert!(scenario.sources.contains(&vat_task.source_url));
 
@@ -339,7 +339,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     )
     .await
     .expect("trace");
-    assert_eq!(trace.rule_version_id, "rv-2026-domestic-service25-exact-v1");
+    assert_eq!(trace.rule_version_id, "rv-2026-method-recognition-v2");
     let trace_box = trace
         .boxes
         .iter()

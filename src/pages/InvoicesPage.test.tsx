@@ -7,6 +7,7 @@ import { SimpleModeProvider } from "../context/SimpleModeContext"
 import { WorkspaceProvider } from "../context/WorkspaceContext"
 import type { InvoiceSummary } from "../lib/commands"
 import { localTodayIsoDate } from "../lib/invoiceStatus"
+import { cashHistory } from "../test/cashFixtures"
 import { InvoicesPage } from "./InvoicesPage"
 
 const workspace = {
@@ -51,6 +52,8 @@ const {
   invoicePdfStatus,
   documentReveal,
   taxProfileGetCurrent,
+  vatProfileGetCurrent,
+  invoiceCashHistoryGet,
 } = vi.hoisted(() => ({
   invoiceList: vi.fn(),
   invoiceIssue: vi.fn(),
@@ -64,6 +67,8 @@ const {
   invoicePdfStatus: vi.fn(),
   documentReveal: vi.fn(),
   taxProfileGetCurrent: vi.fn(),
+  vatProfileGetCurrent: vi.fn().mockResolvedValue({ accountingMethod: "invoice_method" }),
+  invoiceCashHistoryGet: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock("../context/WorkspaceContext", async () => {
@@ -85,6 +90,9 @@ vi.mock("../components/AppSidebar", () => ({
 
 vi.mock("../lib/commands", () => ({
   appErrorMessage: (_error: unknown, fallback: string) => fallback,
+  vatProfileGetCurrent,
+  invoiceCashHistoryGet,
+  cashBusinessOriginGet: vi.fn().mockResolvedValue(null),
   counterpartyCreate: vi.fn(),
   counterpartyList: vi.fn().mockResolvedValue([
     { id: "cust-1", kind: "customer", name: "Customer AB", email: null, orgNumber: null },
@@ -793,4 +801,45 @@ describe("InvoicesPage", () => {
     })
     expect(invoicePdfRefresh).not.toHaveBeenCalled()
   })
+})
+
+
+describe("additive cash invoice routing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    taxProfileGetCurrent.mockResolvedValue({ taxStatus: "f_skatt" })
+    invoiceLegacySnapshotRecoveryStatus.mockResolvedValue({ recoveryRequired: false, preservedPdfDocumentId: null })
+    vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "invoice_method" })
+    invoiceCashHistoryGet.mockResolvedValue(null)
+  })
+  it("routes a cash_method draft to the separate explicit cash review", async () => {
+    vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "cash_method" })
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    renderInvoices("en")
+    fireEvent.click(await screen.findByRole("button", { name: "Issue" }))
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Review cash-method invoice")
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "invoice_method" })
+  })
+  it("reads immutable cash history even when current profile is invoice_method", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, voucherId: null }])
+    invoiceCashHistoryGet.mockResolvedValue({ ...cashHistory, invoiceId: baseInvoice.id, issue: { ...cashHistory.issue, invoiceId: baseInvoice.id } })
+    renderInvoices("en")
+    fireEvent.click(await screen.findByRole("button", { name: "View recognition evidence" }))
+    expect(await screen.findByText("Immutable cash-method history")).toBeInTheDocument()
+    expect(screen.getByText("No recorded receipt recognition. The issue date is not an accounting date.")).toBeInTheDocument()
+    expect(invoiceIssueValidationGet).not.toHaveBeenCalled()
+  })
+})
+
+it("keeps history read failures visible instead of falling back to invoice provenance", async () => {
+  vi.clearAllMocks()
+  invoiceList.mockResolvedValue([baseInvoice])
+  vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "invoice_method" })
+  invoiceLegacySnapshotRecoveryStatus.mockResolvedValue({ recoveryRequired: false, preservedPdfDocumentId: null })
+  invoiceCashHistoryGet.mockRejectedValue(new Error("unreadable"))
+  renderInvoices("en")
+  fireEvent.click(await screen.findByRole("button", { name: "View recognition evidence" }))
+  await screen.findByRole("alert")
+  expect(invoiceIssueValidationGet).not.toHaveBeenCalled()
 })

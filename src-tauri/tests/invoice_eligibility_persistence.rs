@@ -26,7 +26,7 @@ use tempfile::{tempdir, TempDir};
 use uuid::Uuid;
 
 const GATE_MIGRATION: i64 = 202611040001;
-const RULE: &str = "rv-2026-domestic-service25-exact-v1";
+const RULE: &str = "rv-2026-method-recognition-v2";
 const PASSPHRASE: &str = "eligibility-persistence-test-only";
 
 struct Fixture {
@@ -305,17 +305,19 @@ async fn real_twenty_to_twenty_one_upgrade_preserves_history_without_backfilling
         .fetch_one(&fixture.pool)
         .await
         .unwrap();
-    assert_eq!(applied, 21);
+    assert_eq!(applied, 22);
     assert_eq!(
         table_rows(
             &fixture.pool,
             "tax_rules",
-            &format!("WHERE rule_version_id != '{RULE}'")
+            &format!(
+                "WHERE rule_version_id NOT IN ('{RULE}','rv-2026-domestic-service25-exact-v1')"
+            )
         )
         .await,
         rules_before,
     );
-    let versions_after: Vec<String> = sqlx::query_scalar("SELECT json_remove(json_object('id',id,'tax_year',tax_year,'effective_from',effective_from,'effective_to',effective_to,'source_url',source_url,'checksum',checksum,'created_at',created_at,'status',status),'$.status') FROM rule_versions WHERE id != ?1 ORDER BY id")
+    let versions_after: Vec<String> = sqlx::query_scalar("SELECT json_remove(json_object('id',id,'tax_year',tax_year,'effective_from',effective_from,'effective_to',effective_to,'source_url',source_url,'checksum',checksum,'created_at',created_at,'status',status),'$.status') FROM rule_versions WHERE id != ?1 AND id != 'rv-2026-domestic-service25-exact-v1' ORDER BY id")
         .bind(RULE).fetch_all(&fixture.pool).await.unwrap();
     assert_eq!(
         versions_after, versions_before,

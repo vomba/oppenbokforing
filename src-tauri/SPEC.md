@@ -42,7 +42,11 @@ where they change the boundary.
   invoice snapshot/rendering and archive storage; issuance enqueues rows directly,
   rather than calling the PDF worker. Invoice posting also calls back into the
   invoice-owned recognition evaluator to revalidate pending provenance; this
-  defensive service cycle is not a second authorization permit.
+  defensive service cycle is not a second authorization permit. The bounded cash
+  branch owns its origin/issue/receipt authority and writes receipt vouchers plus
+  shared reconciliation rows directly, without an invoice-date ledger primitive.
+  Its retained-PDF structure check runs through the fixed isolated helper before
+  acquiring the writer; `security-privacy` owns that process/resource boundary.
 - CSV import calls evidence import. Expense and payment services verify evidence
   but write their own vouchers and staged/match rows; they do not funnel writes
   through ledger posting primitives.
@@ -50,8 +54,10 @@ where they change the boundary.
   calls VAT seeding while VAT calls workspace fiscal helpers. These are cycles,
   not a layered DAG.
 - Invoice/ledger, settlement, and preparation transitions consult the profile timing
-  policy in their write transactions. That policy reads stored VAT profiles; the
-  profile-save method freeze also reads posted vouchers rather than a ledger API.
+  policy in their write transactions. That restrictive policy reads stored VAT
+  profiles and immutable cash-issued identity. Profile-save freeze reads posted
+  vouchers/cash identity rather than a ledger API. Dedicated cash commands enforce
+  the invoice-owned case instead of relaxing that policy.
 - Onboarding profiles call compliance, which reads typed rules. Cash planning reads
   ledger/profiles/VAT; tax tasks read profiles/rules and return/package tables.
 - Year-end calls rule/fiscal helpers and VAT period-key helpers, while aggregating

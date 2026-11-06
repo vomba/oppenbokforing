@@ -29,9 +29,14 @@ checks for workspace exports. A safe lexical join is not a substitute for canoni
 containment; the broader security requirements live in `security-privacy`.
 Cross-service calls and cycles are recorded by `rust-backend`.
 
-Fiscal years are calendar years, and the seeded chart is small. Bootstrap does
-not establish a complete BAS catalog or the reviewed opening-position support
-required by `accounting-ledger`.
+Bootstrap's default year windows are calendar years. The bounded new-business
+cash origin in `invoice-lifecycle` can configure/audit a still-empty 2026 first
+year from the actual start to December 31; it cannot rewrite a posted year.
+Date-based lookup validates the real stored span, not just the calendar-year ID.
+Expense writers recheck date and open status in their transaction rather than
+trust an earlier lookup. The seeded chart remains small. Bootstrap does not
+establish a complete BAS catalog or the reviewed opening-position support required
+by `accounting-ledger`.
 
 Creating defaults for today's UTC year does not establish tax support for that
 year. `tax-rules` governs applicability and validated year extension.

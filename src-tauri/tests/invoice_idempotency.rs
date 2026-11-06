@@ -882,7 +882,7 @@ async fn historical_exempt_threshold_math_and_new_issue_rejection() {
     assert!(after.must_charge_vat);
     let (rule_id, source): (String, String) = sqlx::query_as("SELECT r.id,r.source_url FROM tax_rules t JOIN rule_versions r ON r.id=t.rule_version_id WHERE r.status='active' AND r.tax_year=2026 AND t.family='vat' AND t.key='annual_turnover_threshold_minor'")
         .fetch_one(&pool).await.unwrap();
-    assert_eq!(rule_id, "rv-2026-domestic-service25-exact-v1");
+    assert_eq!(rule_id, "rv-2026-method-recognition-v2");
     assert!(source.starts_with("https://"));
 }
 

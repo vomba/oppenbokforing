@@ -67,6 +67,46 @@ Rejected imports should leave no partial ledger state. CSV staging is not ledger
 posting: staged rows commit before source archival, so archival failure can leave
 staged rows behind.
 
+## Isolated cash-PDF inspection
+
+Retained external PDF parsing is untrusted work, not bookkeeping authority. The
+cash service snapshots verified, bounded bytes, releases its read connection, and
+runs a fixed separately exec'd helper before taking an accounting writer. It then
+rechecks the same document/hash, source exclusion and all case predicates inside
+the writer. A private prepared result cannot substitute for those checks.
+
+The packaged helper is a sibling of the main executable, not a renderer path or
+PATH lookup. Cargo development/test layout uses that same binary and policy. No
+shell permission, GUI runtime, database, network or source path is exposed to the
+helper. Input uses a private file descriptor; replies are bounded and bind the
+protocol version, validity and exact input digest. Failure cannot become proof.
+
+The helper enforces a 128 MiB requested-Rust-allocation budget from startup,
+including conservative old-plus-new realloc reservations. Before input/decoding it
+must install and verify a self-VM-plus-256-MiB address-space limit, two CPU seconds
+and no core dumps. The parent supervises a three-second wall deadline, always
+kills/reaps its owned child on failure and holds at most two parser slots before
+allocating source bytes. Cancellation does not detach an unbounded parser. Inputs
+are at most 10 MiB and replies 4 KiB; 20,000-object/500-page limits are additional
+structure checks, not the primary resource protection.
+
+This is not a universal RSS or stack-memory ceiling. The Rust budget does not
+intercept independent C allocation or direct mapping; relative VM limits do not
+bound resident growth inside existing mappings. The current parser/compression
+feature graph uses Rust allocation; dependency-feature changes require a new
+budget audit. macOS absolute small AS limits were ineffective, so relative limits
+were measured rather than assumed. Failed resource setup or an unsupported OS
+fails closed. Native macOS debug/release probes establish current-host behavior;
+other-platform enforcement and actual bundle/runtime validation require their own
+verification. No signing/notarization or general PDF safety certification follows.
+
+Cyclic cross-reference and compressed-expansion regressions must exercise the
+public service and show that an independent accounting writer remains available.
+Bounded structure/integrity inspection is not bank authentication, OCR, named-bank
+format validation or legal PDF completeness. Exact completed receipt recovery
+precedes fresh file/helper checks and describes verification at posting, not fresh
+availability or verification of missing bytes.
+
 ## Privacy Controls
 
 - No telemetry in v1 unless explicitly added later with opt-in consent.
@@ -115,9 +155,9 @@ sources and figures.
 - Posting, VAT approval, and composite onboarding include transactional audit;
   some draft/profile/export writes and their audit happen separately.
 
-These remaining gaps are not completed fixes. Implemented backup verification does
-not establish snapshot coordination, universal filesystem safety, or a security
-certification.
+These remaining gaps are not completed fixes. Implemented backup verification and
+bounded PDF isolation do not establish snapshot coordination, universal filesystem
+safety, comprehensive enforcement or security certification.
 
 ## Release Blocking Checklist
 

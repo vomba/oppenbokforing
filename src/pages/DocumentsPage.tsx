@@ -1,5 +1,7 @@
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
+import { canUseExistingSettlement, classifyIssuedTreatment, type IssuedTreatment } from "../lib/issuedTreatment"
+import { CashReceiptDialog } from "../components/CashReceiptDialog"
 import { ActionReviewDialog } from "../components/ActionReviewDialog"
 import { useEffect, useRef, useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
@@ -18,6 +20,9 @@ import {
   expensePost,
   invoiceList,
   invoicePaymentRecord,
+  invoiceCashHistoryGet,
+  invoiceIssueValidationGet,
+  vatProfileGetCurrent,
   reconciliationMatchCreate,
   stagedTransactionsList,
   type AccountSummary,
@@ -37,6 +42,11 @@ export function DocumentsPage() {
   const [status, setStatus] = useState(t(locale, "documents.status"))
   const [staged, setStaged] = useState<StagedTransactionSummary[]>([])
   const [matched, setMatched] = useState<StagedTransactionSummary[]>([])
+  const [issuedTreatments, setIssuedTreatments] = useState<Record<string, IssuedTreatment>>({})
+  const [accountingMethod, setAccountingMethod] = useState<string | null>(null)
+  const [cashReceiptOpen, setCashReceiptOpen] = useState(false)
+  const workspaceRef = useRef(workspace?.id)
+  workspaceRef.current = workspace?.id
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
   const [selectedStagedId, setSelectedStagedId] = useState("")
@@ -61,12 +71,16 @@ export function DocumentsPage() {
 
   async function refreshInbox() {
     if (!workspace) return
+    const requestedWorkspace = workspace.id
+    setAccountingMethod(null)
+    setIssuedTreatments({})
     const [stagedRows, matchedRows, invoiceRows, documentRows] = await Promise.all([
       stagedTransactionsList({ status: "staged", limit: 100, beforeId: null }),
       stagedTransactionsList({ status: "matched", limit: 20, beforeId: null }),
       invoiceList({ status: "issued" }),
       documentList({ unattachedOnly: true, limit: 100, beforeId: null }),
     ])
+    if (workspaceRef.current !== requestedWorkspace) return
     setStaged(stagedRows)
     setMatched(matchedRows)
     setInvoices(invoiceRows)
@@ -75,7 +89,34 @@ export function DocumentsPage() {
     setSelectedInvoiceId((current) => reconcileListSelection(current, invoiceRows))
     setSelectedDocumentId((current) => reconcileListSelection(current, documentRows))
     setInboxLoaded(true)
+    const [profile, treatments] = await Promise.all([
+      vatProfileGetCurrent().catch(() => null),
+      Promise.all(invoiceRows.map(async (invoice): Promise<[string, IssuedTreatment]> => {
+        try {
+          const history = await invoiceCashHistoryGet({ invoiceId: invoice.id })
+          const invoiceProof = history ? null : await invoiceIssueValidationGet({ invoiceId: invoice.id })
+          return [invoice.id, classifyIssuedTreatment(invoice.id, history, invoiceProof)]
+        } catch { return [invoice.id, "blocked"] }
+      })),
+    ])
+    if (workspaceRef.current === requestedWorkspace) {
+      setAccountingMethod(profile?.accountingMethod ?? null)
+      setIssuedTreatments(Object.fromEntries(treatments))
+    }
   }
+
+  useEffect(() => {
+    setIssuedTreatments({})
+    setAccountingMethod(null)
+    setCashReceiptOpen(false)
+    setReviewKind(null)
+    setPaymentDocumentId("")
+    setPaymentDocumentName("")
+    setPaymentDate("")
+    setPaymentRecorded(false)
+    setInboxLoaded(false)
+    paymentKeysRef.current = {}
+  }, [workspace?.id])
 
   useEffect(() => {
     if (!workspace) return
@@ -130,7 +171,7 @@ export function DocumentsPage() {
   }
 
   async function handleRecordInvoicePayment() {
-    if (busy || !invoiceIdFromUrl || paymentRecorded) return
+    if (busy || !invoiceIdFromUrl || paymentRecorded || !canUseExistingSettlement(issuedTreatments[invoiceIdFromUrl], accountingMethod)) return
     const explicitPaymentDate = paymentDate.trim()
     if (!paymentDocumentId) {
       setStatus(t(locale, "documents.invoicePaymentNeedsStatement"))
@@ -221,7 +262,7 @@ export function DocumentsPage() {
   }
 
   async function handleMatchInvoicePayment() {
-    if (busy || !selectedStagedId || !selectedInvoiceId) return
+    if (busy || !selectedStagedId || !selectedInvoiceId || !canUseExistingSettlement(issuedTreatments[selectedInvoiceId], accountingMethod)) return
     setBusy(true)
     const idempotencyKey = matchKeysRef.current[selectedStagedId] ??= crypto.randomUUID()
     try {
@@ -301,7 +342,7 @@ export function DocumentsPage() {
   }
 
   function openMatchReview() {
-    if (!busy && selectedStagedId && selectedInvoiceId) {
+    if (!busy && selectedStagedId && selectedInvoiceId && canUseExistingSettlement(issuedTreatments[selectedInvoiceId], accountingMethod)) {
       setReviewKind("match")
     }
   }
@@ -341,7 +382,9 @@ export function DocumentsPage() {
     paymentRecorded,
     invoice: invoiceFromUrl,
   })
-  const paymentPanelActionable = paymentPanelState === "ready"
+  const paymentPanelActionable = paymentPanelState === "ready" && !!invoiceIdFromUrl && canUseExistingSettlement(issuedTreatments[invoiceIdFromUrl], accountingMethod)
+  const paymentTreatment = invoiceIdFromUrl ? issuedTreatments[invoiceIdFromUrl] : undefined
+  const cashHistory = paymentTreatment && typeof paymentTreatment === "object" ? paymentTreatment : null
   const selectedInvoice = invoices.find((row) => row.id === selectedInvoiceId) ?? null
   const selectedExpenseAccount =
     expenseAccounts.find((account) => account.number === expenseAccountNumber) ?? null
@@ -389,8 +432,18 @@ export function DocumentsPage() {
                 <p className="muted" role="status">
                   {t(locale, "documents.invoiceNotPayable")}
                 </p>
+              ) : cashHistory ? (
+                <>
+                  <p>{t(locale, "cash.receiptEvidence")}</p>
+                  <p>{t(locale, "cash.onePdf")}</p>
+                  {cashHistory.receipt ? <p>{t(locale, "documents.invoicePaymentComplete")}</p> : <button type="button" disabled={busy} onClick={() => setCashReceiptOpen(true)}>{t(locale, "cash.cashReceiptAction")}</button>}
+                  <p>{t(locale, "cash.csvBlocked")}</p>
+                </>
+              ) : !canUseExistingSettlement(paymentTreatment, accountingMethod) ? (
+                <p role="status">{t(locale, "cash.routeBlocked")}</p>
               ) : (
                 <>
+                  {paymentTreatment === "legacy" ? <p>{t(locale, "cash.legacyProvenance")}</p> : null}
                   {invoiceFromUrl ? (
                     <p className="muted">
                       {invoiceFromUrl.invoiceNumber ?? invoiceFromUrl.id} ·{" "}
@@ -524,11 +577,13 @@ export function DocumentsPage() {
               </label>
               <button
                 type="button"
-                disabled={busy || !selectedInvoiceId}
+                disabled={busy || !selectedInvoiceId || !canUseExistingSettlement(issuedTreatments[selectedInvoiceId], accountingMethod)}
                 onClick={openMatchReview}
               >
                 {t(locale, "documents.matchAsPayment")}
               </button>
+
+              {issuedTreatments[selectedInvoiceId] === "legacy" && canUseExistingSettlement(issuedTreatments[selectedInvoiceId], accountingMethod) ? <p>{t(locale, "cash.legacyProvenance")}</p> : null}
 
               <hr />
 
@@ -591,6 +646,7 @@ export function DocumentsPage() {
               </button>
             </div>
           ) : null}
+          {selectedStaged && !canUseExistingSettlement(issuedTreatments[selectedInvoiceId], accountingMethod) ? <p role="note">{t(locale, typeof issuedTreatments[selectedInvoiceId] === "object" ? "cash.csvBlocked" : "cash.routeBlocked")}</p> : null}
 
           <div className="panel">
             <header>
@@ -624,6 +680,14 @@ export function DocumentsPage() {
             </table>
           </div>
         </section>
+          {cashReceiptOpen && cashHistory && invoiceFromUrl ? <CashReceiptDialog
+            key={`${workspace?.id}:${cashHistory.invoiceId}`}
+            history={cashHistory}
+            invoice={invoiceFromUrl}
+            idempotencyKey={paymentKeysRef.current[cashHistory.invoiceId] ??= crypto.randomUUID()}
+            onClose={() => setCashReceiptOpen(false)}
+            onRecorded={() => { setCashReceiptOpen(false); setPaymentRecorded(true); delete paymentKeysRef.current[cashHistory.invoiceId]; void refreshInbox().catch(() => undefined) }}
+          /> : null}
           {reviewKind ? (
             <ActionReviewDialog
               open

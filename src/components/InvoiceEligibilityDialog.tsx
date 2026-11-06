@@ -121,6 +121,7 @@ export function InvoiceEligibilityDialog({ invoice, idempotencyKey, onCancel, on
   })
 
   return <ActionReviewDialog
+    layout="large"
     open
     title={t(locale, preflight ? "actionReview.issue.title" : "eligibility.title")}
     summary={summary}

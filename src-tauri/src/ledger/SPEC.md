@@ -42,8 +42,10 @@ policy in the caller's transaction before creating vouchers or lines. Their
 standalone wrappers use immediate transactions. Invoice posting also delegates to
 `invoice-lifecycle`'s case evaluator: immutable pending issuance provenance must
 match the actual unposted invoice, workspace, date/year and VAT buckets. Raw
-buckets or a completed record cannot authorize another posting. This does not
-extend recognition coverage to reversal, expense or payment workflows.
+buckets or a completed record cannot authorize another posting. These invoice primitives do not
+extend recognition coverage to reversal, expense or payment workflows. The separate
+bounded cash service in `invoice-lifecycle` owns its full-receipt authorization
+and direct 1930/3041/2611 posting; it never calls the invoice primitive or clears 1510.
 Expense/payment services write
 vouchers directly and need their own transition guards. This is not an exclusive
 ledger repository. `rust-backend` owns the service graph.

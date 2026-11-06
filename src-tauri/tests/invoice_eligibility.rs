@@ -20,10 +20,10 @@ use sqlx::SqlitePool;
 use tempfile::{tempdir, TempDir};
 use uuid::Uuid;
 
-const RULE: &str = "rv-2026-domestic-service25-exact-v1";
+const RULE: &str = "rv-2026-method-recognition-v2";
 fn evidence() -> Value {
     serde_json::from_str(include_str!(
-        "../../fixtures/accounting-validation/2026-domestic-service25-exact.json"
+        "../../fixtures/accounting-validation/2026-domestic-service25-exact-v2.json"
     ))
     .unwrap()
 }
@@ -850,9 +850,9 @@ async fn actual_relevant_rule_payloads_not_unchanged_ids_or_checksums_bind_eligi
         "UPDATE tax_rules SET value_json=json_set(value_json,'$.vatRateBp',1200) WHERE family='invoice_recognition' AND key='domestic_service25_exact'",
         "UPDATE tax_rules SET value_json=json_set(value_json,'$.annualTaxableBaseLimitMinor',100000004) WHERE family='invoice_recognition' AND key='domestic_service25_exact'",
         "UPDATE tax_rules SET value_json=json_set(value_json,'$.dueOn','2026-05-12') WHERE family='invoice_recognition' AND key='domestic_service25_exact'",
-        "UPDATE tax_rules SET value_json=json_set(value_json,'$.schedules.annual_may_12.\"2026\"','2026-05-12') WHERE family='vat' AND key='filing_deadline_schedules' AND rule_version_id='rv-2026-domestic-service25-exact-v1'",
-        "UPDATE tax_rules SET value_json=json_set(value_json,'$.sourceUrl','https://example.test/unreviewed') WHERE family='vat' AND key='filing_deadline_schedules' AND rule_version_id='rv-2026-domestic-service25-exact-v1'",
-        "DELETE FROM tax_rules WHERE family='vat' AND key='filing_deadline_schedules' AND rule_version_id='rv-2026-domestic-service25-exact-v1'",
+        "UPDATE tax_rules SET value_json=json_set(value_json,'$.schedules.annual_may_12.\"2026\"','2026-05-12') WHERE family='vat' AND key='filing_deadline_schedules' AND rule_version_id='rv-2026-method-recognition-v2'",
+        "UPDATE tax_rules SET value_json=json_set(value_json,'$.sourceUrl','https://example.test/unreviewed') WHERE family='vat' AND key='filing_deadline_schedules' AND rule_version_id='rv-2026-method-recognition-v2'",
+        "DELETE FROM tax_rules WHERE family='vat' AND key='filing_deadline_schedules' AND rule_version_id='rv-2026-method-recognition-v2'",
     ];
     for mutation in mutations {
         let f = Fixture::new().await;
@@ -878,8 +878,8 @@ async fn actual_relevant_rule_payloads_not_unchanged_ids_or_checksums_bind_eligi
         f.rejects_both(&input).await;
     }
     for mutation in [
-        "UPDATE rule_versions SET status='retired' WHERE id='rv-2026-domestic-service25-exact-v1'",
-        "UPDATE rule_versions SET effective_from='2026-02-01' WHERE id='rv-2026-domestic-service25-exact-v1'",
+        "UPDATE rule_versions SET status='retired' WHERE id='rv-2026-method-recognition-v2'",
+        "UPDATE rule_versions SET effective_from='2026-02-01' WHERE id='rv-2026-method-recognition-v2'",
         "UPDATE fiscal_years SET starts_on='2026-02-01' WHERE starts_on='2026-01-01'",
     ] {
         let f=Fixture::new().await; let draft=f.draft(vec![line(1,100_000,0.25)]).await;
@@ -927,7 +927,7 @@ async fn forward_rule_version_preserves_old_engineering_rules_and_binds_exact_ma
     let digest = format!(
         "{:x}",
         Sha256::digest(include_bytes!(
-            "../../fixtures/accounting-validation/2026-domestic-service25-exact.json"
+            "../../fixtures/accounting-validation/2026-domestic-service25-exact-v2.json"
         ))
     );
     assert_eq!(assessment.evidence_digest, digest);

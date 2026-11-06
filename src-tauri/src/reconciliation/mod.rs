@@ -172,6 +172,7 @@ async fn assert_invoice_payable_tx(
     workspace_id: &str,
     invoice_id: &str,
 ) -> Result<(), AppError> {
+    crate::invoicing::cash::ensure_not_cash_issue(&mut **tx, workspace_id, invoice_id).await?;
     let row = sqlx::query(
         r#"
         SELECT status, invoice_kind

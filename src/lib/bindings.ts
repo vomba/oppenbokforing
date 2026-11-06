@@ -30,9 +30,39 @@ export type BackupRestoreSummary = { databasePath: string; workspaceId: string; 
 
 export type BackupSummary = { backupPath: string; manifest: BackupManifest }
 
+export type BankReceiptIdentity = { bankId: string; receivingAccountReference: string; transactionReference: string }
+
 export type BusinessProfile = { id: string; businessName: string; ownerName: string; residencyCountry: string; sniCode: string | null }
 
 export type BusinessProfileSaveInput = { businessName: string; ownerName: string; residencyCountry: string | null; sniCode: string | null }
+
+export type CashBusinessOrigin = { id: string; facts: CashBusinessOriginFacts; firstInvoiceId: string; recordedAt: string }
+
+export type CashBusinessOriginFacts = { newBusinessStartedIn2026: boolean | null; businessStartedOn: string | null; firstFinancialYearEndsOn: string | null; zeroOpeningBalancesConfirmed: boolean | null; noOpeningUnpaidInvoicesOrBillsConfirmed: boolean | null; noPriorUnrecordedActivityConfirmed: boolean | null; outsideWorkspaceHistoryReviewed: boolean | null }
+
+export type CashHistoryGetInput = { invoiceId: string }
+
+export type CashInvoiceHistory = { invoiceId: string; origin: CashBusinessOrigin; issue: CashIssueRecord; receipt: CashReceiptRecord | null }
+
+export type CashIssueAssessment = { validationId: string; evidenceDigest: string; reviewFingerprint: string; ruleVersionId: string; originId: string; accountingYear: number; accountingDate: string | null; completedOn: string; issuedOn: string; periodKey: string; dueOn: string; deadlineRegime: string; coverageSummary: string }
+
+export type CashIssueFacts = { ordinaryDomesticService: boolean | null; serviceCompletedOn: string | null; priorPaymentReceived: boolean | null; noEuTradeInYear: boolean | null; annualVatRegistrationConfirmed: boolean | null; expectedTaxableBaseWithinLimit: boolean | null; expectedNetTurnoverWithinCashLimit: boolean | null; ordinaryTimelySendingConfirmed: boolean | null; registeredBokslutsmetodenConfirmed: boolean | null; cashTreatmentConsistentConfirmed: boolean | null; shortYearTurnoverAdjustmentReviewed: boolean | null }
+
+export type CashIssueInput = { invoiceId: string; issueDate: string; facts: CashIssueFacts; originReview: CashBusinessOriginFacts | null; idempotencyKey: string; reviewFingerprint: string }
+
+export type CashIssuePreflight = { invoiceId: string; issueDate: string; assessment: CashIssueAssessment; reviewedInvoice: InvoiceIssueReviewSnapshot; currentTaxableBaseMinor: number; projectedTaxableBaseMinor: number }
+
+export type CashIssuePreflightInput = { invoiceId: string; issueDate: string; facts: CashIssueFacts; originReview: CashBusinessOriginFacts | null }
+
+export type CashIssueRecord = { invoiceId: string; facts: CashIssueFacts; assessment: CashIssueAssessment; recordedAt: string }
+
+export type CashReceiptAssessment = { validationId: string; evidenceDigest: string; reviewFingerprint: string; ruleVersionId: string; originId: string; accountingYear: number; accountingDate: string; periodKey: string; dueOn: string; coverageSummary: string; documentId: string; documentSha256: string }
+
+export type CashReceiptFacts = { actualReceivedAmountMinor: number | null; actualReceivedOn: string | null; currency: string | null; receivedAlready: boolean | null; bankReceiptIdentity: BankReceiptIdentity | null; sourceEntryLocator: string | null; bankPdfMatchesReceiptConfirmed: boolean | null; issuedCaseStillAppliesConfirmed: boolean | null; noOtherReceiptsOrAdjustmentsConfirmed: boolean | null }
+
+export type CashReceiptRecord = { invoiceId: string; facts: CashReceiptFacts; assessment: CashReceiptAssessment; result: ReconciliationMatchResult; recordedAt: string }
+
+export type CashReceiptRecordInput = { invoiceId: string; documentId: string; idempotencyKey: string; facts: CashReceiptFacts }
 
 export type CashflowOverview = { bankBalanceMinor: number; receivablesBalanceMinor: number; vatReserveMinor: number; taxReserveMinor: number; spendableCashMinor: number; vatPeriodKey: string | null; thresholdWarning: string | null }
 

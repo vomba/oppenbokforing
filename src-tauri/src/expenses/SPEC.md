@@ -32,6 +32,11 @@ staging remain available. `tax-rules` governs validated treatment.
 
 ## Current boundary and gaps
 
+Posting rechecks the actual fiscal-year date span and open status in its transaction.
+A narrowed reviewed first year cannot be treated as a January-start permission by
+an earlier calendar-year lookup. `workspace-defaults` owns those fiscal guards.
+
+
 The caller supplies amount, expense/payment accounts, replay key, and evidence or
 an explicit reason for its absence. An omitted date defaults to today's UTC date.
 

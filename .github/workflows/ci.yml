@@ -39,6 +39,10 @@ jobs:
       - name: Generate dev icons
         run: npm run icons:dev
 
+      - name: Stage native PDF helper for desktop checks
+        if: matrix.os == 'macos-latest'
+        run: npm run pdf:build
+
       - name: Check desktop feature compiles
         if: matrix.os == 'macos-latest'
         run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop

@@ -46,7 +46,8 @@ This remains a gap against `ui-workflows`, not a guarantee established by contex
 ## Bounded new-invoice review
 
 The bounded `invoice-lifecycle` recognition gate uses a local composed dialog,
-not a change to the generic material-action review or credit workflow. New
+not a change to the credit workflow. Long eligibility/history reviews explicitly
+select the shared material-review dialog's bounded, scrollable large layout. New
 standard issuance collects explicit, initially unanswered transaction and
 2026-wide annual/no-EU/registration/expected-taxable-base/timely-invoicing facts,
 completion date, and an explicit invoice/sending date before backend preflight.
@@ -65,7 +66,22 @@ invoice on that date; the app does not email it. Editing facts/date discards the
 preflight, and workspace/invoice changes discard the review. Failed preflight
 and freshness rejection keep the draft and answers available in the facts
 step, rather than closing this slice's dialog. No support boolean is submitted.
-Cash-method guards and existing credit/PDF/recovery behavior remain unchanged.
+Existing credit/PDF/recovery safeguards remain. Cash drafts use separate commands,
+unknown-first facts and an explicit origin/first-year review; their final issue
+review states no recognition and a null accounting date. Required case limits live
+in `invoice-lifecycle`, not renderer authority. The full-PDF receipt dialog starts
+actual amount/date/currency/identity unknown and requires owner review rather than
+copying invoice total as evidence. Known cash history controls the dedicated route
+regardless of current profile and keeps cash CSV matching blocked. Read failures or
+unknown/mismatched proofs do not fall back to another method.
+
+Historical invoices with neither validation record have a distinct legacy label,
+not new invoice-case eligibility. Only explicit current invoice-method selection
+can expose their old settlement route, whose backend guards remain authoritative.
+Known facts and uncertainty are reviewed in Swedish/English; canonical identifiers
+and retained source wording can appear in optional technical details. A supported
+cash receipt action does not display the unproven-treatment error merely because
+cash CSV matching is unavailable.
 
 Issued history can read immutable recognition provenance through
 `invoice_issue_validation_get`; absence is displayed without guessing current

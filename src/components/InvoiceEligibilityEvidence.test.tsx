@@ -67,3 +67,11 @@ describe("InvoiceEligibilityEvidence sources", () => {
     expect(invoiceValidationSourceOpen).not.toHaveBeenCalled()
   })
 })
+
+it("opens inherited v2 sources using the v2 case ID without passing a URL", async () => {
+  invoiceValidationSourceOpen.mockResolvedValue(undefined)
+  const validationId = "invoice-recognition-se-service25-2026-exact-v2"
+  render(<InvoiceEligibilityEvidence assessment={{ ...assessment, validationId }} locale="en" />)
+  fireEvent.click(screen.getByRole("link", { name: evidence.sourceReferences[0].pinpoint }))
+  await waitFor(() => expect(invoiceValidationSourceOpen).toHaveBeenCalledWith({ validationId, sourceId: evidence.sourceReferences[0].id }))
+})

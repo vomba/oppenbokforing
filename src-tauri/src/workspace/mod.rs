@@ -195,7 +195,39 @@ pub async fn fiscal_year_id_for_date(
     workspace_id: &str,
     date: &str,
 ) -> Result<String, AppError> {
-    fiscal_year_id_for_year(pool, workspace_id, year_from_date(date)?).await
+    let fiscal_year_id = fiscal_year_id_for_year(pool, workspace_id, year_from_date(date)?).await?;
+    ensure_fiscal_year_date_tx(pool, workspace_id, &fiscal_year_id, date).await?;
+    Ok(fiscal_year_id)
+}
+
+pub(crate) async fn ensure_fiscal_year_date_tx<'e, E>(
+    executor: E,
+    workspace_id: &str,
+    fiscal_year_id: &str,
+    date: &str,
+) -> Result<(), AppError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    let (start, end): (String, String) = sqlx::query_as(
+        "SELECT starts_on,ends_on FROM fiscal_years WHERE workspace_id=?1 AND id=?2",
+    )
+    .bind(workspace_id)
+    .bind(fiscal_year_id)
+    .fetch_one(executor)
+    .await?;
+    let parse = |raw: &str| {
+        NaiveDate::parse_from_str(raw, "%Y-%m-%d")
+            .map_err(|_| AppError::validation("Invalid fiscal or accounting date", "accountingDate"))
+    };
+    let day = parse(date)?;
+    if day < parse(&start)? || day > parse(&end)? {
+        return Err(AppError::validation(
+            "Accounting date is outside the actual fiscal-year span",
+            "accountingDate",
+        ));
+    }
+    Ok(())
 }
 
 pub async fn ensure_fiscal_year_open(

@@ -1,3 +1,7 @@
+use crate::invoicing::cash::{
+    self, CashBusinessOrigin, CashHistoryGetInput, CashInvoiceHistory, CashIssueInput,
+    CashIssuePreflight, CashIssuePreflightInput, CashReceiptRecordInput,
+};
 use sqlx::Row;
 use std::time::Duration;
 
@@ -1182,4 +1186,54 @@ fn workspace_summary_from_context(context: &WorkspaceContext) -> WorkspaceSummar
         data_dir: context.data_dir.to_string_lossy().to_string(),
         database_path: context.database_path.to_string_lossy().to_string(),
     }
+}
+
+#[tauri::command]
+pub async fn invoice_cash_issue_preflight(
+    state: State<'_, AppState>,
+    input: CashIssuePreflightInput,
+) -> CommandResult<CashIssuePreflight> {
+    let workspace = require_workspace(&state).await?;
+    let data = cash::invoice_cash_issue_preflight(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data })
+}
+
+#[tauri::command]
+pub async fn invoice_cash_issue(
+    state: State<'_, AppState>,
+    input: CashIssueInput,
+) -> CommandResult<InvoiceSummary> {
+    let workspace = require_workspace(&state).await?;
+    let data = cash::invoice_cash_issue(&workspace.pool, &workspace.id, &input).await?;
+    spawn_best_effort_invoice_pdf_jobs(workspace.pool.clone(), workspace.id.clone());
+    Ok(CommandResponse { data })
+}
+
+#[tauri::command]
+pub async fn invoice_cash_history_get(
+    state: State<'_, AppState>,
+    input: CashHistoryGetInput,
+) -> CommandResult<Option<CashInvoiceHistory>> {
+    let workspace = require_workspace(&state).await?;
+    let data = cash::invoice_cash_history_get(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data })
+}
+
+#[tauri::command]
+pub async fn invoice_cash_receipt_record(
+    state: State<'_, AppState>,
+    input: CashReceiptRecordInput,
+) -> CommandResult<ReconciliationMatchResult> {
+    let workspace = require_workspace(&state).await?;
+    let data = cash::invoice_cash_receipt_record(&workspace.pool, &workspace.id, &input).await?;
+    Ok(CommandResponse { data })
+}
+
+#[tauri::command]
+pub async fn cash_business_origin_get(
+    state: State<'_, AppState>,
+) -> CommandResult<Option<CashBusinessOrigin>> {
+    let workspace = require_workspace(&state).await?;
+    let data = cash::cash_business_origin_get(&workspace.pool, &workspace.id).await?;
+    Ok(CommandResponse { data })
 }

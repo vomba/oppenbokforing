@@ -77,6 +77,8 @@ export function yearEndReadinessLabel(locale: Locale, code: string): string {
       return t(locale, "yearEnd.readiness.vatPeriodsFiled")
     case "profile_complete":
       return t(locale, "yearEnd.readiness.profileComplete")
+    case "cash_preparation_unvalidated":
+      return t(locale, "cash.limits")
     default:
       return t(locale, "yearEnd.readiness.unknown")
   }

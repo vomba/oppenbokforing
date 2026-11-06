@@ -44,6 +44,10 @@ flowchart TB
     Jobs --> Domains
   end
 
+  PdfHelper[Isolated PDF helper — bounded exec, no DB or GUI]
+  Domains -->|Verified cash PDF bytes, before writer| PdfHelper
+  PdfHelper -->|Bounded hash-bound result| Domains
+
   subgraph storage [Local persistence]
     SQLite[(workspace.sqlite)]
     Docs[documents/ SHA-256 store]
@@ -87,6 +91,13 @@ calls and cycles, not a claimed strict DAG.
 
 `renderer` owns the frontend boundary. The `desktop` feature gates Tauri and the
 command adapter, not the domain test surface.
+
+A separately packaged Rust PDF helper is an explicit process boundary for untrusted
+cash receipt inspection, not a domain service or financial actor. It links no
+application/Tauri runtime and receives no database. `security-privacy` owns its
+resource, supervision and trust guarantees. Its result precedes the short receipt
+writer and cannot waive source/case revalidation. Existing completed recovery does
+not depend on the helper remaining available.
 
 ## Required workspace ownership
 

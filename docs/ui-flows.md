@@ -161,11 +161,14 @@ Controls:
 - Show the backend recognition identity, evidence digest, accounting/completion dates and applicable deadline, with inspectable source citations for that specific bundled validation. Source clicks use a constrained native ID-only opener, not a webview new tab; opening failures stay visible. The owner sends the invoice on the chosen date; the app does not email it.
 - Read immutable recognition provenance for issued history. Missing historical provenance is explicit, not inferred from current profiles.
 - Preview/refresh PDF from historical issue data. Legacy invoices without snapshots require preserved evidence and explicit historical-value attestation before recovery.
-- Mark paid.
-- Credit invoice.
+- For supported cash drafts, review explicit new-business/first-year facts separately. Issue review states no journal or recognition date; the actual short-year dates and required turnover adjustment are not defaulted from a calendar bucket.
+- For proven cash-issued invoices, record an explicit actual full PDF receipt with initially unknown amount/date/currency/identity and confirmations. Review receipt-date bank/revenue/VAT effect, not 1510 settlement. Keep retained evidence and inputs when blocked; one PDF hash supports one cash receipt even if its statement has other entries.
+- Long fact/history/final reviews select a bounded scrollable dialog; primary labels and uncertainty are Swedish/English. Show cash CSV blocking separately from an unproven-treatment error when the dedicated receipt action is available.
+- Mark paid through the route authorized by retained treatment. Cash proof takes precedence over current profile. A historical invoice with no current case record is labelled legacy, not newly validated; only explicit invoice-method selection exposes its pre-existing backend settlement route. Read failures or mismatched proof remain blocked.
+- Credit invoice through existing guards; bounded cash credits remain unavailable.
 - Open ledger trace.
 
-`tax-rules` owns the one bounded recognition case. Drafts and historical reads remain
+`tax-rules` owns the bounded method/year cases. Drafts and historical reads remain
 available for uncovered cases, but their availability is not new-issuance eligibility,
 legal PDF completeness, or whole-book/return validation. `invoice-lifecycle` owns
 retained facts and authoritative transaction checks; the renderer submits no support

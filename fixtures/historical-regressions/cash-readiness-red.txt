@@ -1,0 +1,25 @@
+Cash closing readiness behavioral RED
+
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_closing_readiness even_empty_cash_books_report_unvalidated_closing_without_writes -- --exact --nocapture
+
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.86s
+     Running tests/cash_closing_readiness.rs (src-tauri/target/debug/deps/cash_closing_readiness-59868705db27c6f4)
+
+running 1 test
+
+thread 'even_empty_cash_books_report_unvalidated_closing_without_writes' (20208610) panicked at tests/cash_closing_readiness.rs:56:10:
+cash books must explicitly disclose unsupported preparation even with zero balances or receipts
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test even_empty_cash_books_report_unvalidated_closing_without_writes ... FAILED
+
+failures:
+
+failures:
+    even_empty_cash_books_report_unvalidated_closing_without_writes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `--test cash_closing_readiness`
+
+Cargo exit status: 101

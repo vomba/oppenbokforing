@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { LocaleProvider } from "../context/LocaleContext"
 import { WorkspaceProvider } from "../context/WorkspaceContext"
 import type { Document, InvoiceSummary, StagedTransactionSummary } from "../lib/commands"
+import { classifyIssuedTreatment } from "../lib/issuedTreatment"
+import { cashHistory, invoiceIssueProof } from "../test/cashFixtures"
 import { DocumentsPage } from "./DocumentsPage"
 
 const workspace = {
@@ -50,6 +52,10 @@ const {
   invoicePaymentRecord,
   documentImport,
   csvImportCreate,
+  invoiceCashHistoryGet,
+  invoiceIssueValidationGet,
+  vatProfileGetCurrent,
+  reconciliationMatchCreate,
 } = vi.hoisted(() => ({
   stagedTransactionsList: vi.fn(),
   invoiceList: vi.fn(),
@@ -58,6 +64,10 @@ const {
   invoicePaymentRecord: vi.fn(),
   documentImport: vi.fn(),
   csvImportCreate: vi.fn(),
+  invoiceCashHistoryGet: vi.fn().mockResolvedValue(null),
+  invoiceIssueValidationGet: vi.fn(),
+  vatProfileGetCurrent: vi.fn(),
+  reconciliationMatchCreate: vi.fn(),
 }))
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
@@ -83,6 +93,10 @@ vi.mock("../components/AppSidebar", () => ({
 
 vi.mock("../lib/commands", () => ({
   appErrorMessage: (_error: unknown, fallback: string) => fallback,
+  invoiceCashHistoryGet,
+  invoiceIssueValidationGet,
+  vatProfileGetCurrent,
+  reconciliationMatchCreate,
   accountList,
   csvImportCreate,
   documentImport,
@@ -90,7 +104,6 @@ vi.mock("../lib/commands", () => ({
   expensePost: vi.fn(),
   invoiceList,
   invoicePaymentRecord,
-  reconciliationMatchCreate: vi.fn(),
   stagedTransactionsList,
 }))
 
@@ -113,6 +126,9 @@ function defaultInboxMocks(staged: StagedTransactionSummary[] = []) {
     if (status === "staged") return Promise.resolve(staged)
     return Promise.resolve([])
   })
+  vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "invoice_method" })
+  invoiceCashHistoryGet.mockResolvedValue(null)
+  invoiceIssueValidationGet.mockResolvedValue(invoiceIssueProof)
   invoiceList.mockResolvedValue([baseInvoice])
   documentList.mockResolvedValue([] as Document[])
   accountList.mockResolvedValue([])
@@ -120,7 +136,7 @@ function defaultInboxMocks(staged: StagedTransactionSummary[] = []) {
 
 describe("DocumentsPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     defaultInboxMocks()
   })
 
@@ -180,7 +196,8 @@ describe("DocumentsPage", () => {
     })
   })
 
-  it("shows completion state after successful invoice payment", async () => {
+  it.each(["validated", "legacy"])("shows completion state after successful %s invoice payment", async (kind) => {
+    if (kind === "legacy") invoiceIssueValidationGet.mockResolvedValue(null)
     const { open } = await import("@tauri-apps/plugin-dialog")
     vi.mocked(open).mockResolvedValue("/tmp/statement.pdf")
     documentImport.mockResolvedValue({
@@ -248,4 +265,83 @@ describe("DocumentsPage", () => {
     })
     expect(screen.queryByText(/Laddar faktura/i)).not.toBeInTheDocument()
   })
+})
+
+
+describe("cash issued-source payment routing", () => {
+  beforeEach(() => { vi.resetAllMocks(); invoiceCashHistoryGet.mockResolvedValue(null); defaultInboxMocks([stagedRow]) })
+  it("uses immutable cash proof for the PDF receipt form and disables CSV payment matching", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, voucherId: null }])
+    invoiceCashHistoryGet.mockResolvedValue({ ...cashHistory, invoiceId: baseInvoice.id, issue: { ...cashHistory.issue, invoiceId: baseInvoice.id } })
+    renderDocuments("/documents?invoiceId=inv-1")
+    const recordCashReceipt = await screen.findByRole("button", { name: "Registrera full kontantmetodsbetalning" })
+    expect(screen.queryAllByText(/Obestyrkt eller oläsbar metod/)).toHaveLength(0)
+    expect(screen.getAllByText("CSV-matchning för kontantmetoden är ännu inte aktiverad. Använd det separata flödet för en stödd full PDF-betalning.").length).toBeGreaterThan(0)
+    fireEvent.click(recordCashReceipt)
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Registrera faktiskt mottagen full betalning")
+    expect(screen.queryByRole("button", { name: "Markera faktura betald" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }))
+    fireEvent.click(screen.getByRole("button", { name: stagedRow.transactionDate }))
+    expect(screen.getByRole("button", { name: "Matcha som fakturabetalning" })).toBeDisabled()
+    expect(invoicePaymentRecord).not.toHaveBeenCalled()
+    expect(reconciliationMatchCreate).not.toHaveBeenCalled()
+  })
+  it("never falls back to old invoice payment on cash-history read failure", async () => {
+    invoiceCashHistoryGet.mockRejectedValue(new Error("unreadable"))
+    renderDocuments("/documents?invoiceId=inv-1")
+    await screen.findAllByText(/Obestyrkt eller oläsbar metod/)
+    expect(screen.queryByRole("button", { name: "Välj bankutdrag (PDF)" })).not.toBeInTheDocument()
+    expect(invoicePaymentRecord).not.toHaveBeenCalled()
+  })
+  it.each(["cash_method", null, "unknown"])("keeps legacy identity blocked with current method %s", async (method) => {
+    vatProfileGetCurrent.mockResolvedValue(method === null ? null : { accountingMethod: method })
+    invoiceIssueValidationGet.mockResolvedValue(null)
+    invoiceList.mockResolvedValue([{ ...baseInvoice, voucherId: null }])
+    renderDocuments("/documents?invoiceId=inv-1")
+    await screen.findAllByText(/Obestyrkt eller oläsbar metod/)
+    expect(screen.queryByRole("button", { name: "Registrera full kontantmetodsbetalning" })).not.toBeInTheDocument()
+    expect(invoicePaymentRecord).not.toHaveBeenCalled()
+  })
+})
+
+it("does not mistake a legacy voucher for proof of invoice-method recognition", async () => {
+  expect(classifyIssuedTreatment(baseInvoice.id, null, null)).toBe("legacy")
+  expect(classifyIssuedTreatment(baseInvoice.id, null, null)).not.toBe("invoice")
+  vi.resetAllMocks()
+  defaultInboxMocks([stagedRow])
+  invoiceIssueValidationGet.mockResolvedValue(null)
+  invoiceCashHistoryGet.mockResolvedValue(null)
+  renderDocuments("/documents?invoiceId=inv-1")
+  await screen.findAllByText(/Inget aktuellt valideringsunderlag/)
+  fireEvent.click(await screen.findByRole("button", { name: stagedRow.transactionDate }))
+  expect(screen.getByRole("button", { name: "Matcha som fakturabetalning" })).toBeEnabled()
+  expect(invoicePaymentRecord).not.toHaveBeenCalled()
+})
+
+it("preserves the existing CSV settlement call for legacy history and explicit invoice profile", async () => {
+  vi.resetAllMocks()
+  defaultInboxMocks([stagedRow])
+  invoiceIssueValidationGet.mockResolvedValue(null)
+  reconciliationMatchCreate.mockResolvedValue({ matchId: "m", voucherId: "v" })
+  renderDocuments("/documents?invoiceId=inv-1")
+  await screen.findAllByText(/Inget aktuellt valideringsunderlag/)
+  fireEvent.click(screen.getByRole("button", { name: stagedRow.transactionDate }))
+  fireEvent.click(screen.getByRole("button", { name: "Matcha som fakturabetalning" }))
+  expect(reconciliationMatchCreate).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole("button", { name: "Skapa matchning" }))
+  await waitFor(() => expect(reconciliationMatchCreate).toHaveBeenCalledWith(expect.objectContaining({ stagedTransactionId: stagedRow.id, matchKind: "invoice_payment", invoiceId: baseInvoice.id })))
+})
+it.each(["profile", "invoice history"])("does not use legacy fallback on %s read failure", async (read) => {
+  vi.resetAllMocks()
+  defaultInboxMocks([stagedRow])
+  invoiceIssueValidationGet.mockResolvedValue(null)
+  if (read === "profile") vatProfileGetCurrent.mockRejectedValue(new Error("unreadable profile"))
+  else invoiceIssueValidationGet.mockRejectedValue(new Error("unreadable history"))
+  renderDocuments("/documents?invoiceId=inv-1")
+  await screen.findAllByText(/Obestyrkt eller oläsbar metod/)
+  fireEvent.click(screen.getByRole("button", { name: stagedRow.transactionDate }))
+  expect(screen.getByRole("button", { name: "Matcha som fakturabetalning" })).toBeDisabled()
+  expect(screen.queryByRole("button", { name: "Välj bankutdrag (PDF)" })).not.toBeInTheDocument()
+  expect(invoicePaymentRecord).not.toHaveBeenCalled()
+  expect(reconciliationMatchCreate).not.toHaveBeenCalled()
 })

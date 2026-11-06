@@ -1,30 +1,33 @@
 # 2026 cash-method identity and full PDF receipt evidence
 
-Status: **source/concept review approved; runtime implementation and activation pending**.
-Prepared 2026-11-04. No cash implementation or execution validation is claimed.
+Status: **source review approved; implementation under independent review; packaged cash verification pending**.
+Source evidence prepared 2026-11-04. Automated checks and reproduced review defects
+are recorded below; this is not a packaged-runtime or full-method completion claim.
 
 - Cash validation ID: `cash-recognition-se-service25-2026-pdf-full-v1`.
-- Proposed shared active rule version for both live cases: `rv-2026-method-recognition-v2`.
+- Shared schema-22 active rule version for the two live cases: `rv-2026-method-recognition-v2`.
 - Invoice successor ID: `invoice-recognition-se-service25-2026-exact-v2`.
 - Cash manifest: [2026-cash-pdf-full.json](../../fixtures/accounting-validation/2026-cash-pdf-full.json).
 - Invoice compatibility manifest: [2026-domestic-service25-exact-v2.json](../../fixtures/accounting-validation/2026-domestic-service25-exact-v2.json).
 - Reviewed cash manifest SHA-256: `08d21e5dc4a055698b6a180e665141770bdb7f2c7325eea4e6d5bee4d54e7f7b`.
 - Reviewed invoice-v2 manifest SHA-256: `5dbd4e6bd327f01112179ce325f086d9717f738d976065fbf4ec2268edd58cec`.
 
-This is independently prepared accounting/source evidence and a proposed test oracle,
-not implementation output, professional advice, professional sign-off, or
-Skatteverket/BFN attestation. The parent owns active specifications, formal coverage,
-typed policy and independent review before activation. Candidate JSON field/reason
-names are descriptive oracle vocabulary, not a frozen DTO or runtime contract.
+The source expectations were independently prepared before the implementation;
+they are not implementation output, professional advice, professional sign-off or
+Skatteverket/BFN attestation. Runtime DTOs and policy enforcement are separate from
+the immutable manifest's descriptive oracle vocabulary. An active schema row or
+this dossier alone does not establish completed verification or broad support.
 
 ## Approved boundary and relation to current specifications
 
-The accepted decisions in `.thinkrail/context/TASK-cash-method-full-receipt.md`
-are authoritative for this proposal: **PDF receipts first, new businesses only**.
+The accepted limits are retained in `invoice-lifecycle` and `tax-rules`:
+**PDF receipts first, new businesses only**, including reviewed short first years
+ending December2026. The temporary design task is not the durable authority.
 Native invoice-v1 UAT is complete, the F-skatt guidance correction is recorded,
 and the preceding 267 Rust / 158 frontend results are not evidence that cash works.
-Current module specs still describe interim cash posting/approval guards. This
-candidate does not relax those guards, activate a case, or amend active specs.
+The shared invoice-timed posting/approval guard remains restrictive. The separate
+cash commands implement only the bounded exception described by the owning specs;
+they do not make old cash settlement or approval routes generally permissible.
 
 Only a Swedish sole trader's ordinary completed domestic SEK service at 25% is
 proposed, in calendar accounting year 2026, with exact VAT on every line, no advance
@@ -61,6 +64,15 @@ BFN1.7. A low short-period total alone cannot satisfy this fact. The owner's
 adjustment review starts unknown and is required for a shortened first year;
 this is not an automatic annualization calculator or a professional attestation.
 Extended years and other year-ends remain outside this case.
+
+## Source-date clarification
+
+The initial evidence preparation occurred on2026-11-04. The resumed first-year,
+SFL and annual-deadline retry occurred on2026-11-06. Their manifest `retrievedOn`
+annotations retained the preparation date rather than the later retrieval date.
+The published manifest bytes and digest remain unchanged. This paragraph records
+that metadata error openly. It does not claim a November4 fetch for those later
+checks or change the cited editions, passages or numerical expectations.
 
 ## Retained authoritative passages and exact applicability
 
@@ -459,12 +471,12 @@ v1 identity and **not newly validated invoice scope**. The original dossier is
 not amended. The cash manifest is separately prepared, not a relabeling of the
 invoice's 1510 expectations or its sending-date declaration as cash permission.
 
-The parent must reconcile activation/resolution with one active rule version per
-year so new invoice-method issuance remains eligible under the shared v2 while
-cash has its own method/case identity. Historical v1 rules, manifests, native
-records, PDFs, fingerprints and readers must remain usable without backfill,
-reinterpretation or digest replacement. A manifest digest or an active row alone
-is not the eligibility gate. This evidence-only change activates neither case.
+Migration22 and the versioned registry preserve one active rule version per year:
+new invoice issuance uses the shared v2 while cash has its own method/case identity.
+Historical v1 rules, manifests, native records, PDFs, fingerprints and readers remain
+usable without backfill, reinterpretation or digest replacement. A manifest digest
+or an active row alone is not the eligibility gate. The source package itself
+activates neither case; implementation and verification are separate work.
 
 ## Mechanical checks of this evidence package
 
@@ -501,6 +513,59 @@ scenarios. They check arithmetic/lineage, both limits, the 9 first-year, 8 clock
 tests**, golden/M8 checks, production build and unchanged generated bindings.
 No cash production behavior, dependency, migration or active rule changed.
 
+## Implementation checks and reproduced review defects
+
+The initial integrated public CI run passed315 Rust/192 frontend tests, production
+build and bindings. That green run did **not** clear security or integration review.
+Independent backend review reproduced two blocking defects: in-process lopdf could
+loop on a tiny cyclic `/Prev` PDF or expand compressed objects before post-parse
+limits, while holding the writer; valid staged ordinary-expense matches were also
+incorrectly rejected as cash continuation. Neither issue was dismissed because
+existing tests passed.
+
+The user chose a separately packaged, killable PDF helper rather than narrower PDF
+acceptance. Parser work now precedes the accounting writer; the writer rechecks the
+same retained source/hash and every financial predicate. The fixed helper receives
+private descriptor input, has no GUI/DB/network role, and emits a bounded hash-bound
+reply. Actual limits are documented once in `security-privacy`. Requested-Rust-heap
+and relative-VM limits are **not a universal RSS or stack-memory ceiling**. Setup
+failure or unsupported OS denies new recognition, never an unbounded fallback.
+Native debug/release resource probes cover ordinary/compressed, cyclic and large
+expansion cases; packaged helper discovery/runtime and signing are separate gates.
+
+Public staged-expense regressions first failed after a real imported outflow and
+expense posting. The correction accepts only properly scoped/matched expense
+voucher, staging and original job provenance with compatible balanced lines, not
+an expense label alone. First-origin empty-history requirements are unchanged.
+Additional corruption and same-date/amount forgery cases retain fail-closed checks.
+
+The retained backend RED transcripts in `fixtures/historical-regressions/` record
+successful compilation followed by behavioral failures for cash issue, full
+receipt, source/method/real-first-year boundaries, closing readiness, staged
+expense continuation and PDF isolation. Some transcripts honestly include earlier
+setup/toolchain corrections before the qualifying run. Native-v1 migration tests
+were first run after migration22 existed, so no migration RED was fabricated.
+Initial new-frontend helper/component tests failed import collection, **not** a
+qualifying behavioral RED; not all frontend development is claimed behavior-first.
+Later legacy-routing/localization regressions failed behaviorally before correction.
+Modal layout tests now use real CSS, not the initially empty default test CSS
+import; their computed-style checks do not replace native geometry verification.
+
+Unit/component checks cannot prove real bank facts. The execution PDFs are visibly
+synthetic and include no bank-authentication or named-bank-format coverage. The
+original native invoice-v1 archive is historical engineering evidence only. Its
+raw f9b6933… context/fingerprint, rows, PDF bytes and completed recovery are checked
+through real schema21→22 migration, cold reopen and encrypted backup/restore.
+
+The later isolated-helper implementation passed the complete public gate, including
+26 helper-build tests,192 frontend tests and all Rust suites with isolated security
+probes. Native arm64 app/DMG construction and execution of the helper inside the
+actual build bundle also passed. The normal compressed fixture succeeded; cyclic
+and expansion fixtures terminated without a valid reply. Artifact hashes and exact
+qualifications are retained in [the November6 verification record](../verification/cash-method-2026-11-06.md).
+Installed GUI cash UAT, final step review and broader platform/signing checks remain
+separate, unfinished gates.
+
 ## Independent review and remaining obligations
 
 Two read-only AI reviewers approved the concept/source package without material
@@ -511,8 +576,17 @@ literal examples. Both distinguish source applicability from execution/activatio
 neither is professional or tax-authority attestation. No professional review is
 mandatory or falsely claimed.
 
-- Runtime implementation, formal coverage integration and activation verification
-  remain pending; the source review does not relax existing cash guards.
+Implementation review `01a1b076-3fd2-7355-a36b-d7893aab80cc` requested changes for
+the reproduced parser and staged-expense defects above. Focused security follow-up
+`01a1b0a8-ae64-7355-a36b-d7a5efd77752` approved their corrections. UI review found
+unbounded long dialogs and contradictory supported-cash status wording; follow-up
+`01a1b07b-a1ea-7355-a36b-d78bcc878d29` approved the explicit large-layout and CSV-only
+message fixes with targeted component/computed-style checks. These reviews do not
+substitute for final step review or actual packaged cash UAT.
+
+- Final implementation/security review, integrated verification and actual packaged
+  cash UAT remain pending. Source review and passing regressions alone do not
+  complete those gates; the shared cash approval/legacy guards remain closed.
 - The provided local text is not an original-PDF integrity attestation; the rate remains carried prior evidence, while the cash deadline page,
   first-year guidance and bounded relevant SFL sections were freshly retrieved.
   The historical v1 deadline retrieval-reset record is not rewritten. No inaccessible rounding policy

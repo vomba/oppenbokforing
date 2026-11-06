@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react"
-import evidence from "../../fixtures/accounting-validation/2026-domestic-service25-exact.json"
+import { validationSources } from "../lib/validationRegistry"
 import { t, tVars, type Locale, type MessageKey } from "../i18n"
 import type { InvoiceEligibilityFacts, InvoiceIssuePreflight } from "../lib/bindings"
 import { appErrorMessage, invoiceValidationSourceOpen } from "../lib/commands"
@@ -75,13 +75,13 @@ export function InvoiceEligibilityEvidence({ assessment, locale }: {
     <p>{tVars(locale, "eligibility.digest", { digest: assessment.evidenceDigest })}</p>
     <p>{tVars(locale, "eligibility.rule", { id: assessment.ruleVersionId })}</p>
     <p>{tVars(locale, "eligibility.fingerprint", { fingerprint: assessment.reviewFingerprint })}</p>
-    {assessment.validationId === evidence.validationId ? <section aria-labelledby={sourcesId}>
+    {validationSources(assessment.validationId).length > 0 ? <section aria-labelledby={sourcesId}>
       <h5 id={sourcesId}>{t(locale, "eligibility.sources")}</h5>
-      <ul>{evidence.sourceReferences.map((source) => <li key={source.id}>
+      <ul>{validationSources(assessment.validationId).map((source) => <li key={source.id}>
         <a href={source.url} aria-disabled={opening} onClick={(event) => {
           event.preventDefault()
           void openSource(source.id)
-        }}>{source.pinpoint}</a>
+        }}>{source.label}</a>
       </li>)}</ul>
     </section> : null}
     {sourceError ? <p role="alert">{sourceError}</p> : null}

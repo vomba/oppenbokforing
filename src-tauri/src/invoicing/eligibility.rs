@@ -8,12 +8,11 @@ use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 
 use crate::{error::AppError, ledger::VatBucket, rules::RuleVersionSummary};
 
-pub const VALIDATION_ID: &str = "invoice-recognition-se-service25-2026-exact-v1";
-pub const RULE_VERSION_ID: &str = "rv-2026-domestic-service25-exact-v1";
+pub const VALIDATION_ID: &str = super::validation_registry::INVOICE_V2.id;
+pub const RULE_VERSION_ID: &str = super::validation_registry::INVOICE_V2.rule_id;
 pub const POLICY_FAMILY: &str = "invoice_recognition";
 pub const POLICY_KEY: &str = "domestic_service25_exact";
-pub const EVIDENCE_MANIFEST: &str =
-    include_str!("../../../fixtures/accounting-validation/2026-domestic-service25-exact.json");
+pub const EVIDENCE_MANIFEST: &str = super::validation_registry::INVOICE_V2.manifest;
 pub const DEADLINE_SOURCE: &str = "https://www.skatteverket.se/foretag/moms/deklareramoms/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html";
 const COVERAGE: &str = "2026 invoice-method recognition only: ordinary completed domestic SEK service, 25% exact VAT per line, no prior payment, annual VAT without EU trade. Not whole-book, return, credit, settlement or legal PDF validation.";
 
@@ -136,7 +135,7 @@ fn parse<T: serde::de::DeserializeOwned>(raw: &str) -> Result<T, AppError> {
         .map_err(|_| blocked("Eligibility evidence or persisted context is invalid"))
 }
 
-fn exact_amounts(quantity: i64, unit: i64) -> Result<(i64, i64, i64), AppError> {
+pub(super) fn exact_amounts(quantity: i64, unit: i64) -> Result<(i64, i64, i64), AppError> {
     if quantity <= 0 || unit <= 0 {
         return Err(blocked("Positive service line amounts are required"));
     }
@@ -153,7 +152,7 @@ fn exact_amounts(quantity: i64, unit: i64) -> Result<(i64, i64, i64), AppError> 
     Ok((net, vat, gross))
 }
 
-fn checked_totals(
+pub(super) fn checked_totals(
     lines: impl IntoIterator<Item = (i64, i64)>,
 ) -> Result<(i64, i64, i64), AppError> {
     let (mut net, mut vat) = (0i64, 0i64);
@@ -419,7 +418,12 @@ pub(crate) async fn evaluate_tx(
             "accountingMethod": "invoice_method", "voluntaryRegistrationDate": voluntary_date, "deadlineRegime": "annual_may_12"},
         "rules": {"id": RULE_VERSION_ID, "effectiveFrom": effective_from, "effectiveTo": effective_to,
             "sourceUrl": source_url, "policy": policy_value, "calendar": calendar}});
-    let assessment = assessment(issue, completion, digest(encode(&context)?.as_bytes()));
+    let assessment = assessment(
+        &super::validation_registry::INVOICE_V2,
+        issue,
+        completion,
+        digest(encode(&context)?.as_bytes()),
+    );
     Ok(Evaluation {
         assessment,
         reviewed_invoice,
@@ -437,10 +441,15 @@ pub(crate) async fn evaluate_tx(
     })
 }
 
-fn assessment(issue: &str, completion: &str, fingerprint: String) -> InvoiceEligibilityAssessment {
+fn assessment(
+    case: &super::validation_registry::ValidationCase,
+    issue: &str,
+    completion: &str,
+    fingerprint: String,
+) -> InvoiceEligibilityAssessment {
     InvoiceEligibilityAssessment {
-        validation_id: VALIDATION_ID.into(),
-        evidence_digest: evidence_digest(),
+        validation_id: case.id.into(),
+        evidence_digest: case.digest(),
         review_fingerprint: fingerprint,
         accounting_date: issue.into(),
         completed_on: completion.into(),
@@ -448,7 +457,7 @@ fn assessment(issue: &str, completion: &str, fingerprint: String) -> InvoiceElig
         period_key: "2026".into(),
         due_on: "2027-05-12".into(),
         coverage_summary: COVERAGE.into(),
-        rule_version_id: RULE_VERSION_ID.into(),
+        rule_version_id: case.rule_id.into(),
         accounting_year: 2026,
     }
 }
@@ -475,10 +484,14 @@ fn decode_record(
     let stored: InvoiceEligibilityAssessment =
         parse(&row.try_get::<String, _>("assessment_json")?)?;
     let context: Value = parse(&row.try_get::<String, _>("context_json")?)?;
+    let case = super::validation_registry::get(&stored.validation_id)
+        .filter(|case| case.id != super::validation_registry::CASH_V1.id)
+        .ok_or_else(|| blocked("Unknown retained invoice validation"))?;
     validate_facts(Some(&facts), &stored.accounting_date)?;
     let fingerprint = digest(encode(&context)?.as_bytes());
     if stored
         != assessment(
+            case,
             &stored.accounting_date,
             facts.service_completed_on.as_deref().unwrap(),
             fingerprint,

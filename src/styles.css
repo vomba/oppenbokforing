@@ -669,29 +669,29 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
-.guided-tour-card:has(.invoice-eligibility) {
+.guided-tour-card.large-review {
   max-width: 700px;
   max-height: 85vh;
   overflow-y: auto;
 }
 
-.guided-tour-card:has(.invoice-eligibility) > label {
+.guided-tour-card.large-review > label {
   display: block;
   margin: 1rem 0;
 }
 
-.guided-tour-card:has(.invoice-eligibility) input[type="date"] {
+.guided-tour-card.large-review input[type="date"] {
   display: block;
   margin-top: 0.4rem;
   padding: 0.5rem;
 }
 
-.guided-tour-card:has(.invoice-eligibility) fieldset {
+.guided-tour-card.large-review fieldset {
   margin: 1rem 0;
   border: 1px solid #bdc7bd;
   border-radius: 6px;
 }
 
-.guided-tour-card:has(.invoice-eligibility) legend {
+.guided-tour-card.large-review legend {
   font-weight: 600;
 }

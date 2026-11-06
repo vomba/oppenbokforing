@@ -1,3 +1,9 @@
+use crate::invoicing::cash::{
+    BankReceiptIdentity, CashBusinessOrigin, CashBusinessOriginFacts, CashHistoryGetInput,
+    CashInvoiceHistory, CashIssueAssessment, CashIssueFacts, CashIssueInput, CashIssuePreflight,
+    CashIssuePreflightInput, CashIssueRecord, CashReceiptAssessment, CashReceiptFacts,
+    CashReceiptRecord, CashReceiptRecordInput,
+};
 use specta::Type;
 
 use crate::{
@@ -123,6 +129,22 @@ pub fn export_types() -> String {
     types.register::<InvoiceCreateDraftInput>();
     types.register::<InvoiceUpdateDraftInput>();
     types.register::<InvoiceIssueInput>();
+    types.register::<CashIssueFacts>();
+    types.register::<CashBusinessOriginFacts>();
+    types.register::<BankReceiptIdentity>();
+    types.register::<CashReceiptFacts>();
+    types.register::<CashIssuePreflightInput>();
+    types.register::<CashIssueInput>();
+    types.register::<CashReceiptRecordInput>();
+    types.register::<CashHistoryGetInput>();
+    types.register::<CashBusinessOrigin>();
+    types.register::<CashIssueAssessment>();
+    types.register::<CashIssuePreflight>();
+    types.register::<CashIssueRecord>();
+    types.register::<CashReceiptAssessment>();
+    types.register::<CashReceiptRecord>();
+    types.register::<CashInvoiceHistory>();
+
     types.register::<InvoiceIssuePreflightInput>();
     types.register::<InvoiceIssuePreflight>();
     types.register::<InvoiceEligibilityFacts>();

@@ -14,6 +14,40 @@
 - Platform code signing before **wide public** distribution (optional for personal/local use).
 - Local migration smoke tests before every release.
 
+## Required PDF helper artifact
+
+Cash receipt inspection uses a separately exec'd `oppenbokforing-pdf-helper`.
+It adds no library dependency or renderer shell permission. The Tauri dev/build
+hooks run `npm run pdf:build` before the frontend command. Direct desktop Cargo
+checks on a fresh checkout must stage it first:
+
+```sh
+npm run pdf:build
+cargo check --manifest-path src-tauri/Cargo.toml --features desktop
+```
+
+The build script uses the hook's target/profile, builds the existing Rust helper
+binary, and stages the target-suffixed file under `src-tauri/binaries/` (generated,
+not committed). The bundler strips the target suffix. On macOS, the required runtime
+location is `Contents/MacOS/oppenbokforing-pdf-helper`, beside the main executable.
+Missing or non-executable helper blocks new cash recognition; it does not authorize
+an unbounded fallback or block historical completed recovery.
+
+Native builds use the host architecture. The existing universal macOS release path
+builds both installed Apple targets and verifies their combined helper with
+`/usr/bin/lipo`; both per-architecture staged files are also retained for Tauri's
+Cargo builds. The script never installs targets/tools or substitutes the host for
+another requested architecture. Local native arm64 staging/resource probes were
+executed; Intel/universal execution, remote CI and signed/notarized helper operation
+require their own verification. Pure Node tests of the build plan are included in
+`ci:public`; they are not a cross-build execution result.
+
+Resource and privacy guarantees live in `security-privacy`. Packaging checks must
+inspect the actual copied app/DMG for the helper and exercise its installed fixed
+path. A successful standalone Cargo test or a file in `target/` is not proof that
+the bundle contains it. Signing and notarization, when enabled, must include the
+helper; unsigned local builds remain explicitly unsigned.
+
 ## Release Artifacts
 
 - macOS `.dmg` or `.app`.
@@ -72,7 +106,7 @@
 - Rust tests pass.
 - SQLite migration tests pass.
 - Golden scenario tests pass.
-- Packaged app smoke test passes.
+- Packaged app smoke test passes, including helper presence and normal/resource-failure receipt paths from the installed bundle.
 - `npm run test:smoke` passes (integration mode; set `TAURI_SMOKE=1` for package build).
 - Backup and restore smoke test passes.
 - Security/privacy release checklist passes.

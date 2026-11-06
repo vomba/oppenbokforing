@@ -326,6 +326,10 @@ pub async fn expense_post(
     ensure_fiscal_year_open(pool, &fiscal_year_id).await?;
 
     let mut tx = pool.begin().await?;
+    crate::workspace::ensure_fiscal_year_open_tx(&mut *tx, &fiscal_year_id).await?;
+    crate::workspace::ensure_fiscal_year_date_tx(
+        &mut *tx, workspace_id, &fiscal_year_id, &date,
+    ).await?;
 
     let expense_account_id =
         lookup_account_id_tx(&mut tx, workspace_id, input.expense_account_number.trim()).await?;

@@ -59,6 +59,11 @@ This is incomplete, unvalidated mapping, not an accepted selected-field product.
 
 Guided missing-fact inputs and complete supported-case treatment are absent.
 
+Cash-profile or immutable cash-issued books have an explicit unsatisfied preparation
+readiness item, even with zero balances or all supported invoices paid. The bounded
+receipt path does not implement unpaid closing or validate cash VAT/year-end
+approval. Current-profile edits cannot remove that cash preparation boundary.
+
 Current readiness labels referring to VAT filing mean local approval.
 They must not imply external submission. `tax-task-calendar` owns the required
 completion projection.

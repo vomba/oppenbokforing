@@ -20,9 +20,11 @@ use crate::{
 const JOB_INVOICE_ISSUE: &str = "invoice_issue";
 const JOB_INVOICE_CREDIT: &str = "invoice_credit";
 
+pub mod cash;
 pub mod eligibility;
 pub mod pdf;
 pub mod sources;
+mod validation_registry;
 pub use eligibility::{
     invoice_issue_validation_get, InvoiceEligibilityAssessment, InvoiceEligibilityFacts,
     InvoiceIssueValidation, InvoiceIssueValidationGetInput, InvoiceIssueReviewSnapshot,
@@ -1961,6 +1963,7 @@ pub async fn credit_invoice(
     }
 
     crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
+    cash::ensure_not_cash_issue(pool, workspace_id, &credit_request.source_invoice_id).await?;
     let source = get_invoice(pool, workspace_id, &credit_request.source_invoice_id).await?;
     if source.invoice_kind != "standard" {
         return Err(AppError::validation("Cannot credit a credit note", "sourceInvoiceId"));
@@ -2033,6 +2036,7 @@ pub async fn credit_invoice(
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
 
+    cash::ensure_not_cash_issue(&mut *tx, workspace_id, &source.id).await?;
     let source_row = sqlx::query(
         r#"
         SELECT status

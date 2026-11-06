@@ -2136,6 +2136,20 @@ pub async fn year_end_readiness_get(
             .map(|status| format!("Fiscal year status is {status}")),
     }];
 
+    let cash_preparation_unvalidated: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE workspace_id=?1 AND accounting_method='cash_method') OR EXISTS(SELECT 1 FROM cash_invoice_issues WHERE workspace_id=?1)",
+    )
+    .bind(workspace_id)
+    .fetch_one(pool)
+    .await?;
+    if cash_preparation_unvalidated {
+        items.push(YearEndReadinessItem {
+            code: "cash_preparation_unvalidated".to_string(),
+            satisfied: false,
+            detail: Some("Cash receipt recognition does not establish VAT-return preparation or unpaid year-end closing coverage, even when all supported invoices are paid".to_string()),
+        });
+    }
+
     items.extend(
         vat_year_filing_items_pool(pool, workspace_id, input.fiscal_year).await?,
     );

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { useEffect, useRef, useState } from "react"
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
+import { CashIssueDialog } from "../components/CashIssueDialog"
 import { InvoiceEligibilityDialog } from "../components/InvoiceEligibilityDialog"
 import { InvoiceRecognitionHistoryDialog } from "../components/InvoiceRecognitionHistoryDialog"
 import { ActionReviewDialog } from "../components/ActionReviewDialog"
@@ -19,6 +20,7 @@ import {
   invoiceCredit,
   invoiceList,
   taxProfileGetCurrent,
+  vatProfileGetCurrent,
   invoiceLegacySnapshotRecover,
   invoiceLegacySnapshotRecoveryStatus,
   invoicePdfRefresh,
@@ -70,6 +72,7 @@ export function InvoicesPage() {
   const [amountSek, setAmountSek] = useState("10000")
   const [vatRate, setVatRate] = useState("0.25")
   const [status, setStatus] = useState("")
+  const [accountingMethod, setAccountingMethod] = useState<string | null>(null)
   const [taxStatus, setTaxStatus] = useState<string | null>(null)
   const [creditIssueDate, setCreditIssueDate] = useState(localTodayIsoDate)
   const [busy, setBusy] = useState(false)
@@ -101,6 +104,7 @@ export function InvoicesPage() {
     setInvoices([])
     setCustomers([])
     setTaxStatus(null)
+    setAccountingMethod(null)
     issueKeysRef.current = {}
   }, [workspace?.id])
 
@@ -111,15 +115,17 @@ export function InvoicesPage() {
   async function refresh(filter: StatusFilter = statusFilter) {
     if (!workspace) return
     const requestedWorkspaceId = workspace.id
-    const [customerRows, invoiceRows, taxProfile] = await Promise.all([
+    const [customerRows, invoiceRows, taxProfile, vatProfile] = await Promise.all([
       counterpartyList(),
       invoiceList({
         status: filter === "all" ? null : filter,
       }),
       taxProfileGetCurrent().catch(() => null),
+      vatProfileGetCurrent().catch(() => null),
     ])
     if (workspaceIdRef.current !== requestedWorkspaceId) return
     setTaxStatus(taxProfile?.taxStatus ?? null)
+    setAccountingMethod(vatProfile?.accountingMethod ?? null)
     const customerOnly = customerRows.filter((row) => row.kind === "customer")
     setCustomers(customerOnly)
     setInvoices(invoiceRows)
@@ -354,6 +360,8 @@ export function InvoicesPage() {
     void handleCredit(invoice.id)
   }
 
+  const IssueDialog = accountingMethod === "cash_method" ? CashIssueDialog : InvoiceEligibilityDialog
+
   return (
     <main className="app-shell">
       <AppSidebar current="invoices" />
@@ -486,13 +494,14 @@ export function InvoicesPage() {
                           <button
                             type="button"
                             onClick={() => openReview("issue", invoice)}
-                            disabled={busy}
+                            disabled={busy || (accountingMethod !== "cash_method" && accountingMethod !== "invoice_method")}
                           >
                             {t(locale, "invoices.issue")}
                           </button>
                         ) : null}
                         {invoice.status === "issued" &&
                         invoice.invoiceKind === "standard" &&
+                        invoice.voucherId !== null &&
                         !invoice.paymentVoucherId ? (
                           <button
                             type="button"
@@ -577,8 +586,8 @@ export function InvoicesPage() {
             </table>
           )}
         </section>
-        {issueReview && issueReview.workspaceId === workspace?.id ? (
-          <InvoiceEligibilityDialog
+        {issueReview && issueReview.workspaceId === workspace?.id && (accountingMethod === "cash_method" || accountingMethod === "invoice_method") ? (
+          <IssueDialog
             key={`${issueReview.workspaceId}:${issueReview.invoice.id}`}
             invoice={issueReview.invoice}
             idempotencyKey={issueReview.idempotencyKey}

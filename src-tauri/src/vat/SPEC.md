@@ -104,11 +104,14 @@ is a live reconstruction without a review revision, not a historical snapshot.
 Period shape follows the stored frequency. Returns cannot overlap, and profile
 frequency cannot change once returns exist.
 
-New approval enforces `business-profiles`' interim timing policy in the immediate
+New approval enforces `business-profiles`' restrictive timing policy in the immediate
 transaction after completed-result replay and already-approved recovery, but before
 any new approval. It approves only the retained reviewed snapshot under the revision
 and source/configuration checks above, never recomputed boxes. Retrieval of an already
-approved result follows the policy's preservation exceptions.
+approved result follows the policy's preservation exceptions. The separately
+validated full cash receipt path does not validate cash VAT-return preparation or
+approval. Cash-issued identity keeps approval blocked even if current profile
+method is externally changed; paid receipts and zero balances cannot waive it.
 
 Posting guards reject dates in locked ranges. `rust-backend` records shared fiscal
 helpers and revenue reads. There is no standalone VAT repository.

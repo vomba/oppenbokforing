@@ -3,7 +3,7 @@ use serde::Deserialize;
 use specta::Type;
 use std::process::{Command, Stdio};
 
-use super::eligibility::{EVIDENCE_MANIFEST, VALIDATION_ID};
+use super::validation_registry;
 use crate::error::AppError;
 
 const OPEN_FAILED: &str = "Could not open validation source in the system browser";
@@ -20,6 +20,13 @@ pub struct InvoiceValidationSourceOpenInput {
 struct SourceManifest {
     validation_id: String,
     source_references: Vec<SourceReference>,
+    clock_policy: Option<ClockPolicy>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClockPolicy {
+    source_references: Vec<SourceReference>,
 }
 
 #[derive(Deserialize)]
@@ -30,16 +37,15 @@ struct SourceReference {
 
 // Read only the embedded, reviewed manifest, never renderer-supplied URLs or files.
 fn resolve_source(input: &InvoiceValidationSourceOpenInput) -> Result<String, AppError> {
-    if input.validation_id != VALIDATION_ID {
-        return Err(AppError::validation(
-            "Unknown invoice validation",
-            "validationId",
-        ));
-    }
-    let manifest: SourceManifest =
-        serde_json::from_str(EVIDENCE_MANIFEST).map_err(|_| AppError::internal(OPEN_FAILED))?;
-    if manifest.validation_id != VALIDATION_ID {
+    let case = validation_registry::get(&input.validation_id)
+        .ok_or_else(|| AppError::validation("Unknown invoice validation", "validationId"))?;
+    let mut manifest: SourceManifest =
+        serde_json::from_str(case.manifest).map_err(|_| AppError::internal(OPEN_FAILED))?;
+    if manifest.validation_id != case.id {
         return Err(AppError::internal(OPEN_FAILED));
+    }
+    if let Some(clock) = manifest.clock_policy {
+        manifest.source_references.extend(clock.source_references);
     }
     let source = manifest
         .source_references
@@ -48,7 +54,9 @@ fn resolve_source(input: &InvoiceValidationSourceOpenInput) -> Result<String, Ap
         .ok_or_else(|| AppError::validation("Unknown validation source", "sourceId"))?;
     // Source allowlist contract: invoice-lifecycle.
     if !(source.url.starts_with("https://www.bfn.se/")
-        || source.url.starts_with("https://www.skatteverket.se/"))
+        || source.url.starts_with("https://www.skatteverket.se/")
+        || source.url.starts_with("https://www.riksdagen.se/")
+        || source.url.starts_with("https://eur-lex.europa.eu/"))
         || source.url.bytes().any(|byte| {
             !byte.is_ascii()
                 || byte.is_ascii_whitespace()
@@ -181,6 +189,57 @@ mod tests {
                 *calls.lock().unwrap(),
                 vec![("/usr/bin/open".to_string(), vec![expected_url.to_string()])]
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn successor_invoice_and_cash_tax_and_clock_ids_open_exact_compiled_urls() {
+        for (id, url) in SOURCES {
+            assert_eq!(
+                resolve_source(&input(validation_registry::INVOICE_V2.id, id)).unwrap(),
+                url
+            );
+        }
+        let case = &validation_registry::CASH_V1;
+        let manifest: serde_json::Value = serde_json::from_str(case.manifest).unwrap();
+        for source in manifest["sourceReferences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .chain(
+                manifest["clockPolicy"]["sourceReferences"]
+                    .as_array()
+                    .unwrap(),
+            )
+        {
+            let expected_url = source["url"].as_str().unwrap().to_string();
+            open_source_with(
+                input(case.id, source["id"].as_str().unwrap()),
+                OpenPlatform::MacOs,
+                move |command| {
+                    assert_eq!(command.get_program(), "/usr/bin/open");
+                    assert_eq!(
+                        command.get_args().collect::<Vec<_>>(),
+                        vec![std::ffi::OsStr::new(&expected_url)]
+                    );
+                    Ok(true)
+                },
+            )
+            .await
+            .unwrap();
+        }
+        for case in [
+            &validation_registry::INVOICE_V1,
+            &validation_registry::INVOICE_V2,
+        ] {
+            let error = open_source_with(
+                input(case.id, "swedish-standard-time"),
+                OpenPlatform::MacOs,
+                |_| panic!("clock IDs cannot cross case boundaries"),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(error.details.unwrap()[0].field.as_deref(), Some("sourceId"));
         }
     }
 

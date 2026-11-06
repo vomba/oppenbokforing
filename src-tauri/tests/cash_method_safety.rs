@@ -1202,3 +1202,503 @@ async fn issue_waiting_for_writer_rechecks_committed_method_inside_transaction()
         "cash_method"
     );
 }
+
+// Dedicated additive cash identities use public services, never historical SQL
+// seeding or changes to the old seven-fact invoice contract.
+use invoicing::cash::{
+    self, CashBusinessOriginFacts, CashIssueFacts, CashIssueInput, CashIssuePreflightInput,
+};
+fn cash_facts() -> CashIssueFacts {
+    CashIssueFacts {
+        ordinary_domestic_service: Some(true),
+        service_completed_on: Some("2026-01-10".into()),
+        prior_payment_received: Some(false),
+        no_eu_trade_in_year: Some(true),
+        annual_vat_registration_confirmed: Some(true),
+        expected_taxable_base_within_limit: Some(true),
+        expected_net_turnover_within_cash_limit: Some(true),
+        ordinary_timely_sending_confirmed: Some(true),
+        registered_bokslutsmetoden_confirmed: Some(true),
+        cash_treatment_consistent_confirmed: Some(true),
+        short_year_turnover_adjustment_reviewed: None,
+    }
+}
+fn cash_origin(start: &str) -> CashBusinessOriginFacts {
+    CashBusinessOriginFacts {
+        new_business_started_in_2026: Some(true),
+        business_started_on: Some(start.into()),
+        first_financial_year_ends_on: Some("2026-12-31".into()),
+        zero_opening_balances_confirmed: Some(true),
+        no_opening_unpaid_invoices_or_bills_confirmed: Some(true),
+        no_prior_unrecorded_activity_confirmed: Some(true),
+        outside_workspace_history_reviewed: Some(true),
+    }
+}
+async fn cash_review(f: &Fixture) -> CashIssueInput {
+    profiles::save_vat_profile(&f.pool, &f.workspace, &vat_profile("cash_method"))
+        .await
+        .unwrap();
+    let draft = f.draft().await;
+    let preflight = CashIssuePreflightInput {
+        invoice_id: draft.id.clone(),
+        issue_date: "2026-01-20".into(),
+        facts: cash_facts(),
+        origin_review: Some(cash_origin("2026-01-01")),
+    };
+    let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &preflight)
+        .await
+        .unwrap();
+    CashIssueInput {
+        invoice_id: draft.id,
+        issue_date: preflight.issue_date,
+        facts: preflight.facts,
+        origin_review: preflight.origin_review,
+        idempotency_key: "cash-first-identity".into(),
+        review_fingerprint: review.assessment.review_fingerprint,
+    }
+}
+#[tokio::test]
+async fn cash_identity_freezes_both_serialized_profile_save_routes_without_voucher() {
+    for route in [SaveRoute::Individual, SaveRoute::Onboarding] {
+        let f = Fixture::new().await;
+        let input = cash_review(&f).await;
+        cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+            .await
+            .unwrap();
+        let before = database_snapshot(&f.pool).await;
+        let error = save_method(&f, route, "invoice_method")
+            .await
+            .expect_err("cash identity freezes method before receipt voucher");
+        assert_eq!(
+            error.details.unwrap()[0].field.as_deref(),
+            Some("accountingMethod")
+        );
+        assert_eq!(before, database_snapshot(&f.pool).await);
+        save_method(&f, route, "cash_method").await.unwrap();
+    }
+}
+#[tokio::test]
+async fn cash_identity_cannot_use_legacy_settlement_or_credit_after_external_method_edit() {
+    let f = Fixture::new().await;
+    let input = cash_review(&f).await;
+    cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    let document = f.evidence().await;
+    f.csv().await;
+    let staged = imports::staged_transactions_list(
+        &f.pool,
+        &f.workspace,
+        &StagedTransactionsListInput {
+            status: Some("staged".into()),
+            limit: Some(100),
+            before_id: None,
+        },
+    )
+    .await
+    .unwrap();
+    sqlx::query("UPDATE vat_profiles SET accounting_method='invoice_method' WHERE workspace_id=?1")
+        .bind(&f.workspace)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let before = database_snapshot(&f.pool).await;
+    for error in [
+        reconciliation::invoice_payment_record(
+            &f.pool,
+            &f.workspace,
+            &direct_input(&input.invoice_id, &document.id),
+        )
+        .await
+        .unwrap_err(),
+        reconciliation::reconciliation_match_create(
+            &f.pool,
+            &f.workspace,
+            &staged_input(&input.invoice_id, &staged[0].id),
+        )
+        .await
+        .unwrap_err(),
+        invoicing::credit_invoice(
+            &f.pool,
+            &f.workspace,
+            &credit_input(&input.invoice_id, "cash-credit"),
+        )
+        .await
+        .unwrap_err(),
+    ] {
+        assert_eq!(
+            error.details.unwrap()[0].field.as_deref(),
+            Some("accountingMethod")
+        );
+    }
+    assert_eq!(before, database_snapshot(&f.pool).await);
+}
+#[tokio::test]
+async fn cash_short_first_year_needs_adjustment_review_and_persists_real_start_atomically() {
+    let f = Fixture::new().await;
+    let mut input = cash_review(&f).await;
+    input.origin_review = Some(cash_origin("2026-01-05"));
+    let mut preflight = CashIssuePreflightInput {
+        invoice_id: input.invoice_id.clone(),
+        issue_date: input.issue_date.clone(),
+        facts: input.facts.clone(),
+        origin_review: input.origin_review.clone(),
+    };
+    let before = database_snapshot(&f.pool).await;
+    assert!(
+        cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &preflight)
+            .await
+            .is_err()
+    );
+    assert_eq!(before, database_snapshot(&f.pool).await);
+    preflight.facts.short_year_turnover_adjustment_reviewed = Some(true);
+    let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &preflight)
+        .await
+        .unwrap();
+    assert_eq!(
+        before,
+        database_snapshot(&f.pool).await,
+        "preflight must not configure first year"
+    );
+    input.facts = preflight.facts;
+    input.review_fingerprint = review.assessment.review_fingerprint;
+    cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    let start: String = sqlx::query_scalar("SELECT starts_on FROM fiscal_years WHERE id=?1")
+        .bind(f.fiscal_year())
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(start, "2026-01-05");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vouchers WHERE workspace_id=?1")
+        .bind(&f.workspace)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+}
+#[tokio::test]
+async fn cash_unknown_or_contradictory_facts_and_nonempty_origin_are_readonly_rejections() {
+    let f = Fixture::new().await;
+    let input = cash_review(&f).await;
+    let base = serde_json::to_value(CashIssuePreflightInput {
+        invoice_id: input.invoice_id.clone(),
+        issue_date: input.issue_date.clone(),
+        facts: input.facts.clone(),
+        origin_review: input.origin_review.clone(),
+    })
+    .unwrap();
+    let before = database_snapshot(&f.pool).await;
+    for section in ["facts", "originReview"] {
+        for (name, good) in base[section].as_object().unwrap() {
+            if name == "shortYearTurnoverAdjustmentReviewed" {
+                continue;
+            }
+            let mut bads = vec![serde_json::Value::Null];
+            if let Some(b) = good.as_bool() {
+                bads.push((!b).into());
+            }
+            for bad in bads {
+                let mut candidate = base.clone();
+                candidate[section][name] = bad;
+                let candidate: CashIssuePreflightInput = serde_json::from_value(candidate).unwrap();
+                assert!(
+                    cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &candidate)
+                        .await
+                        .is_err(),
+                    "{section}.{name}"
+                );
+                assert_eq!(before, database_snapshot(&f.pool).await);
+            }
+        }
+    }
+    f.expense().await;
+    let before = database_snapshot(&f.pool).await;
+    let candidate: CashIssuePreflightInput = serde_json::from_value(base).unwrap();
+    assert!(
+        cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &candidate)
+            .await
+            .is_err(),
+        "posted expense prevents falsely claiming empty origin"
+    );
+    assert_eq!(before, database_snapshot(&f.pool).await);
+}
+#[tokio::test]
+async fn cash_completed_replay_precedes_profile_rules_clock_and_rejects_changed_input() {
+    let f = Fixture::new().await;
+    let input = cash_review(&f).await;
+    let issued = cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM vat_profiles WHERE workspace_id=?1")
+        .bind(&f.workspace)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE rule_versions SET status='retired' WHERE id='rv-2026-method-recognition-v2'",
+    )
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let before = database_snapshot(&f.pool).await;
+    let replay = cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(issued).unwrap(),
+        serde_json::to_value(replay).unwrap()
+    );
+    for field in ["issueDate", "facts", "reviewFingerprint", "invoiceId"] {
+        let mut changed = serde_json::to_value(&input).unwrap();
+        match field {
+            "facts" => changed["facts"]["priorPaymentReceived"] = true.into(),
+            "issueDate" => changed[field] = "2027-01-01".into(),
+            _ => changed[field] = "changed".into(),
+        };
+        let changed: CashIssueInput = serde_json::from_value(changed).unwrap();
+        assert!(cash::invoice_cash_issue(&f.pool, &f.workspace, &changed)
+            .await
+            .is_err());
+    }
+    let history = cash::invoice_cash_history_get(
+        &f.pool,
+        &f.workspace,
+        &cash::CashHistoryGetInput {
+            invoice_id: input.invoice_id.clone(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        history.issue.assessment.review_fingerprint,
+        input.review_fingerprint
+    );
+    assert_eq!(before, database_snapshot(&f.pool).await);
+}
+#[tokio::test]
+async fn cash_writer_rechecks_committed_profile_and_reviewed_customer_before_any_write() {
+    for edit in [
+        "UPDATE vat_profiles SET accounting_method='invoice_method' WHERE workspace_id=?1",
+        "UPDATE counterparties SET name='Changed customer' WHERE workspace_id=?1",
+    ] {
+        let f = Fixture::new().await;
+        let input = cash_review(&f).await;
+        let writer_pool = connect_workspace(&f.dir.path().join("workspace.sqlite"))
+            .await
+            .unwrap();
+        let mut writer = writer_pool.begin_with("BEGIN IMMEDIATE").await.unwrap();
+        let pool = f.pool.clone();
+        let workspace = f.workspace.clone();
+        let task =
+            tokio::spawn(async move { cash::invoice_cash_issue(&pool, &workspace, &input).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!task.is_finished());
+        sqlx::query(edit)
+            .bind(&f.workspace)
+            .execute(&mut *writer)
+            .await
+            .unwrap();
+        writer.commit().await.unwrap();
+        let before = database_snapshot(&writer_pool).await;
+        assert!(tokio::time::timeout(Duration::from_secs(10), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_err());
+        assert_eq!(before, database_snapshot(&writer_pool).await);
+    }
+}
+#[tokio::test]
+async fn cash_concurrent_duplicate_issue_is_one_identity_and_continuation_counts_unpaid_once() {
+    let f = Fixture::new().await;
+    let input = cash_review(&f).await;
+    let pool2 = connect_workspace(&f.dir.path().join("workspace.sqlite"))
+        .await
+        .unwrap();
+    let (one, two) = tokio::join!(
+        cash::invoice_cash_issue(&f.pool, &f.workspace, &input),
+        cash::invoice_cash_issue(&pool2, &f.workspace, &input)
+    );
+    assert_eq!(one.unwrap().invoice_number, two.unwrap().invoice_number);
+    f.expense().await;
+    let draft = f.draft().await;
+    let review = cash::invoice_cash_issue_preflight(
+        &f.pool,
+        &f.workspace,
+        &CashIssuePreflightInput {
+            invoice_id: draft.id,
+            issue_date: "2026-01-20".into(),
+            facts: cash_facts(),
+            origin_review: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(review.current_taxable_base_minor, 100_000);
+    assert_eq!(review.projected_taxable_base_minor, 200_000);
+    let (origins,issues,jobs):(i64,i64,i64)=sqlx::query_as("SELECT (SELECT COUNT(*) FROM cash_business_origins),(SELECT COUNT(*) FROM cash_invoice_issues),(SELECT COUNT(*) FROM local_jobs WHERE job_type='invoice_pdf_generate')").fetch_one(&f.pool).await.unwrap();
+    assert_eq!((origins, issues, jobs), (1, 1, 1));
+}
+
+#[tokio::test]
+async fn cash_first_issue_rolls_back_origin_year_identity_and_all_jobs_on_late_failure() {
+    let f = Fixture::new().await;
+    let mut input = cash_review(&f).await;
+    input.origin_review = Some(cash_origin("2026-01-05"));
+    input.facts.short_year_turnover_adjustment_reviewed = Some(true);
+    let review = cash::invoice_cash_issue_preflight(
+        &f.pool,
+        &f.workspace,
+        &CashIssuePreflightInput {
+            invoice_id: input.invoice_id.clone(),
+            issue_date: input.issue_date.clone(),
+            facts: input.facts.clone(),
+            origin_review: input.origin_review.clone(),
+        },
+    )
+    .await
+    .unwrap();
+    input.review_fingerprint = review.assessment.review_fingerprint;
+    sqlx::query("CREATE TRIGGER inject_cash_issue_audit_failure BEFORE INSERT ON audit_events WHEN NEW.action='invoice_issue' BEGIN SELECT RAISE(ABORT,'injected cash issue audit failure'); END;").execute(&f.pool).await.unwrap();
+    let before = database_snapshot(&f.pool).await;
+    assert!(cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+        .await
+        .is_err());
+    assert_eq!(
+        before,
+        database_snapshot(&f.pool).await,
+        "including real fiscal-year start, origin, number, snapshot, proof and replay"
+    );
+    assert!(cash::cash_business_origin_get(&f.pool, &f.workspace)
+        .await
+        .unwrap()
+        .is_none());
+    assert!(cash::invoice_cash_history_get(
+        &f.pool,
+        &f.workspace,
+        &cash::CashHistoryGetInput {
+            invoice_id: input.invoice_id
+        }
+    )
+    .await
+    .unwrap()
+    .is_none());
+}
+#[tokio::test]
+async fn cash_current_rule_header_line_calendar_and_lock_changes_invalidate_review() {
+    let edits=[
+        "UPDATE tax_rules SET value_json=json_set(value_json,'$.scope.annualTaxableBaseLimitMinor',200000000) WHERE rule_version_id='rv-2026-method-recognition-v2' AND family='cash_recognition'",
+        "UPDATE tax_rules SET value_json=json_set(value_json,'$.schedules.annual_may_12.\"2026\"','2026-05-12') WHERE rule_version_id='rv-2026-method-recognition-v2' AND key='filing_deadline_schedules'",
+        "UPDATE invoices SET total_vat_minor=1 WHERE workspace_id=?1",
+        "UPDATE invoice_lines SET unit_price_minor=100001 WHERE invoice_id IN(SELECT id FROM invoices WHERE workspace_id=?1)",
+        "UPDATE invoices SET due_date='2026-05-05' WHERE workspace_id=?1",
+        "UPDATE sole_trader_profiles SET residency_country='NO' WHERE workspace_id=?1",
+        "UPDATE fiscal_years SET status='closing' WHERE workspace_id=?1",
+    ];
+    for edit in edits {
+        let f = Fixture::new().await;
+        let input = cash_review(&f).await;
+        sqlx::query(edit)
+            .bind(&f.workspace)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+        let before = database_snapshot(&f.pool).await;
+        assert!(
+            cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+                .await
+                .is_err(),
+            "{edit}"
+        );
+        assert_eq!(before, database_snapshot(&f.pool).await, "{edit}");
+    }
+}
+#[tokio::test]
+async fn cash_issue_keeps_receipt_service_closed_and_provenance_append_only() {
+    let f = Fixture::new().await;
+    let input = cash_review(&f).await;
+    cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    let before = database_snapshot(&f.pool).await;
+    for table in ["cash_business_origins", "cash_invoice_issues"] {
+        assert!(sqlx::query(&format!(
+            "UPDATE {table} SET facts_json='{{}}' WHERE workspace_id=?1"
+        ))
+        .bind(&f.workspace)
+        .execute(&f.pool)
+        .await
+        .is_err());
+        assert!(
+            sqlx::query(&format!("DELETE FROM {table} WHERE workspace_id=?1"))
+                .bind(&f.workspace)
+                .execute(&f.pool)
+                .await
+                .is_err()
+        );
+    }
+    let receipt=cash::CashReceiptRecordInput {invoice_id:input.invoice_id,document_id:"not-receipt-proof".into(),idempotency_key:"not-yet".into(),facts:serde_json::from_value(serde_json::json!({"actualReceivedAmountMinor":125000,"actualReceivedOn":"2026-02-15","currency":"SEK","receivedAlready":true,"bankReceiptIdentity":{"bankId":"bank","receivingAccountReference":"business-account","transactionReference":"actual-entry"},"sourceEntryLocator":"page 1","bankPdfMatchesReceiptConfirmed":true,"issuedCaseStillAppliesConfirmed":true,"noOtherReceiptsOrAdjustmentsConfirmed":true})).unwrap()};
+    assert!(
+        cash::invoice_cash_receipt_record(&f.pool, &f.workspace, &receipt)
+            .await
+            .is_err()
+    );
+    assert_eq!(before, database_snapshot(&f.pool).await);
+}
+
+#[tokio::test]
+async fn cash_rechecks_fa_skatt_salary_posture_even_after_external_profile_edit() {
+    let f = Fixture::new().await;
+    let input = cash_review(&f).await;
+    sqlx::query("UPDATE tax_profiles SET tax_status='fa_skatt',expected_salary_income_minor=0 WHERE workspace_id=?1")
+        .bind(&f.workspace).execute(&f.pool).await.unwrap();
+    let before = database_snapshot(&f.pool).await;
+    let candidate = CashIssuePreflightInput {invoice_id: input.invoice_id.clone(),issue_date:input.issue_date.clone(),facts:input.facts.clone(),origin_review:input.origin_review.clone()};
+    assert!(cash::invoice_cash_issue_preflight(&f.pool,&f.workspace,&candidate).await.is_err(), "stored FA-skatt posture must remain valid, not merely retain a status string");
+    assert_eq!(before,database_snapshot(&f.pool).await);
+}
+
+#[tokio::test]
+async fn cash_immutable_boundary_blocks_vat_approval_after_external_profile_drift() {
+    let f = Fixture::new().await;
+    let input = cash_review(&f).await;
+    cash::invoice_cash_issue(&f.pool, &f.workspace, &input).await.unwrap();
+    let draft = vat::vat_return_draft_create(&f.pool, &f.workspace, &VatReturnDraftCreateInput {
+        period_key: "2026".into(), idempotency_key: "cash-provisional-vat".into(),
+    }).await.unwrap();
+    sqlx::query("UPDATE vat_profiles SET accounting_method='invoice_method' WHERE workspace_id=?1")
+        .bind(&f.workspace).execute(&f.pool).await.unwrap();
+    let before = database_snapshot(&f.pool).await;
+    let result = vat::vat_return_approve(&f.pool, &f.workspace, &VatReturnApproveInput {
+        vat_return_id: draft.id, idempotency_key: "cash-must-not-approve".into(),
+    }).await;
+    assert!(result.is_err(), "an externally edited profile cannot promote cash books to validated VAT approval");
+    assert_eq!(database_snapshot(&f.pool).await, before);
+}
+
+#[tokio::test]
+async fn cash_immutable_boundary_rejects_expense_before_real_first_year_start() {
+    let f = Fixture::new().await;
+    let mut input = cash_review(&f).await;
+    input.origin_review = Some(cash_origin("2026-01-05"));
+    input.facts.short_year_turnover_adjustment_reviewed = Some(true);
+    let review = cash::invoice_cash_issue_preflight(&f.pool, &f.workspace, &CashIssuePreflightInput {
+        invoice_id: input.invoice_id.clone(), issue_date: input.issue_date.clone(),
+        facts: input.facts.clone(), origin_review: input.origin_review.clone(),
+    }).await.unwrap();
+    input.review_fingerprint = review.assessment.review_fingerprint;
+    cash::invoice_cash_issue(&f.pool, &f.workspace, &input).await.unwrap();
+    let before = database_snapshot(&f.pool).await;
+    let result = expenses::expense_post(&f.pool, &f.workspace, &ExpensePostInput {
+        amount_minor_ex_vat: 10_000, vat_rate: 0.25,
+        expense_account_number: "5610".into(), payment_account_number: "1930".into(),
+        document_id: None, no_document_reason: Some("Disposable boundary regression".into()),
+        staged_transaction_id: None, idempotency_key: "expense-outside-real-first-year".into(),
+        date: Some("2026-01-02".into()),
+    }).await;
+    assert!(result.is_err(), "a January calendar bucket must not permit posting before the actual January 5 business/fiscal-year start");
+    assert_eq!(database_snapshot(&f.pool).await, before);
+}

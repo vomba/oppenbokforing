@@ -46,16 +46,19 @@ changes. The save serializes this check.
 Voluntary-registration date validation differs between composite and individual
 saves. The transaction requirement remains in `local-sqlite`.
 
-### Interim accounting-method safety
+### Accounting-method boundaries
 
 `cash_method` remains selectable before posting. Both individual VAT-profile saves
 and composite onboarding saves serialize a method freeze with their writes: after
-any posted voucher, the stored method must remain unchanged. A missing method in
-posted books also requires review, not ordinary profile replacement.
+any posted voucher, the stored method must remain unchanged. Issued cash identity
+also freezes ordinary method changes before its first receipt voucher. A missing
+method in posted books requires review, not ordinary profile replacement.
 
-The interim timing policy permits only a stored `invoice_method` for new invoice
-issuance, full credits, invoice settlements, and VAT/year-end approval. Missing
-profiles fail closed. A rejection identifies `accountingMethod` and explains the
+The restrictive timing policy permits only stored `invoice_method` for the old
+invoice-timed posting, credit, settlement and VAT/year-end approval routes. Immutable
+cash-issued identity also denies those routes despite an external profile edit.
+The separate bounded cash issue/receipt authority belongs to `invoice-lifecycle`,
+not to a favorable profile selection. Missing profiles fail closed. A rejection identifies `accountingMethod` and explains the
 unsupported timing/remediation boundary rather than substituting another method.
 The posting/approval transaction rechecks the policy; preflight is guidance only.
 
@@ -66,7 +69,8 @@ existing safeguards. Expense posting and VAT/year-end draft creation/regeneratio
 are not newly gated by this policy; availability does not establish safe treatment
 or complete preparation.
 
-This guard is not cash-method recognition or closing support. Reviewed method
-transitions, legacy remediation, and full eligibility screening remain gaps.
-Allowing invoice-method timing does not satisfy `tax-rules`' validation gate;
-`invoice-lifecycle` separately enforces its bounded recognition case on new issue.
+The shared guard is not cash recognition permission or closing support. Reviewed
+method transitions, legacy remediation and broad eligibility remain gaps. Allowing
+invoice-method timing does not satisfy `tax-rules`' validation gate. The separate
+invoice-owned cash origin is an immutable reviewed case anchor, not an opening-
+balance workflow or a mutable profile declaration.

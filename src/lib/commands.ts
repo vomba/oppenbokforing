@@ -1,3 +1,5 @@
+import type { CashIssuePreflightInput, CashIssuePreflight, CashIssueInput, CashHistoryGetInput, CashInvoiceHistory, CashReceiptRecordInput, CashBusinessOrigin } from "./bindings"
+export type { CashIssueFacts, CashBusinessOriginFacts, BankReceiptIdentity, CashReceiptFacts, CashIssuePreflightInput, CashIssueInput, CashReceiptRecordInput, CashHistoryGetInput, CashBusinessOrigin, CashIssueAssessment, CashIssuePreflight, CashIssueRecord, CashReceiptAssessment, CashReceiptRecord, CashInvoiceHistory } from "./bindings"
 import { invoke } from "@tauri-apps/api/core"
 import type {
   BackupCreateInput,
@@ -562,3 +564,28 @@ export async function documentReveal(input: DocumentGetInput) {
 }
 
 export { presentAppError as appErrorMessage } from "./errorPresentation"
+
+export async function invoiceCashIssuePreflight(input: CashIssuePreflightInput) {
+  const response = await invoke<CommandResponse<CashIssuePreflight>>("invoice_cash_issue_preflight", { input })
+  return response.data
+}
+
+export async function invoiceCashIssue(input: CashIssueInput) {
+  const response = await invoke<CommandResponse<InvoiceSummary>>("invoice_cash_issue", { input })
+  return response.data
+}
+
+export async function invoiceCashHistoryGet(input: CashHistoryGetInput) {
+  const response = await invoke<CommandResponse<CashInvoiceHistory | null>>("invoice_cash_history_get", { input })
+  return response.data
+}
+
+export async function invoiceCashReceiptRecord(input: CashReceiptRecordInput) {
+  const response = await invoke<CommandResponse<ReconciliationMatchResult>>("invoice_cash_receipt_record", { input })
+  return response.data
+}
+
+export async function cashBusinessOriginGet() {
+  const response = await invoke<CommandResponse<CashBusinessOrigin | null>>("cash_business_origin_get")
+  return response.data
+}

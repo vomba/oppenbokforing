@@ -59,7 +59,7 @@ lookup returns a validation error.
 The repository seeds engineering rules. It does not establish validated coverage
 for all required years or the eligibility gate described here.
 
-### Bounded invoice-recognition coverage
+### Bounded method-recognition coverage
 
 The [2026 exact-VAT domestic-service dossier](../../../docs/accounting-validation/2026-domestic-service25-exact.md)
 records authoritative passages, independently derived expectations, AI coverage
@@ -74,14 +74,30 @@ The applicable accounting period is 2026 and the filing date is 2027-05-12. Expl
 annual-registration, expected taxable-base and year-wide no-EU facts are required;
 profit, residency defaults and stored regime selections do not establish them.
 
-`rv-2026-domestic-service25-exact-v1` retires the old engineering version without
-rewriting its rule payloads or historical references. Other engineering rules are
-copied to retain existing consumers, not promoted to validated coverage. The gate
-requires the exact compiled manifest digest, active version/applicability, typed
-case policy and actual annual schedule; a matching descriptive checksum alone
-cannot authorize it. Published manifest bytes and their validation ID are immutable;
-a successor must retain the old evidence/reader instead of reusing that ID or
-reformatting the old manifest. `invoice-lifecycle` owns transaction enforcement and
-retained facts. This gate does not validate credits, settlement, complete legal PDFs, books,
-VAT-return approval or year-end preparation. Full required-year/case eligibility
-remains incomplete.
+The separate [cash recognition dossier](../../../docs/accounting-validation/2026-cash-pdf-full.md)
+records independently derived zero-at-issue and full-receipt expectations, first-year
+and civil-date applicability, source review and execution-verification status. Its
+cash case covers only new businesses started in 2026 with a first year ending
+December 31, explicit zero-opening/outside-history review, and one full same-year
+receipt backed by retained PDF and reviewed actual facts. Short first years require
+review of adjusted normal annual net turnover. The SEK 3 million cash-method test
+is distinct from the SEK 1 million tax-year VAT-base test. Neither a small workspace
+balance nor an annual-registration setting proves these facts.
+
+Migration 22 installs the sole active 2026 version `rv-2026-method-recognition-v2`.
+Live invoice evidence is `invoice-recognition-se-service25-2026-exact-v2`, with
+unchanged inherited expectations and explicit lineage to published invoice-v1;
+cash evidence is `cash-recognition-se-service25-2026-pdf-full-v1`. The immutable
+compiled registry resolves each case separately. The gate requires the exact
+manifest digest, active applicability, actual case-policy payload and annual
+schedule; a descriptive checksum alone cannot authorize a transition.
+
+Published invoice-v1 bytes, its retired rule payloads, seven-field facts, historical
+context/fingerprint reader and source URLs remain intact. Version retirement and
+copied unrelated engineering values do not rewrite history, backfill eligibility
+or validate those engineering calculations. Historical reads select the recorded
+case rather than require it to remain active. `invoice-lifecycle` owns transactional
+case enforcement and retained declarations. Cash CSV recognition, credits, partials,
+over/refunds, unpaid closing and all cash VAT/year-end approvals remain outside
+this coverage. Complete legal PDFs, books and returns are not established; full
+required-year/case eligibility remains incomplete.

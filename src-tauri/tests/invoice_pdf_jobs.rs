@@ -312,7 +312,7 @@ async fn invoice_pdf_job_uses_issued_snapshot_after_profile_removal() {
     assert_eq!(snapshot.get::<String, _>("vat_status"), "registered");
     assert_eq!(
         snapshot.get::<String, _>("rule_version_id"),
-        "rv-2026-domestic-service25-exact-v1"
+        "rv-2026-method-recognition-v2"
     );
     assert_eq!(snapshot.get::<i64, _>("tax_year"), 2026);
     assert!(
@@ -333,7 +333,7 @@ async fn invoice_pdf_job_uses_issued_snapshot_after_profile_removal() {
     .await
     .expect("issue audit event");
     assert!(issue_audit_metadata.contains("\"businessName\":\"PDF Test Firma\""));
-    assert!(issue_audit_metadata.contains("\"ruleVersionId\":\"rv-2026-domestic-service25-exact-v1\""));
+    assert!(issue_audit_metadata.contains("\"ruleVersionId\":\"rv-2026-method-recognition-v2\""));
 
     profiles::save_tax_profile(
         &pool,

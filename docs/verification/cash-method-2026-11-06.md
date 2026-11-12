@@ -1,6 +1,7 @@
 # Bounded cash-method verification — 2026-11-06
 
-Status: automated checks and native bundle/helper checks pass. Installed GUI cash UAT is pending.
+Status at this checkpoint: automated checks and native bundle/helper checks passed.
+The later [November9 native run](packaged-cash-macos-2026-11-09.md) completed the GUI cash checks and corrected/retested the discovered SIE header defect.
 
 ## Scope and basis
 
@@ -91,7 +92,15 @@ Public regressions cover five valid input variants, invalid padded links and the
 The artifact hashes above identify the earlier implementation build, not these review corrections.
 Rebuild the app/DMG before using them for post-fix GUI UAT.
 
-## Remaining verification
+## Later native verification
+
+The [November9 record](packaged-cash-macos-2026-11-09.md) now supplies the copied-DMG GUI evidence described below.
+It preserves the discovered SIE failure and the corrected app's separate export/artifact identities.
+The list below is the earlier plan, not a claim that those native checks remain unperformed.
+The later report also records the approving independent evidence audit. Broader
+platform/signing limits remain separate.
+
+## Earlier verification plan
 
 - Mount the new DMG read-only and copy the app into a disposable Applications directory.
 - Exercise first-year facts, unknown/stale stops, identity-only issue and retained PDF through the actual GUI.

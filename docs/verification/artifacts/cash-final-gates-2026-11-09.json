@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-11-09T22:21:28.472260+00:00",
+  "commands": [
+    {
+      "command": "PATH=\"$HOME/.cargo/bin:$PATH\" npm run ci:public",
+      "exitCode": 0
+    },
+    {
+      "command": "PATH=\"$HOME/.cargo/bin:$PATH\" npm run test:smoke",
+      "exitCode": 0,
+      "scope": "Integration smoke only; native packages independently built and exercised"
+    }
+  ],
+  "rustPassesIncludingIsolatedWorkers": 347,
+  "rustIgnoredHarnessEntrypoints": 1,
+  "frontendTests": 192,
+  "helperBuildPlanTests": 26,
+  "scope": "Actual final public terminal output; isolated probe entrypoint is explicitly executed by six ordinary tests"
+}

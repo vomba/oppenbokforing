@@ -1,0 +1,68 @@
+
+> oppenbokforing-desktop@0.1.0 test:smoke
+> bash scripts/packaged-smoke-test.sh
+
+== M6 packaged smoke (integration mode) ==
+
+> oppenbokforing-desktop@0.1.0 test:fixtures
+> vitest run src/lib/fixtures.test.ts
+
+
+ RUN  v2.1.9 /Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2
+
+ ✓ src/lib/fixtures.test.ts (19 tests) 7ms
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+   Start at  23:20:39
+   Duration  530ms (transform 16ms, setup 63ms, collect 39ms, tests 7ms, environment 291ms, prepare 30ms)
+
+
+> oppenbokforing-desktop@0.1.0 test
+> vitest run src/i18n/index.test.ts
+
+
+ RUN  v2.1.9 /Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2
+
+ ✓ src/i18n/index.test.ts (6 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  23:20:40
+   Duration  354ms (transform 33ms, setup 35ms, collect 29ms, tests 3ms, environment 168ms, prepare 21ms)
+
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.36s
+     Running tests/m6_milestone.rs (src-tauri/target/debug/deps/m6_milestone-6c8455a2bd99935c)
+
+running 12 tests
+test m6_integrations_degrade_to_manual_fallback ... ok
+test m6_locale_persists_after_save ... ok
+test m6_settings_rejects_invalid_locale ... ok
+test m6_validate_rejects_missing_absolute_package_path ... ok
+test m6_accountant_package_export_and_validate ... ok
+test m6_settings_preserves_updater_when_omitted ... ok
+test m6_accountant_package_export_to_external_dir_then_validate ... ok
+test m6_sie_idempotency_rejects_different_fiscal_year ... ok
+test m6_sie_export_ledger_fixture ... ok
+test m6_sie_export_regenerates_missing_file_on_retry ... ok
+test m6_validate_rejects_parent_directory_in_package_path ... ok
+test m6_workspace_settings_table_exists ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.94s
+     Running tests/golden_scenarios.rs (src-tauri/target/debug/deps/golden_scenarios-3f5beedb153c34ec)
+
+running 5 tests
+test all_golden_fixtures_parse ... ok
+test m1_golden_scenarios_pass_compliance_engine ... ok
+test m1_workspace_offline_reopen_fixture ... ok
+test m2_credit_invoice_fixture ... ok
+test m1_backup_restore_preserves_rules_fixture ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+Skipping Tauri package build (set TAURI_SMOKE=1 to enable).
+M6 smoke checks passed.

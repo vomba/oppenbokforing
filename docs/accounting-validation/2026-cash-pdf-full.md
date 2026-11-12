@@ -1,6 +1,6 @@
 # 2026 cash-method identity and full PDF receipt evidence
 
-Status: **source review approved; implementation under independent review; packaged cash verification pending**.
+Status: **source review approved; bounded automated/native verification recorded**.
 Source evidence prepared 2026-11-04. Automated checks and reproduced review defects
 are recorded below; this is not a packaged-runtime or full-method completion claim.
 
@@ -511,7 +511,8 @@ scenarios. They check arithmetic/lineage, both limits, the 9 first-year, 8 clock
 17 future-day examples, the literal journals/calendar and PDF reservation inventory.
 `PATH="$HOME/.cargo/bin:$PATH" npm run ci:public` passed: **276 Rust / 158 frontend
 tests**, golden/M8 checks, production build and unchanged generated bindings.
-No cash production behavior, dependency, migration or active rule changed.
+At that evidence-only checkpoint, no cash production behavior, dependency,
+migration or active rule changed.
 
 ## Implementation checks and reproduced review defects
 
@@ -563,23 +564,34 @@ probes. Native arm64 app/DMG construction and execution of the helper inside the
 actual build bundle also passed. The normal compressed fixture succeeded; cyclic
 and expansion fixtures terminated without a valid reply. Artifact hashes and exact
 qualifications are retained in [the November6 verification record](../verification/cash-method-2026-11-06.md).
-Installed GUI cash UAT, final step review and broader platform/signing checks remain
-separate, unfinished gates.
+The [November9 native record](../verification/packaged-cash-macos-2026-11-09.md) now
+supplies copied-DMG GUI issue/receipt, failure/recovery, backup/restore and deployed
+normalization checks. It also retains a discovered SIE first-year failure and the
+corrected copied app's June-start export. Final evidence review and broader
+platform/signing checks remain separate.
 
 Formal step review also found an unstaged-expense continuation gap (`rc_c993d9f2`).
 The public regression committed a prior-year expense without a bank match, then
 observed incorrect success in preflight, issuance and receipt. One common expense
 predicate now checks all vouchers against origin dates and original scoped posting
 provenance. Valid staged and unstaged controls remain supported. The correction
-passes focused regressions and the full public gate; fresh step review is required.
+passed focused regressions, the full public gate and fresh step review.
 A later review (`rc_3e8ff58b`) found normalization differences between the expense
 writer and the SQL history comparison. Shared Rust normalization now supplies an
 in-memory reference view for the common predicate. Blank optional values and
 padded real references follow writer semantics in both staging branches. Raw
 history remains untouched, missing fields are not synthesized, and invalid links
 still stop continuation. Public positive/negative regressions cover that parity.
-Earlier bundle hashes do not identify these later corrections. Installed GUI cash
-UAT therefore requires a rebuilt artifact.
+The November6 bundle hashes predate these corrections. The November9 report
+identifies the rebuilt copied apps used for deployed normalization and corrected
+SIE export checks, rather than reusing those earlier artifact identities.
+
+Final read-only evidence audit `01a1ca1a-4cc4-7355-a36b-d8243b1900eb` approved the
+named package without material findings. It independently repeated53 checks
+across22 recorded phases and verified actual owned database rows, document hashes,
+source/binary identities, restore separation and corrected/preserved export bytes.
+It did not manufacture new native observations or rerun mutating services. The
+November9 report retains that scope and the final public CI/smoke outputs.
 
 ## Independent review and remaining obligations
 
@@ -599,20 +611,21 @@ unbounded long dialogs and contradictory supported-cash status wording; follow-u
 message fixes with targeted component/computed-style checks. These reviews do not
 substitute for final step review or actual packaged cash UAT.
 
-- Final implementation/security review, integrated verification and actual packaged
-  cash UAT remain pending. Source review and passing regressions alone do not
-  complete those gates; the shared cash approval/legacy guards remain closed.
+- Actual copied-app UAT and its limitations are recorded in the November9 report,
+  not inferred from source review or unit tests. The plan retains the independent
+  final-step verdict separately. Review does not expand the case coverage, and the
+  shared cash approval/legacy guards remain closed.
 - The provided local text is not an original-PDF integrity attestation; the rate remains carried prior evidence, while the cash deadline page,
   first-year guidance and bounded relevant SFL sections were freshly retrieved.
   The historical v1 deadline retrieval-reset record is not rewritten. No inaccessible rounding policy
   is invented; fractional-öre cases remain outside coverage.
-- No real/sanitized bank PDF and owner review was supplied for execution. The
-  manifest's bank reference/locator is conspicuously **synthetic**, not evidence
-  that any bank format, bank authentication, OCR or actual receipt was tested.
-- Parent owns strict typed-policy freeze, active spec/formal coverage review,
-  source registry integration, historical v1 readers, digest binding and
-  implementation. Proposed negative scenarios need failing public-boundary tests,
-  followed by atomicity/persistence/replay/lock and relevant native verification.
+- Execution used clearly synthetic PDFs and simulated owner facts, not real or
+  sanitized bank records. Neither the manifest references nor GUI confirmations
+  independently establish bank authenticity, OCR, named-bank formats or real payments.
+- The reviewed policy/registry, source identities, historical readers and digest
+  binding are implemented. Public regressions cover atomicity, persistence, replay,
+  source/period guards and failure recovery. The November9 report distinguishes
+  actual native actions from supplementary library probes and automated-only matrices.
 - Closing, opening-position entry/remediation, cash approvals and complete
   invoice/PDF/books/return legal correctness remain unvalidated. Excluding unpaid
   closing is a fail-closed boundary, not evidence that the legal obligation is zero.

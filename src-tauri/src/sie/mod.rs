@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use sqlx::{Row, SqlitePool};
@@ -80,9 +80,41 @@ struct SieLine {
     text: String,
 }
 
+pub(crate) struct SieFiscalYearDates {
+    starts_on: NaiveDate,
+    ends_on: NaiveDate,
+}
+
+impl SieFiscalYearDates {
+    fn from_stored(starts_on: &str, ends_on: &str) -> Result<Self, AppError> {
+        let invalid_dates = || AppError::validation("Invalid fiscal year date range", "fiscalYear");
+        let parse = |value: &str| {
+            let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| invalid_dates())?;
+            // Chrono accepts some non-canonical inputs; stored bounds must be strict ISO dates.
+            if value.len() != 10 || date.format("%Y-%m-%d").to_string() != value {
+                return Err(invalid_dates());
+            }
+            Ok(date)
+        };
+        let starts_on = parse(starts_on)?;
+        let ends_on = parse(ends_on)?;
+        if starts_on > ends_on {
+            return Err(invalid_dates());
+        }
+        Ok(Self { starts_on, ends_on })
+    }
+}
+
+struct LoadedSieData {
+    company_name: String,
+    fiscal_year_dates: SieFiscalYearDates,
+    accounts: Vec<SieAccount>,
+    vouchers: Vec<SieVoucher>,
+}
+
 pub(crate) fn render_sie_type4(
     company_name: &str,
-    fiscal_year: i32,
+    fiscal_year_dates: &SieFiscalYearDates,
     accounts: &[SieAccount],
     vouchers: &[SieVoucher],
 ) -> String {
@@ -95,7 +127,11 @@ pub(crate) fn render_sie_type4(
         "#SIETYP 4".to_string(),
         format!("#FNAMN \"{}\"", sanitize_sie_text(company_name)),
         "#VALUTA SEK".to_string(),
-        format!("#RAR 0 {fiscal_year}0101 {fiscal_year}1231"),
+        format!(
+            "#RAR 0 {} {}",
+            fiscal_year_dates.starts_on.format("%Y%m%d"),
+            fiscal_year_dates.ends_on.format("%Y%m%d")
+        ),
     ];
 
     for account in accounts {
@@ -150,18 +186,24 @@ async fn load_sie_data(
     pool: &SqlitePool,
     workspace_id: &str,
     fiscal_year: i32,
-) -> Result<(String, Vec<SieAccount>, Vec<SieVoucher>), AppError> {
+) -> Result<LoadedSieData, AppError> {
     let fiscal_year_id = fiscal_year_id_for_year(pool, workspace_id, fiscal_year).await?;
 
-    sqlx::query(
+    let fiscal_year_row = sqlx::query(
         r#"
-        SELECT starts_on, ends_on FROM fiscal_years WHERE id = ?1 LIMIT 1
+        SELECT starts_on, ends_on FROM fiscal_years
+        WHERE id = ?1 AND workspace_id = ?2 LIMIT 1
         "#,
     )
     .bind(&fiscal_year_id)
+    .bind(workspace_id)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::validation("Fiscal year not found", "fiscalYear"))?;
+    let fiscal_year_dates = SieFiscalYearDates::from_stored(
+        fiscal_year_row.try_get("starts_on")?,
+        fiscal_year_row.try_get("ends_on")?,
+    )?;
 
     let company_name: Option<String> = sqlx::query_scalar(
         r#"
@@ -281,7 +323,12 @@ async fn load_sie_data(
         });
     }
 
-    Ok((company_name, accounts, vouchers))
+    Ok(LoadedSieData {
+        company_name,
+        fiscal_year_dates,
+        accounts,
+        vouchers,
+    })
 }
 
 fn idempotency_fiscal_year_mismatch() -> AppError {
@@ -374,13 +421,12 @@ async fn ensure_sie_export_file(
 
     let export_root = resolve_workspace_exports_dir(&exports_path, &database_path)?;
     let export_path = export_root.join(&cached.summary.export_path);
-    let (company_name, accounts, vouchers) =
-        load_sie_data(pool, workspace_id, cached.fiscal_year).await?;
+    let data = load_sie_data(pool, workspace_id, cached.fiscal_year).await?;
     let summary = SieExportSummary {
         export_path: cached.summary.export_path.clone(),
         fiscal_year: cached.fiscal_year,
-        voucher_count: vouchers.len(),
-        account_count: accounts.len(),
+        voucher_count: data.vouchers.len(),
+        account_count: data.accounts.len(),
     };
 
     if export_path.is_file()
@@ -399,7 +445,12 @@ async fn ensure_sie_export_file(
         .await;
     }
 
-    let content = render_sie_type4(&company_name, cached.fiscal_year, &accounts, &vouchers);
+    let content = render_sie_type4(
+        &data.company_name,
+        &data.fiscal_year_dates,
+        &data.accounts,
+        &data.vouchers,
+    );
 
     let content_for_write = content;
     let export_path_for_write = export_path.clone();
@@ -441,7 +492,8 @@ async fn update_sie_export_payload(
     idempotency_key: &str,
     payload: &IdempotentSieExportPayload,
 ) -> Result<(), AppError> {
-    let payload_json = serde_json::to_string(payload).map_err(|e| AppError::internal(e.to_string()))?;
+    let payload_json =
+        serde_json::to_string(payload).map_err(|e| AppError::internal(e.to_string()))?;
     sqlx::query(
         r#"
         UPDATE local_jobs
@@ -488,8 +540,7 @@ pub async fn sie_export_create(
 ) -> Result<SieExportSummary, AppError> {
     let idempotency_key = normalize_idempotency_key(&input.idempotency_key)?;
 
-    if let Some(cached) =
-        check_sie_export_idempotency(pool, workspace_id, &idempotency_key).await?
+    if let Some(cached) = check_sie_export_idempotency(pool, workspace_id, &idempotency_key).await?
     {
         if cached.fiscal_year != input.fiscal_year {
             return Err(idempotency_fiscal_year_mismatch());
@@ -504,10 +555,14 @@ pub async fn sie_export_create(
         .await;
     }
 
-    let (company_name, accounts, vouchers) =
-        load_sie_data(pool, workspace_id, input.fiscal_year).await?;
+    let data = load_sie_data(pool, workspace_id, input.fiscal_year).await?;
 
-    let content = render_sie_type4(&company_name, input.fiscal_year, &accounts, &vouchers);
+    let content = render_sie_type4(
+        &data.company_name,
+        &data.fiscal_year_dates,
+        &data.accounts,
+        &data.vouchers,
+    );
 
     let (exports_path, database_path): (String, String) = sqlx::query_as(
         r#"
@@ -526,8 +581,8 @@ pub async fn sie_export_create(
     let summary = SieExportSummary {
         export_path: rel_path.clone(),
         fiscal_year: input.fiscal_year,
-        voucher_count: vouchers.len(),
-        account_count: accounts.len(),
+        voucher_count: data.vouchers.len(),
+        account_count: data.accounts.len(),
     };
 
     let payload = serde_json::to_string(&IdempotentSieExportPayload {
@@ -559,13 +614,13 @@ pub async fn sie_export_create(
                     return Err(idempotency_fiscal_year_mismatch());
                 }
                 return ensure_sie_export_file(
-            pool,
-            workspace_id,
-            &idempotency_key,
-            &cached,
-            input.export_directory.as_deref(),
-        )
-        .await;
+                    pool,
+                    workspace_id,
+                    &idempotency_key,
+                    &cached,
+                    input.export_directory.as_deref(),
+                )
+                .await;
             }
             return Err(error.into());
         }
@@ -581,7 +636,7 @@ pub async fn sie_export_create(
         &serde_json::json!({
             "exportPath": rel_path,
             "fiscalYear": input.fiscal_year,
-            "voucherCount": vouchers.len(),
+            "voucherCount": data.vouchers.len(),
         })
         .to_string(),
     )
@@ -612,7 +667,12 @@ mod tests {
 
     #[test]
     fn sie_render_includes_required_headers() {
-        let content = render_sie_type4("Test AB", 2026, &[], &[]);
+        let content = render_sie_type4(
+            "Test AB",
+            &SieFiscalYearDates::from_stored("2026-01-01", "2026-12-31").unwrap(),
+            &[],
+            &[],
+        );
         assert!(content.contains("#SIETYP 4"));
         assert!(content.contains("#FORMAT PC8"));
         assert!(content.contains("#FNAMN \"Test AB\""));
@@ -666,7 +726,12 @@ mod tests {
                 },
             ],
         }];
-        let content = render_sie_type4("Test AB", 2026, &accounts, &vouchers);
+        let content = render_sie_type4(
+            "Test AB",
+            &SieFiscalYearDates::from_stored("2026-01-01", "2026-12-31").unwrap(),
+            &accounts,
+            &vouchers,
+        );
         assert!(content.contains("#KONTO 1510"));
         assert!(content.contains("#TRANS 1510 {}"));
     }

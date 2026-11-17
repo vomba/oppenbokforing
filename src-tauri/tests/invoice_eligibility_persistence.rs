@@ -26,6 +26,7 @@ use tempfile::{tempdir, TempDir};
 use uuid::Uuid;
 
 const GATE_MIGRATION: i64 = 202611040001;
+const VAT_REVIEW_MIGRATION: i64 = 202609180004;
 const RULE: &str = "rv-2026-method-recognition-v2";
 const PASSPHRASE: &str = "eligibility-persistence-test-only";
 
@@ -54,7 +55,8 @@ impl Fixture {
                 )
                 .await
                 .unwrap();
-            // Use SQLx's real runner/bookkeeping, never apply then undo migration 21.
+            // Restore the original 20 migrations, not main's later VAT-review base.
+            // Use SQLx's real runner/bookkeeping, never apply then undo migrations.
             let mut migrator = Migrator::new(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("migrations")
@@ -66,7 +68,10 @@ impl Fixture {
                 migrator
                     .migrations
                     .iter()
-                    .filter(|migration| migration.version < GATE_MIGRATION)
+                    .filter(|migration| {
+                        migration.version < GATE_MIGRATION
+                            && migration.version != VAT_REVIEW_MIGRATION
+                    })
                     .cloned()
                     .collect(),
             );
@@ -218,7 +223,7 @@ async fn history(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
 }
 
 async fn migration_bookkeeping(pool: &SqlitePool) -> Vec<String> {
-    sqlx::query_scalar("SELECT json_object('version',version,'description',description,'installedOn',installed_on,'success',success,'checksum',hex(checksum),'executionTime',execution_time) FROM _sqlx_migrations WHERE version < 202611040001 ORDER BY version")
+    sqlx::query_scalar("SELECT json_object('version',version,'description',description,'installedOn',installed_on,'success',success,'checksum',hex(checksum),'executionTime',execution_time) FROM _sqlx_migrations WHERE version < 202611040001 AND version != 202609180004 ORDER BY version")
         .fetch_all(pool).await.unwrap()
 }
 
@@ -260,7 +265,7 @@ async fn assert_validation_immutable(pool: &SqlitePool, invoice: &str) {
 }
 
 #[tokio::test]
-async fn real_twenty_to_twenty_one_upgrade_preserves_history_without_backfilling_eligibility() {
+async fn real_twenty_to_twenty_three_upgrade_preserves_history_without_backfilling_eligibility() {
     let mut fixture = Fixture::new(true).await;
     assert_eq!(migration_bookkeeping(&fixture.pool).await.len(), 20);
     let absent: i64 = sqlx::query_scalar(
@@ -270,6 +275,12 @@ async fn real_twenty_to_twenty_one_upgrade_preserves_history_without_backfilling
     .await
     .unwrap();
     assert_eq!(absent, 0);
+    let review_columns: i64 = sqlx::query_scalar("SELECT count(*) FROM pragma_table_info('vat_returns') WHERE name IN ('review_revision','review_snapshot_json','review_snapshot_hash')")
+        .fetch_one(&fixture.pool).await.unwrap();
+    assert_eq!(
+        review_columns, 0,
+        "original schema20 has no VAT-review columns"
+    );
     let input = fixture.draft_input("pre-gate-history").await;
     let historical = common::seed_historical_invoice(&fixture.pool, &fixture.workspace, &input)
         .await
@@ -305,7 +316,16 @@ async fn real_twenty_to_twenty_one_upgrade_preserves_history_without_backfilling
         .fetch_one(&fixture.pool)
         .await
         .unwrap();
-    assert_eq!(applied, 22);
+    assert_eq!(applied, 23);
+    for version in [VAT_REVIEW_MIGRATION, GATE_MIGRATION, 202611040002] {
+        let success: i64 =
+            sqlx::query_scalar("SELECT success FROM _sqlx_migrations WHERE version=?1")
+                .bind(version)
+                .fetch_one(&fixture.pool)
+                .await
+                .unwrap();
+        assert_eq!(success, 1, "successor migration {version}");
+    }
     assert_eq!(
         table_rows(
             &fixture.pool,

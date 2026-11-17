@@ -9,7 +9,7 @@ references: [local-sqlite, retained-evidence, product-goal]
 
 # SQLite Storage Contract
 
-The current schema uses the 22 forward-only SQLx migrations in this document.
+The current schema uses the 23 forward-only SQLx migrations in this document.
 This inventory does not establish implementation of every product requirement.
 
 `product-goal` and the owning module specs define required behavior.
@@ -120,5 +120,5 @@ Ledger read indexes (M7) plus domain indexes from M2–M6 migrations cover:
 - Migrations are forward-only.
 - Never rewrite historical accounting rows in migrations.
 - Data backfills must record an `audit_events` row.
-- Rule changes create new `rule_versions`; historical rule payloads and artifact references are not rewritten. An old version may be marked retired when its successor becomes active. The method-case migrations copy unrelated engineering values without claiming their validation; no accounting-history or eligibility backfill is performed. Migration 22 keeps invoice-v1 rule payloads and raw provenance intact while selecting the successor active version.
+- Rule changes create new `rule_versions`; historical rule payloads and artifact references are not rewritten. An old version may be marked retired when its successor becomes active. The method-case migrations copy unrelated engineering values without claiming their validation; no accounting-history or eligibility backfill is performed. Cash migration `202611040002_cash_pdf_full_receipt.sql` keeps invoice-v1 rule payloads and raw provenance intact while selecting the successor active version.
 - Migration tests must run against an empty database and a seeded prior-version database. This is a verification requirement, not a claim that this documentation import ran them.

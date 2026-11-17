@@ -246,7 +246,7 @@ async fn tax_task_calendar_keeps_exported_approved_return_external_submission_re
 #[tokio::test]
 async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     let dir = tempdir().expect("tempdir");
-    let (pool, workspace_id) = setup_workspace(&dir, "registered", "quarterly", Some("quarterly_12")).await;
+    let (pool, workspace_id) = setup_workspace(&dir, "registered", "yearly", Some("annual_may_12")).await;
     let customer = counterparties::create_counterparty(
         &pool,
         &workspace_id,
@@ -276,7 +276,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     )
     .await
     .expect("invoice draft");
-    let issued = common::seed_historical_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
@@ -293,7 +293,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
         &pool,
         &workspace_id,
         &VatReturnDraftCreateInput {
-            period_key: "2026-Q1".to_string(),
+            period_key: "2026".to_string(),
             idempotency_key: "trace-vat-draft".to_string(),
         },
     )
@@ -316,7 +316,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     )
     .await
     .expect("later invoice draft");
-    let later_issued = common::seed_historical_invoice(
+    let later_issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
@@ -356,7 +356,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
 
     let regenerated = vat::vat_return_draft_create(
         &pool, &workspace_id,
-        &VatReturnDraftCreateInput { period_key: "2026-Q1".into(), idempotency_key: "trace-regenerated".into() },
+        &VatReturnDraftCreateInput { period_key: "2026".into(), idempotency_key: "trace-regenerated".into() },
     ).await.expect("explicit regeneration includes later sources");
     let fresh_trace = vat::vat_return_trace(
         &pool, &workspace_id, &VatReturnTraceInput { vat_return_id: regenerated.id },

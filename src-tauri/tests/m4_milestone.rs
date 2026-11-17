@@ -86,6 +86,22 @@ async fn setup_workspace(dir: &tempfile::TempDir) -> (sqlx::SqlitePool, String, 
     (pool, workspace_id, data_dir)
 }
 
+async fn use_annual_invoice_case(pool: &sqlx::SqlitePool, workspace: &str) {
+    profiles::save_vat_profile(
+        pool,
+        workspace,
+        &VatProfileSaveInput {
+            vat_status: "registered".into(),
+            reporting_period: "yearly".into(),
+            accounting_method: "invoice_method".into(),
+            voluntary_registration_date: None,
+            vat_filing_deadline_regime: Some("annual_may_12".into()),
+        },
+    )
+    .await
+    .expect("annual no-EU invoice-method case");
+}
+
 #[tokio::test]
 async fn m4_vat_registered_zero_period_fixture() {
     let dir = tempdir().expect("tempdir");
@@ -179,6 +195,7 @@ async fn m4_no_activity_zero_vat_return_fixture() {
 async fn m4_fiscal_period_lock_after_vat_fixture() {
     let dir = tempdir().expect("tempdir");
     let (pool, workspace_id, data_dir) = setup_workspace(&dir).await;
+    use_annual_invoice_case(&pool, &workspace_id).await;
 
     let scenario = load_golden_scenario("fiscal-period-lock-after-vat").expect("golden scenario");
     let expected = scenario.expected.as_object().expect("expected");
@@ -214,7 +231,7 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
     .await
     .expect("draft");
 
-    let issued_invoice = common::seed_historical_invoice(
+    let issued_invoice = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
@@ -232,7 +249,7 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
         &pool,
         &workspace_id,
         &VatReturnDraftCreateInput {
-            period_key: "2026-Q1".to_string(),
+            period_key: "2026".to_string(),
             idempotency_key: "lock-q1-draft".to_string(),
         },
     )
@@ -251,7 +268,7 @@ async fn m4_fiscal_period_lock_after_vat_fixture() {
     .await
     .expect("approve");
 
-    let locked = vat::period_is_locked(&pool, &workspace_id, "2026-Q1")
+    let locked = vat::period_is_locked(&pool, &workspace_id, "2026")
         .await
         .expect("locked check");
     assert_eq!(expected["periodLocked"].as_bool(), Some(locked));
@@ -521,6 +538,7 @@ async fn m4_cashflow_overview_after_vat_approval() {
 async fn m4_vat_boxes_net_credit_reversal() {
     let dir = tempdir().expect("tempdir");
     let (pool, workspace_id, _) = setup_workspace(&dir).await;
+    use_annual_invoice_case(&pool, &workspace_id).await;
 
     let customer = counterparties::create_counterparty(
         &pool,
@@ -553,7 +571,7 @@ async fn m4_vat_boxes_net_credit_reversal() {
     .await
     .expect("draft");
 
-    let issued = common::seed_historical_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
@@ -584,7 +602,7 @@ async fn m4_vat_boxes_net_credit_reversal() {
         &pool,
         &workspace_id,
         &VatReturnDraftCreateInput {
-            period_key: "2026-Q1".to_string(),
+            period_key: "2026".to_string(),
             idempotency_key: "vat-net-q1".to_string(),
         },
     )
@@ -1027,6 +1045,7 @@ async fn m4_vat_approve_idempotency_rejects_different_return() {
 async fn m4_vat_approve_rejects_stale_review_after_late_posting() {
     let dir = tempdir().expect("tempdir");
     let (pool, workspace_id, _) = setup_workspace(&dir).await;
+    use_annual_invoice_case(&pool, &workspace_id).await;
 
     let customer = counterparties::create_counterparty(
         &pool,
@@ -1045,7 +1064,7 @@ async fn m4_vat_approve_rejects_stale_review_after_late_posting() {
         &pool,
         &workspace_id,
         &VatReturnDraftCreateInput {
-            period_key: "2026-Q1".to_string(),
+            period_key: "2026".to_string(),
             idempotency_key: "late-draft".to_string(),
         },
     )
@@ -1071,7 +1090,7 @@ async fn m4_vat_approve_rejects_stale_review_after_late_posting() {
     .await
     .expect("invoice draft");
 
-    common::seed_historical_invoice(
+    common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
@@ -1085,6 +1104,20 @@ async fn m4_vat_approve_rejects_stale_review_after_late_posting() {
     .await
     .expect("issue");
 
+    async fn approval_rows(pool: &sqlx::SqlitePool) -> Vec<String> {
+        let mut state = Vec::new();
+        for query in [
+            "SELECT json_group_array(json_object('id',id,'status',status,'revision',review_revision,'snapshot',review_snapshot_json,'hash',review_snapshot_hash,'approved',approved_at,'export',export_path)) FROM (SELECT * FROM vat_returns ORDER BY id)",
+            "SELECT json_group_array(json_object('id',id,'return',vat_return_id,'box',box_code,'amount',amount_minor,'hash',source_query_hash)) FROM (SELECT * FROM vat_return_boxes ORDER BY id)",
+            "SELECT json_group_array(json_object('id',id,'status',status)) FROM (SELECT * FROM fiscal_periods ORDER BY id)",
+            "SELECT json_group_array(json_object('id',id,'metadata',metadata_json)) FROM (SELECT * FROM audit_events ORDER BY id)",
+            "SELECT json_group_array(json_object('id',id,'payload',payload_json,'key',idempotency_key)) FROM (SELECT * FROM local_jobs ORDER BY id)",
+        ] {
+            state.push(sqlx::query_scalar(query).fetch_one(pool).await.unwrap());
+        }
+        state
+    }
+    let before = approval_rows(&pool).await;
     let error = vat::vat_return_approve(
         &pool,
         &workspace_id,
@@ -1098,10 +1131,59 @@ async fn m4_vat_approve_rejects_stale_review_after_late_posting() {
     .expect_err("changed source requires regeneration and review");
     assert_eq!(error.code, "validation_error");
     assert!(error.message.contains("Regenerate"));
+    assert_eq!(
+        before,
+        approval_rows(&pool).await,
+        "stale rejection preserves exact boxes, locks, audit and replay rows"
+    );
     let retained = vat::vat_return_get(
-        &pool, &workspace_id, &vat::VatReturnGetInput { vat_return_id: draft.id },
-    ).await.expect("retained draft");
+        &pool,
+        &workspace_id,
+        &vat::VatReturnGetInput {
+            vat_return_id: draft.id.clone(),
+        },
+    )
+    .await
+    .expect("retained draft");
     assert_eq!(retained.status, "draft");
     assert_eq!(retained.box49_amount_minor, 0);
     assert_eq!(retained.review_revision, draft.review_revision);
+    assert_eq!(
+        serde_json::to_value(&retained.boxes).unwrap(),
+        serde_json::to_value(&draft.boxes).unwrap()
+    );
+
+    let fresh = vat::vat_return_draft_create(
+        &pool,
+        &workspace_id,
+        &VatReturnDraftCreateInput {
+            period_key: "2026".into(),
+            idempotency_key: "late-regenerate".into(),
+        },
+    )
+    .await
+    .expect("explicit regeneration and fresh displayed review");
+    assert_eq!(fresh.id, draft.id);
+    assert_ne!(fresh.review_revision, draft.review_revision);
+    assert_eq!(fresh.box49_amount_minor, 2_000);
+    let approved = vat::vat_return_approve(
+        &pool,
+        &workspace_id,
+        &VatReturnApproveInput {
+            vat_return_id: fresh.id.clone(),
+            reviewed_revision: fresh
+                .review_revision
+                .clone()
+                .expect("fresh displayed revision"),
+            idempotency_key: "late-fresh-approve".into(),
+        },
+    )
+    .await
+    .expect("freshly reviewed late posting can be approved");
+    assert_eq!(approved.status, "approved");
+    assert_eq!(approved.review_revision, fresh.review_revision);
+    assert_eq!(
+        serde_json::to_value(&approved.boxes).unwrap(),
+        serde_json::to_value(&fresh.boxes).unwrap()
+    );
 }

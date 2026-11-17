@@ -35,6 +35,9 @@ async fn forward_migration_preserves_seeded_history_and_legacy_drafts_require_fr
         .bind(path.to_string_lossy().as_ref()).execute(&prior).await.unwrap();
     sqlx::query("INSERT INTO fiscal_years(id,workspace_id,starts_on,ends_on,status) VALUES ('fy-w-2026','w','2026-01-01','2026-12-31','open')")
         .execute(&prior).await.unwrap();
+    // Explicit historical invoice-method posture isolates the missing-review gate.
+    sqlx::query("INSERT INTO vat_profiles(id,workspace_id,vat_status,reporting_period,accounting_method,vat_filing_deadline_regime) VALUES ('legacy-vat-profile','w','registered','quarterly','invoice_method','quarterly_12')")
+        .execute(&prior).await.unwrap();
     for (period, start, end, status, return_id, return_status) in [
         (
             "2026-Q1",

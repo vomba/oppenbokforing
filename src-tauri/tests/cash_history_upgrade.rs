@@ -1,4 +1,4 @@
-//! Independent native invoice-v1 history regressions across the real schema21 -> 22
+//! Independent native invoice-v1 history regressions across the real historical schema21 -> current23
 //! upgrade, cold reopen and encrypted backup. No current issuance generates history,
 //! and none of these assertions establishes new cash-case accounting eligibility.
 #[path = "cash_history_upgrade/fixture.rs"]
@@ -193,14 +193,14 @@ async fn assert_already_issued_recovery(fixture: &NativeFixture, pool: &SqlitePo
 }
 
 #[tokio::test]
-async fn genuine_native_v1_history_survives_real_schema21_to_22_upgrade() {
+async fn genuine_native_v1_history_survives_real_schema21_to_23_upgrade() {
     let mut fixture = NativeFixture::schema_21().await;
     assert_retained_proof_and_pdf(&fixture, &fixture.pool, fixture.dir.path()).await;
     fixture.upgrade().await;
     assert_retained_proof_and_pdf(&fixture, &fixture.pool, fixture.dir.path()).await;
     assert_cached_replay(&fixture, &fixture.pool).await;
     assert_already_issued_recovery(&fixture, &fixture.pool).await;
-    fixture.assert_schema_22(&fixture.pool).await;
+    fixture.assert_schema_23(&fixture.pool).await;
     fixture.pool.close().await;
 }
 
@@ -287,7 +287,7 @@ async fn upgraded_native_v1_survives_cold_reopen_encrypted_restore_and_scoped_re
         recovered_history,
         "cold reopen preserves all raw rows"
     );
-    fixture.assert_schema_22(&fixture.pool).await;
+    fixture.assert_schema_23(&fixture.pool).await;
     assert_retained_proof_and_pdf(&fixture, &fixture.pool, fixture.dir.path()).await;
     assert_cached_replay(&fixture, &fixture.pool).await;
     let recovered =
@@ -345,7 +345,7 @@ async fn upgraded_native_v1_survives_cold_reopen_encrypted_restore_and_scoped_re
     assert_ne!(restored_database, fixture.database);
     assert!(restored_database.starts_with(restore_dir.path()));
     let restored_pool = open_existing_workspace(restored_database).await.unwrap();
-    fixture.assert_schema_22(&restored_pool).await;
+    fixture.assert_schema_23(&restored_pool).await;
     assert_backup_history(
         &fixture,
         &restored_pool,
@@ -381,4 +381,56 @@ async fn upgraded_native_v1_survives_cold_reopen_encrypted_restore_and_scoped_re
     assert_backup_history(&fixture, &fixture.pool, &recovered_history, None).await;
     restored_pool.close().await;
     fixture.pool.close().await;
+}
+
+#[tokio::test]
+async fn native_backup_rejects_missing_or_corrupt_retained_pdf_without_fallback() {
+    for corrupt in [false, true] {
+        let mut fixture = NativeFixture::schema_21().await;
+        fixture.upgrade().await;
+        let before = history(&fixture.pool, &fixture.archive).await;
+        let object_path = fixture.archive["tables"]["documents"][0]["object_path"]
+            .as_str()
+            .unwrap();
+        let source = fixture.dir.path().join("documents").join(object_path);
+        // Damage only this test's owned copy, never the archived bytes or native UAT.
+        if corrupt {
+            std::fs::write(&source, b"corrupt retained PDF").unwrap();
+        } else {
+            std::fs::remove_file(&source).unwrap();
+        }
+        let backup_dir = tempdir().unwrap();
+        let result = backup::create_backup_package(
+            &fixture.pool,
+            &fixture.workspace,
+            fixture.dir.path(),
+            &fixture.database,
+            backup_dir.path(),
+            PASSPHRASE,
+            None,
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "backup must reject {} retained PDF, not fall back to archived bytes/paths",
+            if corrupt { "corrupt" } else { "missing" }
+        );
+        if corrupt {
+            assert_eq!(std::fs::read(&source).unwrap(), b"corrupt retained PDF");
+        } else {
+            assert!(
+                !source.exists(),
+                "backup must not regenerate historical PDFs"
+            );
+        }
+        let after = history(&fixture.pool, &fixture.archive).await;
+        for (table, expected) in &before {
+            // Failed backup bookkeeping is service-owned; every other raw row stays exact.
+            if table != "local_jobs" && table != "audit_events" {
+                assert_eq!(&after[table], expected, "failed backup changed {table}");
+            }
+        }
+        fixture.assert_schema_23(&fixture.pool).await;
+        fixture.pool.close().await;
+    }
 }

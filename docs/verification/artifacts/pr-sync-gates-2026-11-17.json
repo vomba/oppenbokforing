@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-11-17T11:03:42.658883+00:00",
+  "baseRevision": "1b3e4cb6aed27329f3bf499eb447a3d2104869fe",
+  "rebasedRuntimeHead": "2b5ff29",
+  "scope": "Post-main-sync native arm64 copied-app smoke; synthetic data, unsigned/ad-hoc only. Working edits at build time were test/documentation-only.",
+  "mainSha256": "80da85fe19b105b2ee6c0f313758161b5b4b66b2bc589c79645d9959f582aa34",
+  "helperSha256": "327ba2288959306f1999549918c60c41d00f8fa9d81be26ffe4941926054eef2",
+  "dmgSha256": "ed6bb2ae154f24cf17c2d7c5aa51e0fc9604e9a55567925ad152e0ac7a70cb6b",
+  "rustPassesIncludingProbeExecutions": 378,
+  "ignoredHarnessEntrypoints": 1,
+  "frontendTests": 212,
+  "helperBuildPlanTests": 26,
+  "publicCiExit": 0,
+  "integrationSmokeExit": 0,
+  "nativeMigrationCount": 23,
+  "nativeZeroJournalIssue": true,
+  "nativeReceiptActualDate": "2026-06-20",
+  "nativeReceiptJournal": [
+    {
+      "account": "1930",
+      "debitMinor": 1250000,
+      "creditMinor": 0
+    },
+    {
+      "account": "2611",
+      "debitMinor": 0,
+      "creditMinor": 250000
+    },
+    {
+      "account": "3041",
+      "debitMinor": 0,
+      "creditMinor": 1000000
+    }
+  ],
+  "freshVatReviewRevision": "cb266020-8a81-45ec-a847-0ca902bf87c2",
+  "cashVatApprovalBlocked": true,
+  "strictBackupRestorePreserved": true,
+  "restoredPhysicalPathDifferent": true,
+  "earlierUatRootExpired": "Previous /tmp cash UAT directory was removed by OS while session was idle; older evidence retained unchanged. This is a new disposable session."
+}

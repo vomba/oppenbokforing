@@ -230,6 +230,7 @@ impl Fixture {
             &self.pool,
             &self.workspace,
             &VatReturnApproveInput {
+                reviewed_revision: draft.review_revision.clone().expect("review revision"),
                 vat_return_id: draft.id,
                 idempotency_key: "vat-approve".into(),
             },
@@ -549,6 +550,7 @@ async fn rejects_new_mutation(mutation: Mutation, cash: bool) {
             &f.pool,
             &f.workspace,
             &VatReturnApproveInput {
+                reviewed_revision: vat_draft.as_ref().unwrap().review_revision.clone().expect("review revision"),
                 vat_return_id: vat_draft.unwrap().id,
                 idempotency_key: "new-vat-approval".into(),
             },
@@ -938,6 +940,7 @@ async fn positive_workflow_and_replays_preserve_history(cash: bool) {
             &f.pool,
             &f.workspace,
             &VatReturnApproveInput {
+                reviewed_revision: vat.review_revision.clone().expect("review revision"),
                 vat_return_id: vat.id.clone(),
                 idempotency_key: "vat-approve".into()
             }
@@ -955,10 +958,16 @@ async fn positive_workflow_and_replays_preserve_history(cash: bool) {
         "approved"
     );
     assert_eq!(
+        before,
+        database_snapshot(&f.pool).await,
+        "completed same-key replays mutate nothing"
+    );
+    assert_eq!(
         vat::vat_return_approve(
             &f.pool,
             &f.workspace,
             &VatReturnApproveInput {
+                reviewed_revision: vat.review_revision.clone().expect("review revision"),
                 vat_return_id: vat.id.clone(),
                 idempotency_key: "vat-approved-new-key".into()
             }
@@ -968,6 +977,30 @@ async fn positive_workflow_and_replays_preserve_history(cash: bool) {
         .status,
         "approved"
     );
+    let binding = sqlx::query("SELECT id, status, payload_json FROM local_jobs WHERE workspace_id = ?1 AND job_type = 'vat_return_approve' AND idempotency_key = 'vat-approved-new-key'")
+        .bind(&f.workspace).fetch_one(&f.pool).await.expect("fresh successful key must be bound");
+    assert_eq!(binding.get::<String, _>("status"), "succeeded");
+    let payload: serde_json::Value =
+        serde_json::from_str(&binding.get::<String, _>("payload_json")).unwrap();
+    assert_eq!(payload["vatReturnId"], vat.id);
+    assert_eq!(
+        payload["reviewedRevision"],
+        vat.review_revision.clone().unwrap()
+    );
+    let binding_id: String = binding.get("id");
+    let after_binding = database_snapshot(&f.pool).await;
+    vat::vat_return_approve(
+        &f.pool,
+        &f.workspace,
+        &VatReturnApproveInput {
+            vat_return_id: vat.id.clone(),
+            reviewed_revision: vat.review_revision.clone().expect("review revision"),
+            idempotency_key: "vat-approved-new-key".into(),
+        },
+    )
+    .await
+    .expect("fresh key now replays without mutation");
+    assert_eq!(after_binding, database_snapshot(&f.pool).await);
     assert_eq!(
         year_end::year_end_package_approve(
             &f.pool,
@@ -1011,10 +1044,22 @@ async fn positive_workflow_and_replays_preserve_history(cash: bool) {
     documents::verify_retained_document(&f.pool, &f.workspace, &document.id)
         .await
         .expect("retained historical evidence");
+    let mut after = database_snapshot(&f.pool).await;
+    let jobs = &mut after
+        .iter_mut()
+        .find(|(table, _)| table == "local_jobs")
+        .unwrap()
+        .1;
+    let count = jobs.len();
+    jobs.retain(|row| !row.starts_with(&format!("'{}'|", binding_id)));
     assert_eq!(
-        before,
-        database_snapshot(&f.pool).await,
-        "replays/history cannot rewrite jobs, audits, postings or locks"
+        jobs.len() + 1,
+        count,
+        "exclude exactly the named new replay binding"
+    );
+    assert_eq!(
+        before, after,
+        "all other jobs, proofs, ledger, audits and locks remain exact"
     );
     assert_eq!(files, artifact_snapshot(f.dir.path()));
 }
@@ -1665,17 +1710,39 @@ async fn cash_rechecks_fa_skatt_salary_posture_even_after_external_profile_edit(
 async fn cash_immutable_boundary_blocks_vat_approval_after_external_profile_drift() {
     let f = Fixture::new().await;
     let input = cash_review(&f).await;
-    cash::invoice_cash_issue(&f.pool, &f.workspace, &input).await.unwrap();
-    let draft = vat::vat_return_draft_create(&f.pool, &f.workspace, &VatReturnDraftCreateInput {
-        period_key: "2026".into(), idempotency_key: "cash-provisional-vat".into(),
-    }).await.unwrap();
+    cash::invoice_cash_issue(&f.pool, &f.workspace, &input)
+        .await
+        .unwrap();
+    let draft = vat::vat_return_draft_create(
+        &f.pool,
+        &f.workspace,
+        &VatReturnDraftCreateInput {
+            period_key: "2026".into(),
+            idempotency_key: "cash-provisional-vat".into(),
+        },
+    )
+    .await
+    .unwrap();
     sqlx::query("UPDATE vat_profiles SET accounting_method='invoice_method' WHERE workspace_id=?1")
-        .bind(&f.workspace).execute(&f.pool).await.unwrap();
+        .bind(&f.workspace)
+        .execute(&f.pool)
+        .await
+        .unwrap();
     let before = database_snapshot(&f.pool).await;
-    let result = vat::vat_return_approve(&f.pool, &f.workspace, &VatReturnApproveInput {
-        vat_return_id: draft.id, idempotency_key: "cash-must-not-approve".into(),
-    }).await;
-    assert!(result.is_err(), "an externally edited profile cannot promote cash books to validated VAT approval");
+    let result = vat::vat_return_approve(
+        &f.pool,
+        &f.workspace,
+        &VatReturnApproveInput {
+            reviewed_revision: draft.review_revision.clone().expect("review revision"),
+            vat_return_id: draft.id,
+            idempotency_key: "cash-must-not-approve".into(),
+        },
+    )
+    .await;
+    let error = result.expect_err(
+        "an externally edited profile cannot promote cash books to validated VAT approval",
+    );
+    assert_method_error(&error, true);
     assert_eq!(database_snapshot(&f.pool).await, before);
 }
 

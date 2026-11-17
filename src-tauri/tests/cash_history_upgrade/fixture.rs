@@ -20,7 +20,8 @@ pub const PDF_HASH: &str = "46ead1a55e6d3081faace1f6f12259aefc4de79207832361cd18
 const ARCHIVE: &str =
     include_str!("../../../fixtures/historical-regressions/invoice-v1-native-2026.json");
 const SCHEMA_21: i64 = 202611040001;
-const SCHEMA_22: i64 = 202611040002;
+const VAT_REVIEW_MIGRATION: i64 = 202609180004;
+const CASH_MIGRATION: i64 = 202611040002;
 
 pub type History = BTreeMap<String, Vec<Value>>;
 
@@ -166,13 +167,24 @@ impl NativeFixture {
         migrator.migrations = Cow::Owned(
             migrator
                 .iter()
-                .filter(|migration| migration.version <= SCHEMA_21)
+                // The native archive predates the VAT-review migration added on main.
+                // A version cutoff alone would silently create a 22-migration fixture.
+                .filter(|migration| {
+                    migration.version <= SCHEMA_21 && migration.version != VAT_REVIEW_MIGRATION
+                })
                 .cloned()
                 .collect(),
         );
         assert_eq!(migrator.iter().count(), 21);
         migrator.run(&pool).await.unwrap();
         assert_eq!(rows(&pool, "_sqlx_migrations", "").await.len(), 21);
+        let review_columns: i64 = sqlx::query_scalar("SELECT count(*) FROM pragma_table_info('vat_returns') WHERE name IN ('review_revision','review_snapshot_json','review_snapshot_hash')")
+            .fetch_one(&pool).await.unwrap();
+        assert_eq!(
+            review_columns, 0,
+            "native schema21 has no VAT-review columns"
+        );
+        assert!(rows(&pool, "vat_returns", "").await.is_empty());
         let cash_tables: i64 = sqlx::query_scalar("SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('cash_business_origins','cash_invoice_issues','cash_receipt_recognitions')").fetch_one(&pool).await.unwrap();
         assert_eq!(
             cash_tables, 0,
@@ -315,7 +327,7 @@ impl NativeFixture {
         self.pool = open_existing_workspace(&self.database)
             .await
             .expect("public schema21 -> successor upgrade");
-        self.assert_schema_22(&self.pool).await;
+        self.assert_schema_23(&self.pool).await;
         assert_eq!(
             history(&self.pool, &self.archive).await,
             self.history_21,
@@ -323,25 +335,39 @@ impl NativeFixture {
         );
     }
 
-    pub async fn assert_schema_22(&self, pool: &SqlitePool) {
+    pub async fn assert_schema_23(&self, pool: &SqlitePool) {
         let migrations = rows(pool, "_sqlx_migrations", "").await;
         assert_eq!(
             migrations.len(),
-            22,
-            "public open must install migration 22"
+            23,
+            "public open must install all 23 successor migrations"
         );
         assert_eq!(
-            rows(pool, "_sqlx_migrations", "WHERE version <= 202611040001").await,
+            rows(
+                pool,
+                "_sqlx_migrations",
+                "WHERE version <= 202611040001 AND version != 202609180004",
+            )
+            .await,
             self.migrations_21,
             "original SQLx migration checksums/states remain exact"
         );
-        let success: i64 =
-            sqlx::query_scalar("SELECT success FROM _sqlx_migrations WHERE version=?1")
-                .bind(SCHEMA_22)
-                .fetch_one(pool)
-                .await
-                .unwrap();
-        assert_eq!(success, 1);
+        for version in [VAT_REVIEW_MIGRATION, CASH_MIGRATION] {
+            let success: i64 =
+                sqlx::query_scalar("SELECT success FROM _sqlx_migrations WHERE version=?1")
+                    .bind(version)
+                    .fetch_one(pool)
+                    .await
+                    .unwrap();
+            assert_eq!(success, 1, "successor migration {version}");
+        }
+        let nullable_review_columns: i64 = sqlx::query_scalar(r#"SELECT count(*) FROM pragma_table_info('vat_returns') WHERE name IN ('review_revision','review_snapshot_json','review_snapshot_hash') AND "notnull"=0 AND dflt_value IS NULL"#)
+            .fetch_one(pool).await.unwrap();
+        assert_eq!(
+            nullable_review_columns, 3,
+            "VAT reviews are nullable, without defaults/backfill"
+        );
+        assert!(rows(pool, "vat_returns", "").await.is_empty());
         let active: Vec<String> = sqlx::query_scalar(
             "SELECT id FROM rule_versions WHERE tax_year=2026 AND status='active'",
         )

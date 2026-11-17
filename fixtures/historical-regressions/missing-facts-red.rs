@@ -45,4 +45,3 @@ async fn new_invoice_requires_case_eligibility_not_just_invoice_method() {
     assert_eq!(retained.status, "draft");
     assert!(retained.voucher_id.is_none());
 }
-

@@ -84,7 +84,7 @@ review of adjusted normal annual net turnover. The SEK 3 million cash-method tes
 is distinct from the SEK 1 million tax-year VAT-base test. Neither a small workspace
 balance nor an annual-registration setting proves these facts.
 
-Migration 22 installs the sole active 2026 version `rv-2026-method-recognition-v2`.
+Cash migration `202611040002_cash_pdf_full_receipt.sql` installs the sole active 2026 version `rv-2026-method-recognition-v2`.
 Live invoice evidence is `invoice-recognition-se-service25-2026-exact-v2`, with
 unchanged inherited expectations and explicit lineage to published invoice-v1;
 cash evidence is `cash-recognition-se-service25-2026-pdf-full-v1`. The immutable

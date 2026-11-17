@@ -1,0 +1,11 @@
+{
+  "observedAt": "2026-11-09T14:49:11.690600+00:00",
+  "sourceRevision": "6c60fbe2b113c20f95bcbc515e6518644d5510cf",
+  "nativeSettingsExport": true,
+  "actualFiscalYearStart": "2026-06-01",
+  "actualFiscalYearEnd": "2026-12-31",
+  "expectedRar": "#RAR 0 20260601 20261231",
+  "actualRar": "#RAR 0 20260101 20261231",
+  "exportSha256": "1a434c53ac229a16302d285c59b8d45c2317ca6456415c12da8cd4ceb26bdeb7",
+  "scope": "Native synthetic disposable ledger; header failure, not validated SIE format/return"
+}

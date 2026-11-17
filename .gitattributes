@@ -1,0 +1,6 @@
+# PDF xref offsets and binary streams must retain their exact fixture bytes.
+src-tauri/tests/cash_pdf_isolation/*.pdf binary
+
+# These captured SIE exports are byte-exact CRLF evidence, not normalized prose.
+docs/verification/artifacts/cash-native-sie-corrected-2026-11-09.txt -text whitespace=cr-at-eol
+docs/verification/artifacts/cash-native-sie-first-year-failure-2026-11-09.txt -text whitespace=cr-at-eol

@@ -1,0 +1,7 @@
+{
+  "browserBundleIdentifier" : "org.mozilla.firefox",
+  "inspectionScope" : "Browser-window URL metadata to identify only the requested source; no unmatched URLs, tab data or page content recorded",
+  "nativeBrowserSourceConfirmed" : true,
+  "observedAt" : "2026-11-09T14:39:55Z",
+  "requestedSourceURL" : "https:\/\/www.riksdagen.se\/sv\/dokument-och-lagar\/dokument\/svensk-forfattningssamling\/forordning-1979988-om-svensk-normaltid_sfs-1979-988\/"
+}

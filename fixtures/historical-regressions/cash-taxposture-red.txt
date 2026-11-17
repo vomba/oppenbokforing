@@ -1,0 +1,19 @@
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.84s
+     Running tests/cash_method_safety.rs (src-tauri/target/debug/deps/cash_method_safety-d9a32fb5e3a7dac4)
+
+running 1 test
+
+thread 'cash_rechecks_fa_skatt_salary_posture_even_after_external_profile_edit' (20379555) panicked at tests/cash_method_safety.rs:1672:5:
+stored FA-skatt posture must remain valid, not merely retain a status string
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cash_rechecks_fa_skatt_salary_posture_even_after_external_profile_edit ... FAILED
+
+failures:
+
+failures:
+    cash_rechecks_fa_skatt_salary_posture_even_after_external_profile_edit
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 43 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `--test cash_method_safety`

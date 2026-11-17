@@ -22,9 +22,26 @@ Local-first open-source bookkeeping for Swedish **enskild firma** (sole traders)
 | **Export** | SIE type 4 ledger export, accountant packages, encrypted `.skatbackup` backups |
 | **UX** | Swedish-first UI, simple mode, dashboard checklist, guided tour, contextual help |
 
-**Prepare-only by design** — the app produces filing-ready figures and exports. It does **not** submit returns to Skatteverket or initiate payments. See [ADR-0004](docs/adr/0004-prepare-only-tax-workflows.md).
+**Current recognition boundary:** reviewed 2026 cases cover ordinary completed
+domestic SEK services at 25%, no advance/prior receipt, annual VAT without EU trade,
+and exact whole-öre VAT per line. Invoice-method issuance recognizes at the reviewed
+sending date. The separate cash flow is limited to explicitly reviewed new
+businesses started in 2026 with a December-ending first year and zero opening
+positions: issue preserves number/PDF/audit without journals; one full retained-PDF
+receipt recognizes bank/revenue/VAT on its actual 2026 receipt date. Actual received
+facts start unknown, and each PDF hash/bank receipt can be consumed only once.
 
-Behaviour is defined by executable **golden scenarios** in [`fixtures/golden-scenarios/`](fixtures/golden-scenarios/README.md) — change a rule, update a fixture, make tests pass.
+This is **not complete cash-method support**. Cash CSV matching, partials,
+over/refunds, credits, affected legacy/opening treatment, unpaid closing and all
+cash VAT/year-end approvals remain blocked. Drafts, inspection, retained evidence,
+historical exports and completed recovery retain their safeguards. Neither case
+establishes complete legal PDF, books or return validation. See the
+[invoice evidence](docs/accounting-validation/2026-domestic-service25-exact.md) and
+[cash evidence/verification boundary](docs/accounting-validation/2026-cash-pdf-full.md).
+
+**Prepare-only by design** — the app produces preparation figures and exports. It does **not** submit returns to Skatteverket or initiate payments. See [ADR-0004](docs/adr/0004-prepare-only-tax-workflows.md).
+
+Executable **golden scenarios** in [`fixtures/golden-scenarios/`](fixtures/golden-scenarios/README.md) preserve engineering behavior. They are not independent tax validation. Active specs define the contract; calculation eligibility additionally needs source-backed expectations, reproducible checks and recorded coverage review.
 
 ## Roadmap
 

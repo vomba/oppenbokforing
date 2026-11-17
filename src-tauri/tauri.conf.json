@@ -5,9 +5,9 @@
   "identifier": "se.oppenbokforing.desktop",
   "mainBinaryName": "oppenbokforing-desktop",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run pdf:build && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run pdf:build && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/oppenbokforing-pdf-helper"],
     "macOS": {
       "hardenedRuntime": true,
       "entitlements": null,

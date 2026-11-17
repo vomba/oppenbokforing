@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, beforeEach, vi } from "vitest"
@@ -7,6 +7,7 @@ import { SimpleModeProvider } from "../context/SimpleModeContext"
 import { WorkspaceProvider } from "../context/WorkspaceContext"
 import type { InvoiceSummary } from "../lib/commands"
 import { localTodayIsoDate } from "../lib/invoiceStatus"
+import { cashHistory } from "../test/cashFixtures"
 import { InvoicesPage } from "./InvoicesPage"
 
 const workspace = {
@@ -15,6 +16,8 @@ const workspace = {
   dataDir: "/tmp/data",
   databasePath: "/tmp/workspace.sqlite",
 }
+
+let activeWorkspace = workspace
 
 const baseInvoice: InvoiceSummary = {
   id: "inv-1",
@@ -40,6 +43,8 @@ const {
   invoiceList,
   invoiceIssue,
   invoiceIssuePreflight,
+  invoiceIssueValidationGet,
+  invoiceValidationSourceOpen,
   invoiceCredit,
   invoiceLegacySnapshotRecoveryStatus,
   invoiceLegacySnapshotRecover,
@@ -47,10 +52,14 @@ const {
   invoicePdfStatus,
   documentReveal,
   taxProfileGetCurrent,
+  vatProfileGetCurrent,
+  invoiceCashHistoryGet,
 } = vi.hoisted(() => ({
   invoiceList: vi.fn(),
   invoiceIssue: vi.fn(),
   invoiceIssuePreflight: vi.fn(),
+  invoiceIssueValidationGet: vi.fn(),
+  invoiceValidationSourceOpen: vi.fn(),
   invoiceCredit: vi.fn(),
   invoiceLegacySnapshotRecoveryStatus: vi.fn(),
   invoiceLegacySnapshotRecover: vi.fn(),
@@ -58,6 +67,8 @@ const {
   invoicePdfStatus: vi.fn(),
   documentReveal: vi.fn(),
   taxProfileGetCurrent: vi.fn(),
+  vatProfileGetCurrent: vi.fn().mockResolvedValue({ accountingMethod: "invoice_method" }),
+  invoiceCashHistoryGet: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock("../context/WorkspaceContext", async () => {
@@ -67,7 +78,7 @@ vi.mock("../context/WorkspaceContext", async () => {
   return {
     ...actual,
     useWorkspace: () => ({
-      workspace,
+      workspace: activeWorkspace,
       setWorkspace: vi.fn(),
     }),
   }
@@ -79,6 +90,9 @@ vi.mock("../components/AppSidebar", () => ({
 
 vi.mock("../lib/commands", () => ({
   appErrorMessage: (_error: unknown, fallback: string) => fallback,
+  vatProfileGetCurrent,
+  invoiceCashHistoryGet,
+  cashBusinessOriginGet: vi.fn().mockResolvedValue(null),
   counterpartyCreate: vi.fn(),
   counterpartyList: vi.fn().mockResolvedValue([
     { id: "cust-1", kind: "customer", name: "Customer AB", email: null, orgNumber: null },
@@ -88,6 +102,8 @@ vi.mock("../lib/commands", () => ({
   invoiceCredit,
   invoiceIssue,
   invoiceIssuePreflight,
+  invoiceIssueValidationGet,
+  invoiceValidationSourceOpen,
   invoiceList,
   invoiceLegacySnapshotRecoveryStatus,
   invoiceLegacySnapshotRecover,
@@ -96,18 +112,76 @@ vi.mock("../lib/commands", () => ({
   taxProfileGetCurrent,
 }))
 
-function renderInvoices() {
-  return render(
+function invoicesTree(locale: "sv" | "en" = "sv") {
+  return (
     <MemoryRouter>
       <WorkspaceProvider>
-        <LocaleProvider initialLocale="sv">
+        <LocaleProvider initialLocale={locale}>
           <SimpleModeProvider>
             <InvoicesPage />
           </SimpleModeProvider>
         </LocaleProvider>
       </WorkspaceProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
+}
+
+function renderInvoices(locale: "sv" | "en" = "sv") {
+  return render(invoicesTree(locale))
+}
+
+const eligibleAssessment = {
+  validationId: "invoice-recognition-se-service25-2026-exact-v1",
+  evidenceDigest: "reviewed-evidence-digest",
+  reviewFingerprint: "reviewed-input-fingerprint",
+  accountingYear: 2026,
+  accountingDate: "2026-01-15",
+  completedOn: "2026-01-14",
+  deadlineRegime: "annual_may_12",
+  periodKey: "2026",
+  dueOn: "2027-05-12",
+  coverageSummary: "2026 domestic service, exact VAT per line",
+  ruleVersionId: "rv-2026-domestic-service25-exact-v1",
+}
+
+const reviewedInvoice = {
+  invoiceId: baseInvoice.id,
+  counterpartyId: baseInvoice.counterpartyId,
+  counterpartyName: baseInvoice.counterpartyName,
+  dueDate: baseInvoice.dueDate,
+  totalExVatMinor: baseInvoice.totalExVatMinor,
+  totalVatMinor: baseInvoice.totalVatMinor,
+  totalIncVatMinor: baseInvoice.totalIncVatMinor,
+  lines: baseInvoice.lines,
+}
+
+const expectedFacts = {
+  ordinaryDomesticService: true,
+  serviceCompletedOn: "2026-01-14",
+  priorPaymentReceived: false,
+  noEuTradeInYear: true,
+  annualVatRegistrationConfirmed: true,
+  expectedTaxableBaseWithinLimit: true,
+  ordinaryInvoiceTimingConfirmed: true,
+}
+
+function answerEligibility() {
+  fireEvent.change(screen.getByLabelText("Fakturadatum (dagen du skickar fakturan)"), {
+    target: { value: "2026-01-15" },
+  })
+  fireEvent.change(screen.getByLabelText("När slutfördes tjänsten?"), {
+    target: { value: "2026-01-14" },
+  })
+  for (const group of screen.getAllByRole("group")) {
+    const priorPayment = within(group).queryByText("Har kunden redan betalat något för tjänsten?")
+    fireEvent.click(within(group).getByLabelText(priorPayment ? "Nej" : "Ja"))
+  }
+}
+
+async function reachFinalReview() {
+  answerEligibility()
+  fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+  await screen.findByRole("button", { name: "Skicka faktura" })
 }
 
 function completeLegacyRecoveryForm() {
@@ -136,8 +210,13 @@ function completeLegacyRecoveryForm() {
 describe("InvoicesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    activeWorkspace = workspace
+    invoiceIssueValidationGet.mockResolvedValue(null)
+    invoiceValidationSourceOpen.mockResolvedValue(undefined)
     taxProfileGetCurrent.mockResolvedValue({ taxStatus: "f_skatt" })
     invoiceIssuePreflight.mockResolvedValue({
+      reviewedInvoice,
+      eligibility: eligibleAssessment,
       invoiceId: "inv-1",
       issueDate: "2026-01-15",
       currentTurnoverMinor: 0,
@@ -154,6 +233,266 @@ describe("InvoicesPage", () => {
       recoveryRequired: false,
       preservedPdfDocumentId: null,
     })
+  })
+
+  it("requires explicit answers before preflight and never treats uncertainty as yes", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    expect(screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert")).toBeInTheDocument()
+    answerEligibility()
+    fireEvent.click(within(screen.getAllByRole("group")[0]).getByLabelText("Osäker"))
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it("retains facts and the draft when preflight is blocked", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    invoiceIssuePreflight.mockRejectedValue(new Error("unsupported exact VAT"))
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    answerEligibility()
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    await screen.findByRole("alert")
+    expect(screen.getByLabelText("När slutfördes tjänsten?")).toHaveValue("2026-01-14")
+    expect(screen.getByRole("button", { name: "Behåll utkast" })).toBeInTheDocument()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it("submits precisely the reviewed facts, date and fingerprint", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    invoiceIssue.mockResolvedValue(baseInvoice)
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    await reachFinalReview()
+    expect(invoiceIssuePreflight).toHaveBeenCalledWith({ invoiceId: "inv-1", issueDate: "2026-01-15", eligibilityFacts: expectedFacts })
+    expect(screen.getByText(/2027-05-12/)).toBeInTheDocument()
+    expect(screen.getByText(/reviewed-evidence-digest/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Skicka faktura" }))
+    await waitFor(() => expect(invoiceIssue).toHaveBeenCalledWith({
+      invoiceId: "inv-1", idempotencyKey: expect.any(String), issueDate: "2026-01-15",
+      eligibilityFacts: expectedFacts, reviewFingerprint: eligibleAssessment.reviewFingerprint,
+    }))
+  })
+
+  it("shows the backend-reviewed draft rather than stale list amounts or lines", async () => {
+    invoiceList.mockResolvedValue([{
+      ...baseInvoice, status: "draft", voucherId: null,
+      totalExVatMinor: 100_000, totalVatMinor: 25_000, totalIncVatMinor: 125_000,
+    }])
+    invoiceIssuePreflight.mockResolvedValueOnce({
+      reviewedInvoice: {
+        ...reviewedInvoice, counterpartyName: "Current Customer AB",
+        totalExVatMinor: 200_000, totalVatMinor: 50_000, totalIncVatMinor: 250_000,
+        lines: [{ id: "changed-line", lineOrder: 1, description: "Current service", quantity: 1,
+          unitPriceMinor: 200_000, vatRateBp: 2500, accountNumber: "3041", lineExVatMinor: 200_000,
+          lineVatMinor: 50_000 }],
+      },
+      invoiceId: "inv-1", issueDate: "2026-01-15",
+      currentTurnoverMinor: 0, projectedTurnoverMinor: 200_000,
+      thresholdMinor: null, requiresVatTreatmentReview: false, nextAction: null,
+      ruleVersionId: eligibleAssessment.ruleVersionId, taxYear: 2026, sourceUrl: "https://www.bfn.se/",
+      eligibility: { ...eligibleAssessment, reviewFingerprint: "current-draft-fingerprint" },
+    })
+    invoiceIssue.mockResolvedValue(baseInvoice)
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    await reachFinalReview()
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByText(/Current Customer AB: 2.500,00 kr/)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/1.250,00 kr/)).not.toBeInTheDocument()
+    expect(within(dialog).getByText("Current service")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Skicka faktura" }))
+    await waitFor(() => expect(invoiceIssue).toHaveBeenCalledWith(expect.objectContaining({
+      reviewFingerprint: "current-draft-fingerprint",
+    })))
+  })
+
+  it.each([
+    ["prior payment", 1, "Ja"],
+    ["EU trade", 2, "Nej"],
+    ["annual registration", 3, "Osäker"],
+    ["taxable base", 4, "Nej"],
+    ["late invoice", 5, "Nej"],
+  ])("blocks contradictory or uncertain %s facts without final issuance", async (_reason, index, answer) => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    answerEligibility()
+    fireEvent.click(within(screen.getAllByRole("group")[index as number]).getByLabelText(answer as string))
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    expect(screen.getByRole("alert")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Skicka faktura" })).not.toBeInTheDocument()
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["2027-01-15", "2026-01-14"],
+    ["2026-01-15", "2025-12-31"],
+    ["2026-01-15", "2026-01-16"],
+  ])("blocks uncovered or contradictory dates (%s / %s)", async (issueDate, completed) => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    answerEligibility()
+    fireEvent.change(screen.getByLabelText("Fakturadatum (dagen du skickar fakturan)"), { target: { value: issueDate } })
+    fireEvent.change(screen.getByLabelText("När slutfördes tjänsten?"), { target: { value: completed } })
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    expect(screen.getByRole("alert")).toBeInTheDocument()
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it("discards the final review when the displayed invoice is refreshed with changed data", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    await reachFinalReview()
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null, totalIncVatMinor: 99 }])
+    // Simulate a list refresh while review is open; it must not retain authority over an older snapshot.
+    fireEvent.change(screen.getByLabelText("Filter"), { target: { value: "draft" } })
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it("starts with unanswered facts when switching to a different draft", async () => {
+    invoiceList.mockResolvedValue([
+      { ...baseInvoice, status: "draft", voucherId: null },
+      { ...baseInvoice, id: "inv-2", status: "draft", voucherId: null },
+    ])
+    renderInvoices()
+    const buttons = await screen.findAllByRole("button", { name: "Skicka" })
+    fireEvent.click(buttons[0])
+    await reachFinalReview()
+    fireEvent.click(screen.getByRole("button", { name: "Behåll utkast" }))
+    fireEvent.click(buttons[1])
+    expect(screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+    expect(screen.getByLabelText("När slutfördes tjänsten?")).toHaveValue("")
+    expect(invoiceIssuePreflight).toHaveBeenCalledTimes(1)
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it("invalidates review on date/fact edits and requires a new fingerprint", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    const view = renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    await reachFinalReview()
+    fireEvent.click(screen.getByRole("button", { name: "Ändra svar" }))
+    expect(within(screen.getAllByRole("group")[0]).getByLabelText("Ja")).toBeChecked()
+    fireEvent.change(screen.getByLabelText("Fakturadatum (dagen du skickar fakturan)"), { target: { value: "2026-01-16" } })
+    fireEvent.change(screen.getByLabelText("När slutfördes tjänsten?"), { target: { value: "2026-01-15" } })
+    expect(screen.queryByRole("button", { name: "Skicka faktura" })).not.toBeInTheDocument()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+    activeWorkspace = { ...workspace, id: "ws-2" }
+    view.rerender(invoicesTree())
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    expect(screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+    expect(screen.getByLabelText("När slutfördes tjänsten?")).toHaveValue("")
+  })
+
+  it("ignores stale preflight results after workspace changes", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    let resolve!: (result: unknown) => void
+    invoiceIssuePreflight.mockImplementationOnce(() => new Promise((done) => { resolve = done }))
+    const view = renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    answerEligibility()
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    activeWorkspace = { ...workspace, id: "ws-2" }
+    view.rerender(invoicesTree())
+    await act(async () => resolve({ invoiceId: "inv-1", issueDate: "2026-01-15", eligibility: eligibleAssessment }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it("retains the draft after freshness rejection and requires another preflight", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    invoiceIssue.mockRejectedValueOnce(new Error("freshness rejection"))
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    await reachFinalReview()
+    fireEvent.click(screen.getByRole("button", { name: "Skicka faktura" }))
+    await screen.findByRole("alert")
+    expect(screen.getByLabelText("När slutfördes tjänsten?")).toHaveValue("2026-01-14")
+    expect(screen.queryByRole("button", { name: "Skicka faktura" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    await screen.findByRole("button", { name: "Skicka faktura" })
+    expect(invoiceIssuePreflight).toHaveBeenCalledTimes(2)
+    expect(invoiceIssue).toHaveBeenCalledTimes(1)
+  })
+
+  it("blocks a missing eligibility assessment rather than trusting an old successful preflight", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    invoiceIssuePreflight.mockResolvedValueOnce({ reviewedInvoice, invoiceId: "inv-1", issueDate: "2026-01-15", eligibility: null, requiresVatTreatmentReview: false })
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+    answerEligibility()
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+    await screen.findByRole("alert")
+    expect(screen.queryByRole("button", { name: "Skicka faktura" })).not.toBeInTheDocument()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, { ...reviewedInvoice, invoiceId: "another-invoice" }])(
+    "rejects a missing or unrelated reviewed invoice snapshot",
+    async (snapshot) => {
+      invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+      invoiceIssuePreflight.mockResolvedValueOnce({
+        invoiceId: "inv-1", issueDate: "2026-01-15", eligibility: eligibleAssessment,
+        reviewedInvoice: snapshot, requiresVatTreatmentReview: false,
+      })
+      renderInvoices()
+      fireEvent.click(await screen.findByRole("button", { name: "Skicka" }))
+      answerEligibility()
+      fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
+      await screen.findByRole("alert")
+      expect(screen.queryByRole("button", { name: "Skicka faktura" })).not.toBeInTheDocument()
+      expect(invoiceIssue).not.toHaveBeenCalled()
+    },
+  )
+
+  it("presents the explicit annual questions and sending responsibility in English", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    renderInvoices("en")
+    fireEvent.click(await screen.findByRole("button", { name: "Issue" }))
+    expect(screen.getByText("Does the business have no EU trade throughout the 2026 accounting year?")).toBeInTheDocument()
+    expect(screen.getByText("Is the business VAT registered for annual VAT reporting in 2026?")).toBeInTheDocument()
+    expect(screen.getByText("Is the expected taxable base for 2026 at most SEK 1 million excluding VAT?")).toBeInTheDocument()
+    expect(screen.getByText(/The app sends no email/)).toBeInTheDocument()
+    expect(screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+  })
+
+  it("reads historical evidence without issuing, recovering or guessing facts", async () => {
+    invoiceList.mockResolvedValue([baseInvoice])
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Visa redovisningsunderlag" }))
+    await screen.findByText("Ingen historisk valideringspost finns. Nuvarande uppgifter används inte för att fylla luckan.")
+    expect(invoiceIssueValidationGet).toHaveBeenCalledWith({ invoiceId: "inv-1" })
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+    expect(invoiceLegacySnapshotRecover).not.toHaveBeenCalled()
+  })
+
+  it("shows immutable historical facts and provenance without re-preflighting", async () => {
+    invoiceList.mockResolvedValue([baseInvoice])
+    invoiceIssueValidationGet.mockResolvedValueOnce({ invoiceId: "inv-1", facts: expectedFacts, assessment: eligibleAssessment, recordedAt: "2026-01-15T12:00:00Z" })
+    renderInvoices()
+    fireEvent.click(await screen.findByRole("button", { name: "Visa redovisningsunderlag" }))
+    await screen.findByText(/Registrerat: 2026-01-15T12:00:00Z/)
+    expect(screen.getByText(/reviewed-evidence-digest/)).toBeInTheDocument()
+    expect(screen.getByText(/2027-05-12/)).toBeInTheDocument()
+    expect(screen.getByText("2026-01-14")).toBeInTheDocument()
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument()
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    expect(invoiceIssue).not.toHaveBeenCalled()
+    expect(invoiceCredit).not.toHaveBeenCalled()
+    expect(invoicePdfRefresh).not.toHaveBeenCalled()
   })
 
   it("hides credit and mark-paid actions for reconciled invoices", async () => {
@@ -259,13 +598,14 @@ describe("InvoicesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skicka" }))
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Avbryt" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Behåll utkast" })).toBeInTheDocument()
     })
     expect(invoiceIssue).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }))
+    fireEvent.click(screen.getByRole("button", { name: "Behåll utkast" }))
     expect(invoiceIssue).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Skicka" }))
+    await reachFinalReview()
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Skicka faktura" })).toBeInTheDocument()
     })
@@ -302,6 +642,8 @@ describe("InvoicesPage", () => {
   it("shows the rule-backed VAT action and blocks confirmation before issue", async () => {
     invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
     invoiceIssuePreflight.mockResolvedValue({
+      reviewedInvoice,
+      eligibility: eligibleAssessment,
       invoiceId: "inv-1",
       issueDate: "2026-01-15",
       currentTurnoverMinor: 12_000_000,
@@ -320,6 +662,8 @@ describe("InvoicesPage", () => {
       expect(screen.getByRole("button", { name: "Skicka" })).toBeInTheDocument()
     })
     fireEvent.click(screen.getByRole("button", { name: "Skicka" }))
+    answerEligibility()
+    fireEvent.click(screen.getByRole("button", { name: "Kontrollera och granska" }))
 
     await waitFor(() => {
       const reviewDialog = screen.getByRole("dialog")
@@ -457,4 +801,45 @@ describe("InvoicesPage", () => {
     })
     expect(invoicePdfRefresh).not.toHaveBeenCalled()
   })
+})
+
+
+describe("additive cash invoice routing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    taxProfileGetCurrent.mockResolvedValue({ taxStatus: "f_skatt" })
+    invoiceLegacySnapshotRecoveryStatus.mockResolvedValue({ recoveryRequired: false, preservedPdfDocumentId: null })
+    vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "invoice_method" })
+    invoiceCashHistoryGet.mockResolvedValue(null)
+  })
+  it("routes a cash_method draft to the separate explicit cash review", async () => {
+    vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "cash_method" })
+    invoiceList.mockResolvedValue([{ ...baseInvoice, status: "draft", voucherId: null }])
+    renderInvoices("en")
+    fireEvent.click(await screen.findByRole("button", { name: "Issue" }))
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Review cash-method invoice")
+    expect(invoiceIssuePreflight).not.toHaveBeenCalled()
+    vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "invoice_method" })
+  })
+  it("reads immutable cash history even when current profile is invoice_method", async () => {
+    invoiceList.mockResolvedValue([{ ...baseInvoice, voucherId: null }])
+    invoiceCashHistoryGet.mockResolvedValue({ ...cashHistory, invoiceId: baseInvoice.id, issue: { ...cashHistory.issue, invoiceId: baseInvoice.id } })
+    renderInvoices("en")
+    fireEvent.click(await screen.findByRole("button", { name: "View recognition evidence" }))
+    expect(await screen.findByText("Immutable cash-method history")).toBeInTheDocument()
+    expect(screen.getByText("No recorded receipt recognition. The issue date is not an accounting date.")).toBeInTheDocument()
+    expect(invoiceIssueValidationGet).not.toHaveBeenCalled()
+  })
+})
+
+it("keeps history read failures visible instead of falling back to invoice provenance", async () => {
+  vi.clearAllMocks()
+  invoiceList.mockResolvedValue([baseInvoice])
+  vatProfileGetCurrent.mockResolvedValue({ accountingMethod: "invoice_method" })
+  invoiceLegacySnapshotRecoveryStatus.mockResolvedValue({ recoveryRequired: false, preservedPdfDocumentId: null })
+  invoiceCashHistoryGet.mockRejectedValue(new Error("unreadable"))
+  renderInvoices("en")
+  fireEvent.click(await screen.findByRole("button", { name: "View recognition evidence" }))
+  await screen.findByRole("alert")
+  expect(invoiceIssueValidationGet).not.toHaveBeenCalled()
 })

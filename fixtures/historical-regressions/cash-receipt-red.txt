@@ -1,0 +1,28 @@
+FIRST positive cash full-PDF receipt regression: stop before green.
+Synthetic external-style PDF only; NOT bank authentication, OCR, a real bank receipt, or named-bank format validation.
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_receipt_recognition full_retained_pdf_receipt_recognizes_cash_once_on_actual_received_date -- --exact --nocapture
+
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.93s
+     Running tests/cash_receipt_recognition.rs (src-tauri/target/debug/deps/cash_receipt_recognition-227620eb1baeaaf1)
+
+running 1 test
+ORACLE: reviewed cash digest 08d21e5dc4a055698b6a180e665141770bdb7f2c7325eea4e6d5bee4d54e7f7b; independent net/VAT/gross 1000000/250000/1250000 ore; receipt 2026-01-20, not service/issue date
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin Jan 1-Dec 31; completed Jan 10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+SOURCE: retained well-formed one-page synthetic PDF with Catalog/Pages/Page/content/font/xref/trailer/EOF; visible NOT A REAL BANK ARTIFACT; simulated executed SEK 1250000 ore on Jan 20, payer/business/account/transaction/invoice reference; public integrity verified; not invoice-generated
+RECEIPT: calling PUBLIC invoice_cash_receipt_record with nine explicit actual-source facts; expected one Jan 20 voucher 1930 DR 1250000 / 3041 CR 1000000 / 2611 CR 250000; no 1510
+
+thread 'full_retained_pdf_receipt_recognizes_cash_once_on_actual_received_date' (20512145) panicked at tests/cash_receipt_recognition.rs:338:16:
+qualifying retained full PDF cash receipt must recognize bank/revenue/VAT on actual receipt date: AppError { code: "validation_error", message: "Cash-method receipt recognition is not yet implemented", details: Some([FieldError { field: Some("eligibility"), message: "Invalid value", code: "invalid_value" }]), unique_violation: false }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test full_retained_pdf_receipt_recognizes_cash_once_on_actual_received_date ... FAILED
+
+failures:
+
+failures:
+    full_retained_pdf_receipt_recognizes_cash_once_on_actual_received_date
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `--test cash_receipt_recognition`

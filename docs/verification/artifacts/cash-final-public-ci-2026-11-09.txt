@@ -1,0 +1,778 @@
+
+> oppenbokforing-desktop@0.1.0 ci:public
+> npm run test:pdf-helper && npm run test:fixtures && npm run test:golden && npm run test:m8 && npm run test:all && npm run build && npm run bindings:check
+
+
+> oppenbokforing-desktop@0.1.0 test:pdf-helper
+> node --test scripts/build-pdf-helper.test.mjs
+
+✔ import is inert and does not invoke Cargo, even with no tools on PATH (23.39425ms)
+✔ native aarch64-apple-darwin debug stages explicit target and developer sibling (0.48525ms)
+✔ native aarch64-apple-darwin release stages explicit target and developer sibling (0.088542ms)
+✔ native x86_64-apple-darwin debug stages explicit target and developer sibling (0.067875ms)
+✔ native x86_64-apple-darwin release stages explicit target and developer sibling (0.094834ms)
+✔ native x86_64-unknown-linux-gnu debug stages explicit target and developer sibling (0.075333ms)
+✔ native x86_64-unknown-linux-gnu release stages explicit target and developer sibling (0.071458ms)
+✔ native x86_64-pc-windows-msvc debug stages explicit target and developer sibling (0.054375ms)
+✔ native x86_64-pc-windows-msvc release stages explicit target and developer sibling (0.063958ms)
+✔ official Tauri hooks: debug=true is debug; absent DEBUG with TARGET_TRIPLE is release (0.107042ms)
+✔ universal release on aarch64-apple-darwin builds and stages BOTH targets, then lipo creates and verifies both architectures (0.175ms)
+✔ universal release on x86_64-apple-darwin builds and stages BOTH targets, then lipo creates and verifies both architectures (0.068958ms)
+✔ universal debug builds use debug artifacts, not a stale release helper (0.063375ms)
+✔ explicit macOS cross aarch64-apple-darwin -> x86_64-apple-darwin never overwrites the host sibling or substitutes host output (0.107459ms)
+✔ explicit macOS cross x86_64-apple-darwin -> aarch64-apple-darwin never overwrites the host sibling or substitutes host output (0.038541ms)
+✔ unsupported cross x86_64-unknown-linux-gnu -> aarch64-apple-darwin fails before metadata/build/staging (0.172958ms)
+✔ unsupported cross x86_64-unknown-linux-gnu -> universal-apple-darwin fails before metadata/build/staging (0.043ms)
+✔ unsupported cross x86_64-unknown-linux-gnu -> aarch64-unknown-linux-gnu fails before metadata/build/staging (0.01775ms)
+✔ unsupported cross aarch64-apple-darwin -> x86_64-pc-windows-msvc fails before metadata/build/staging (0.018166ms)
+✔ target configuration mismatch fails before Cargo, not silently substituted with host (0.041375ms)
+✔ invalid arguments/debug or absent Rust host fail clearly (0.042333ms)
+✔ missing lipo fails before builds; no automatic installation (0.068084ms)
+✔ missing cross Rust target fails honestly without staging/substituting host output (0.045625ms)
+✔ second universal target failure never falls back to host or runs lipo (0.049959ms)
+✔ lipo -create failure is not reported as successful universal staging (0.032209ms)
+✔ lipo -verify_arch failure is not reported as successful universal staging (0.033125ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.365042
+
+> oppenbokforing-desktop@0.1.0 test:fixtures
+> vitest run src/lib/fixtures.test.ts
+
+
+ RUN  v2.1.9 /Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2
+
+ ✓ src/lib/fixtures.test.ts (19 tests) 7ms
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+   Start at  23:20:00
+   Duration  585ms (transform 18ms, setup 67ms, collect 37ms, tests 7ms, environment 326ms, prepare 29ms)
+
+
+> oppenbokforing-desktop@0.1.0 test:golden
+> cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test golden_scenarios
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+     Running tests/golden_scenarios.rs (src-tauri/target/debug/deps/golden_scenarios-3f5beedb153c34ec)
+
+running 5 tests
+test all_golden_fixtures_parse ... ok
+test m1_golden_scenarios_pass_compliance_engine ... ok
+test m1_workspace_offline_reopen_fixture ... ok
+test m2_credit_invoice_fixture ... ok
+test m1_backup_restore_preserves_rules_fixture ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+
+
+> oppenbokforing-desktop@0.1.0 test:m8
+> vitest run src/test/m8_simple_ux.test.ts && cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test m8_milestone
+
+
+ RUN  v2.1.9 /Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2
+
+ ✓ src/test/m8_simple_ux.test.ts (10 tests) 4ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  23:20:02
+   Duration  381ms (transform 27ms, setup 40ms, collect 44ms, tests 4ms, environment 174ms, prepare 26ms)
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running tests/m8_milestone.rs (src-tauri/target/debug/deps/m8_milestone-cba9fd20f5af9b54)
+
+running 6 tests
+test dashboard_tour_mark_complete_persists ... ok
+test new_workspace_defaults_locale_to_sv ... ok
+test document_reveal_rejects_symlink_object_path ... ok
+test simple_mode_save_persists ... ok
+test document_reveal_rejects_path_traversal ... ok
+test count_open_invoices_excludes_reconciled_payments ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+
+> oppenbokforing-desktop@0.1.0 test:all
+> npm test && npm run test:rust
+
+
+> oppenbokforing-desktop@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2
+
+ ✓ src/test/m8_simple_ux.test.ts (10 tests) 6ms
+ ✓ src/components/InvoiceEligibilityEvidence.test.tsx (5 tests) 89ms
+ ✓ src/pages/DashboardPage.test.tsx (3 tests) 182ms
+ ✓ src/pages/VatPage.test.tsx (2 tests) 183ms
+ ✓ src/pages/YearEndPage.test.tsx (3 tests) 229ms
+ ✓ src/lib/compliancePresentation.test.ts (9 tests) 11ms
+ ✓ src/pages/OnboardingPage.test.tsx (11 tests) 714ms
+ ✓ src/pages/DocumentsPage.test.tsx (15 tests) 676ms
+ ✓ src/components/CashReviews.test.tsx (12 tests) 775ms
+ ✓ src/context/WorkspaceLocaleHydrator.test.tsx (3 tests) 173ms
+ ✓ src/components/ActionReviewDialog.test.tsx (5 tests) 108ms
+ ✓ src/pages/SettingsPage.test.tsx (2 tests) 120ms
+ ✓ src/lib/onboardingWizard.test.ts (3 tests) 1ms
+ ✓ src/lib/issuedTreatment.test.ts (3 tests) 2ms
+ ✓ src/i18n/index.test.ts (6 tests) 3ms
+ ✓ src/lib/documentsPaymentPanel.test.ts (5 tests) 2ms
+ ✓ src/lib/commands.cash.test.ts (2 tests) 3ms
+ ✓ src/lib/dashboardChecklist.test.ts (3 tests) 3ms
+ ✓ src/lib/invoiceStatus.test.ts (4 tests) 1ms
+ ✓ src/lib/fixtures.test.ts (19 tests) 11ms
+ ✓ src/lib/commands.invoiceEligibility.test.ts (2 tests) 3ms
+ ✓ src/lib/workbenchNav.test.ts (2 tests) 2ms
+ ✓ src/lib/taxTaskPresentation.test.ts (2 tests) 1ms
+ ✓ src/lib/profileLoad.test.ts (3 tests) 1ms
+ ✓ src/lib/money.test.ts (6 tests) 13ms
+ ✓ src/lib/validationRegistry.test.ts (1 test) 2ms
+ ✓ src/lib/dashboardChecklistDetail.test.ts (1 test) 2ms
+ ✓ src/context/LocaleContext.test.tsx (2 tests) 24ms
+ ✓ src/lib/dashboardTour.test.ts (2 tests) 2ms
+ ✓ src/lib/profile.test.ts (2 tests) 1ms
+ ✓ src/lib/workbenchSelection.test.ts (3 tests) 2ms
+ ✓ src/lib/domainStatus.cash.test.ts (2 tests) 1ms
+ ✓ src/lib/date.test.ts (1 test) 7ms
+ ✓ src/pages/InvoicesPage.test.tsx (38 tests) 2541ms
+   ✓ InvoicesPage > requires explicit answers before preflight and never treats uncertainty as yes 304ms
+
+ Test Files  34 passed (34)
+      Tests  192 passed (192)
+   Start at  23:20:03
+   Duration  3.39s (transform 866ms, setup 2.67s, collect 2.11s, tests 5.89s, environment 12.16s, prepare 1.02s)
+
+
+> oppenbokforing-desktop@0.1.0 test:rust
+> cargo test --manifest-path src-tauri/Cargo.toml --no-default-features
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/oppenbokforing_desktop_lib-c23a93e0547ddd00)
+
+running 56 tests
+test compliance::tests::registered_f_skatt_selects_business_guidance_not_fa_salary ... ok
+test compliance::tests::scenario_ids_for_fa_skatt_and_exempt ... ok
+test documents::reveal_tests::purge_stale_reveal_staging_keeps_fresh_temp_files ... ok
+test documents::reveal_tests::reveal_extension_rejects_unsupported_mime_types ... ok
+test documents::reveal_tests::stage_reveal_copy_accepts_legacy_octet_stream_mime ... ok
+test documents::reveal_tests::stage_reveal_copy_rejects_symlink_source ... ok
+test documents::reveal_tests::stage_reveal_copy_writes_randomized_pdf_with_extension ... ok
+test documents::reveal_tests::validate_staged_reveal_path_rejects_symlink ... ok
+test error::tests::io_error_message_is_redacted ... ok
+test error::tests::redacted_internal_helper_omits_debug_details ... ok
+test error::tests::redacted_storage_helper_omits_io_path_details ... ok
+test error::tests::sqlx_error_message_is_redacted ... ok
+test error::tests::unique_violation_flag_is_not_serialized_to_clients ... ok
+test error::tests::validation_error_includes_field_detail ... ok
+test compliance::tests::fa_skatt_fixture_passes ... ok
+test documents::import_recovery_tests::cached_success_restores_content_addressed_evidence_without_new_audit_event ... ok
+test invoicing::cash::pdf_process::tests::missing_helper_is_closed ... ok
+test invoicing::cash::pdf_process::tests::wrong_hash_version_or_malformed_output_cannot_grant_capability ... ok
+test documents::import_recovery_tests::failed_and_stale_import_claims_are_reclaimed_when_evidence_is_missing ... ok
+test invoicing::eligibility::tests::evidence_case_dates_and_no_rounding_permission ... ok
+test invoicing::eligibility::tests::exact_amounts_and_checked_boundaries ... ok
+test documents::import_recovery_tests::ordinary_import_rejects_tampered_evidence_without_replacing_or_auditing_it ... ok
+test invoicing::pdf::tests::compliance_footer_includes_f_skatt_and_vat_exemption ... ok
+test invoicing::pdf::tests::format_sek_minor_uses_swedish_grouping ... ok
+test invoicing::pdf::tests::format_thousands_se_groups_from_right ... ok
+test invoicing::pdf::tests::header_owner_subtitle_omits_blank_names ... ok
+test invoicing::pdf::tests::invoice_title_uses_kreditfaktura_for_credit_notes ... ok
+test documents::import_recovery_tests::replaced_claim_token_cannot_finalize_or_fail_document_import ... ok
+test invoicing::sources::tests::allowlisted_sources_dispatch_exact_macos_command_off_async_thread ... ok
+test invoicing::sources::tests::input_requires_camel_case_ids_and_rejects_unknown_fields ... ok
+test invoicing::pdf::tests::truncate_text_to_width_adds_ellipsis_for_long_descriptions ... ok
+test documents::import_recovery_tests::renewed_claim_cannot_be_reclaimed_using_stale_updated_at ... ok
+test invoicing::sources::tests::launch_io_and_exit_failures_are_redacted ... ok
+test invoicing::pdf::tests::render_invoice_pdf_produces_pdf_bytes ... ok
+test invoicing::sources::tests::unsupported_platform_reports_error_without_launching ... ok
+test invoicing::sources::tests::unknown_ids_and_payloads_never_reach_launcher ... ok
+test documents::import_recovery_tests::cached_import_rejects_tampered_evidence_without_replacing_or_auditing_it ... ok
+test sie::tests::sie_amount_uses_integer_precision ... ok
+test sie::tests::sie_includes_zero_balance_referenced_accounts ... ok
+test sie::tests::sie_render_includes_required_headers ... ok
+test sie::tests::sie_sanitizes_control_characters ... ok
+test invoicing::sources::tests::worker_failure_is_redacted ... ok
+test state::tests::load_compliance_rejects_unknown ... ok
+test state::tests::load_compliance_embeds_and_allowlists_f_skatt ... ok
+test state::tests::load_golden_scenario_embeds_fa_skatt ... ok
+test state::tests::load_golden_scenario_rejects_traversal ... ok
+test workspace::tests::resolve_exports_dir_io_error_is_redacted ... ok
+test state::tests::load_golden_scenario_disk_fallback_for_tests ... ok
+test invoicing::validation_registry::tests::three_immutable_cases_keep_exact_reviewed_raw_manifest_hashes ... ok
+test invoicing::sources::tests::successor_invoice_and_cash_tax_and_clock_ids_open_exact_compiled_urls ... ok
+test invoicing::cash::policy::tests::finite_swedish_clock_matches_independent_manifest_boundaries ... ok
+test documents::import_recovery_tests::document_reveal_rejects_hash_mismatched_same_mime_evidence_without_staging ... ok
+test rules::tests::seed_migration_loads_vat_threshold_for_year ... ok
+test backup::recovery_tests::failed_restore_never_publishes_a_cleartext_workspace_directory ... ok
+test invoicing::cash::pdf_process::tests::cancelled_caller_keeps_permit_until_child_is_killed_and_reaped ... ok
+test invoicing::cash::pdf_process::tests::crash_timeout_and_drop_are_reaped ... ok
+
+test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.48s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/oppenbokforing_desktop-ea09191381a5f8bd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests pdf-helper/main.rs (src-tauri/target/debug/deps/oppenbokforing_pdf_helper-d9cbbd55cfbea013)
+
+running 2 tests
+test budget::tests::alloc_zeroed_realloc_denial_and_reuse ... ok
+test budget::tests::checked_reservations_never_oversubscribe_or_overflow ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/accounting_validation_evidence.rs (src-tauri/target/debug/deps/accounting_validation_evidence-dd3e368b8bc90ebc)
+
+running 2 tests
+test independently_derived_exact_vat_examples_are_arithmetically_consistent ... ok
+test evidence_separates_recognition_from_receipt_and_accounting_year_from_filing_year ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/backup_encryption.rs (src-tauri/target/debug/deps/backup_encryption-5cf498b9f6f3db12)
+
+running 3 tests
+test encrypted_backup_rejects_wrong_passphrase ... ok
+test encrypted_backup_round_trip_preserves_profiles ... ok
+test encrypted_backup_round_trip_preserves_nested_evidence_and_exports ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+     Running tests/backup_idempotency.rs (src-tauri/target/debug/deps/backup_idempotency-54b8a609ceacec09)
+
+running 16 tests
+test cleanup_refuses_malicious_out_of_root_staging_path ... ok
+test backup_staging_root_is_recorded_before_any_build_output ... ok
+test backup_rejects_destinations_inside_workspace_sources ... ok
+test only_current_backup_owner_can_mark_a_claim_failed ... ok
+test expired_backup_claim_replaces_owner_and_rejects_old_finalizer ... ok
+test open_existing_workspace_rejects_unregistered_database ... ok
+test package_failure_marks_backup_claim_reclaimable_for_retry ... ok
+test renewed_backup_claim_cannot_be_reclaimed_from_an_old_updated_timestamp ... ok
+test reclaim_removes_expired_prebuild_staging_tree ... ok
+test startup_cleanup_preserves_live_staging_lease ... ok
+test lost_backup_lease_cannot_publish_its_staged_artifact ... ok
+test backup_create_is_idempotent ... ok
+test backup_staging_is_private_and_removed_after_discard ... ok
+test failed_finalization_leaves_written_artifact_uncached_and_never_overwrites_it ... ok
+test retry_cleans_only_interrupted_owned_staging ... ok
+test retry_adopts_verified_promoted_artifact_after_finalization_failure ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.54s
+
+     Running tests/cash_clock_evidence.rs (src-tauri/target/debug/deps/cash_clock_evidence-f7141cd1f328b5c9)
+
+running 3 tests
+test annual_calendar_is_a_may_2027_reference_not_cash_approval_evidence ... ok
+test clock_evidence_matches_only_the_source_backed_2026_utc_transition_instants ... ok
+test future_day_evidence_uses_independently_derived_2026_local_midnights ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cash_closing_readiness.rs (src-tauri/target/debug/deps/cash_closing_readiness-254ac7b750c0aa1d)
+
+running 2 tests
+test even_empty_cash_books_report_unvalidated_closing_without_writes ... ok
+test invoice_method_books_do_not_acquire_a_cash_preparation_blocker ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/cash_full_receipt.rs (src-tauri/target/debug/deps/cash_full_receipt-c409f84a4cec0b48)
+
+running 1 test
+test qualifying_cash_issue_preserves_identity_without_recognition ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/cash_history_upgrade.rs (src-tauri/target/debug/deps/cash_history_upgrade-0b88b296e2289f74)
+
+running 2 tests
+test genuine_native_v1_history_survives_real_schema21_to_22_upgrade ... ok
+test upgraded_native_v1_survives_cold_reopen_encrypted_restore_and_scoped_replay ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s
+
+     Running tests/cash_method_safety.rs (src-tauri/target/debug/deps/cash_method_safety-45943f69fd2f5f7e)
+
+running 46 tests
+test cash_concurrent_duplicate_issue_is_one_identity_and_continuation_counts_unpaid_once ... ok
+test already_issued_new_key_retry_under_cash_does_not_post_again_or_rewrite_history ... ok
+test cash_immutable_boundary_rejects_expense_before_real_first_year_start ... ok
+test cash_immutable_boundary_blocks_vat_approval_after_external_profile_drift ... ok
+test cash_completed_replay_precedes_profile_rules_clock_and_rejects_changed_input ... ok
+test cash_first_issue_rolls_back_origin_year_identity_and_all_jobs_on_late_failure ... ok
+test cash_identity_cannot_use_legacy_settlement_or_credit_after_external_method_edit ... ok
+test cash_issue_keeps_receipt_service_closed_and_provenance_append_only ... ok
+test cash_rechecks_fa_skatt_salary_posture_even_after_external_profile_edit ... ok
+test cash_identity_freezes_both_serialized_profile_save_routes_without_voucher ... ok
+test cash_rejects_ledger_invoice ... ok
+test cash_rejects_direct_payment ... ok
+test cash_rejects_ledger_reversal ... ok
+test cash_rejects_ledger_invoice_tx ... ok
+test cash_preserves_drafts_evidence_csv_expenses_and_preparatory_packages ... ok
+test both_save_routes_allow_selection_before_posting_and_same_method_after_posting ... ok
+test cash_rejects_ledger_reversal_tx ... ok
+test cash_rejects_new_issue ... ok
+test cash_rejects_new_credit ... ok
+test cash_rejects_preflight ... ok
+test cash_rejects_staged_payment ... ok
+test cash_rejects_vat_approval ... ok
+test cash_rejects_year_end_approval ... ok
+test cash_short_first_year_needs_adjustment_review_and_persists_real_start_atomically ... ok
+test individual_save_freezes_invoice_to_cash_after_any_posting ... ok
+test invoice_posting_requires_validated_context_but_reversals_remain_available ... ok
+test individual_save_freezes_legacy_cash_to_invoice_after_any_posting ... ok
+test invoice_method_positive_workflow_and_legacy_cash_replays_preserve_history ... ok
+test missing_method_rejects_direct_payment ... ok
+test issue_waiting_for_writer_rechecks_committed_method_inside_transaction ... ok
+test missing_method_does_not_block_existing_replays_or_history ... ok
+test missing_method_rejects_ledger_invoice_tx ... ok
+test missing_method_rejects_ledger_reversal ... ok
+test missing_method_rejects_ledger_invoice ... ok
+test cash_writer_rechecks_committed_profile_and_reviewed_customer_before_any_write ... ok
+test missing_method_rejects_ledger_reversal_tx ... ok
+test missing_method_rejects_new_credit ... ok
+test missing_method_rejects_new_issue ... ok
+test cash_unknown_or_contradictory_facts_and_nonempty_origin_are_readonly_rejections ... ok
+test missing_method_rejects_preflight ... ok
+test missing_method_rejects_staged_payment ... ok
+test missing_method_rejects_vat_approval ... ok
+test onboarding_save_freezes_invoice_to_cash_after_any_posting ... ok
+test missing_method_rejects_year_end_approval ... ok
+test onboarding_save_freezes_legacy_cash_to_invoice_after_any_posting ... ok
+test cash_current_rule_header_line_calendar_and_lock_changes_invalidate_review ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.35s
+
+     Running tests/cash_pdf_isolation.rs (src-tauri/target/debug/deps/cash_pdf_isolation-30be27f59271fa04)
+
+running 8 tests
+test public_service_probe ... ignored, owned by the bounded parent harness
+
+running 1 test
+
+running 1 test
+
+running 1 test
+
+running 1 test
+
+running 1 test
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+test cargo_builds_real_helper_at_runtime_sibling ... ok
+test public_service_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.11s
+
+test public_service_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.12s
+
+test malformed_pdf_denies_receipt_without_writes ... ok
+test normal_compressed_object_stream_remains_supported ... ok
+test public_service_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.13s
+
+test normal_wellformed_pdf_remains_supported ... ok
+
+running 1 test
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+test public_service_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.06s
+
+test missing_fixed_path_helper_denies_new_receipt_without_writes ... ok
+independent BEGIN IMMEDIATE available DURING malicious parse
+test public_service_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.04s
+
+test compressed_bomb_cannot_abort_accounting_process ... ok
+test public_service_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 2.10s
+
+test cyclic_pdf_cannot_lock_accounting_writer ... ok
+
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.12s
+
+     Running tests/cash_receipt_boundaries.rs (src-tauri/target/debug/deps/cash_receipt_boundaries-fe22ac1627167ce7)
+
+running 17 tests
+test approved_receipt_year_blocks_even_if_external_edit_left_year_open ... ok
+test annual_base_at_exact_limit_allows_receipt_without_readding_original_issue ... ok
+test generated_invoice_pdf_current_old_job_hash_and_metadata_only_are_rejected ... ok
+test malformed_header_only_and_dangling_content_pdfs_are_not_bank_evidence ... ok
+test competing_invoices_cannot_consume_same_pdf_or_bank_tuple_concurrently ... ok
+test duplicate_races_new_keys_and_cross_operation_collisions_are_atomic ... ok
+test replay_exact_key_only_precedes_current_guards_and_missing_bytes ... ok
+test receipt_period_not_issue_period_and_actual_first_year_are_enforced ... ok
+test retained_pdf_is_size_bounded_before_parsing ... ok
+test distinct_receipt_continuation_counts_paid_and_unpaid_once_but_reserves_pdf_and_bank_tuple ... ok
+test retained_missing_tampered_foreign_and_metadata_only_sources_stop_atomically ... ok
+test dates_and_ambiguous_bank_identity_are_not_inferred ... ok
+test every_nullable_fact_missing_false_and_non_full_amount_is_closed ... ok
+test history_validates_durable_receipt_instead_of_blind_json_decode ... ok
+test ordinary_expense_continuation_and_encrypted_backup_reopen_preserve_receipt_proof ... ok
+test write_failure_rolls_back_planned_proof_before_posting_and_can_retry ... ok
+test current_posture_policy_snapshot_and_year_changes_stop_new_receipt ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.39s
+
+     Running tests/cash_receipt_recognition.rs (src-tauri/target/debug/deps/cash_receipt_recognition-3b89dd8f5fb091bc)
+
+running 1 test
+test full_retained_pdf_receipt_recognizes_cash_once_on_actual_received_date ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/cash_staged_expense_continuation.rs (src-tauri/target/debug/deps/cash_staged_expense_continuation-08337e4e56e13664)
+
+running 10 tests
+test staged_ordinary_expense_allows_next_cash_issue ... ok
+test genuine_unstaged_ordinary_expense_preserves_issue_and_receipt_continuation ... ok
+test staged_ordinary_expense_allows_first_full_pdf_cash_receipt ... ok
+test unstaged_prior_origin_expense_blocks_cash_preflight_commit_and_receipt ... ok
+test staged_expense_cannot_backdate_history_before_actual_short_first_year ... ok
+test expense_label_cannot_link_an_unmatched_voucher_even_with_same_date_and_amount ... ok
+test padded_references_do_not_authorize_mismatched_expense_sources ... ok
+test writer_accepted_blank_and_padded_references_allow_cash_continuation ... ok
+test unstaged_expense_requires_original_ordinary_posting_provenance ... ok
+test forged_or_mismatched_expense_matches_deny_preflight_commit_and_receipt_atomically ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.54s
+
+     Running tests/cash_validation_evidence.rs (src-tauri/target/debug/deps/cash_validation_evidence-4ad43d231d024199)
+
+running 6 tests
+test eligibility_evidence_keeps_three_million_turnover_separate_from_one_million_vat_base ... ok
+test candidate_amount_evidence_is_independently_exact_per_line_and_i64_bounded ... ok
+test literal_issue_and_full_receipt_evidence_have_distinct_dates_and_no_receivable ... ok
+test named_oracle_inventory_retains_one_receipt_per_pdf_boundary_without_executing_it ... ok
+test first_year_evidence_requires_actual_2026_start_december_end_and_short_year_review ... ok
+test invoice_successor_inherits_every_published_field_except_its_two_identities ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/golden_scenarios.rs (src-tauri/target/debug/deps/golden_scenarios-3f5beedb153c34ec)
+
+running 5 tests
+test all_golden_fixtures_parse ... ok
+test m1_golden_scenarios_pass_compliance_engine ... ok
+test m1_workspace_offline_reopen_fixture ... ok
+test m2_credit_invoice_fixture ... ok
+test m1_backup_restore_preserves_rules_fixture ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests/invoice_eligibility.rs (src-tauri/target/debug/deps/invoice_eligibility-13f281a57d0cdfa9)
+
+running 18 tests
+test forward_rule_version_preserves_old_engineering_rules_and_binds_exact_manifest_bytes ... ok
+test historical_unsupported_invoice_replays_without_retroactive_validation ... ok
+test completion_must_be_in_2026_and_not_after_sending_but_can_be_earlier_same_year ... ok
+test every_fact_requires_an_explicit_favorable_answer_and_review_is_required ... ok
+test annual_taxable_base_limit_is_inclusive_and_uses_the_ledger_not_profit_defaults ... ok
+test low_level_invoice_posting_cannot_authorize_raw_buckets_or_reuse_completed_provenance ... ok
+test preflight_returns_the_actual_invoice_snapshot_bound_to_its_fingerprint ... ok
+test provenance_number_snapshot_pdf_job_voucher_audit_and_replay_are_atomic_and_immutable ... ok
+test issue_waiting_for_writer_rechecks_actual_committed_profile_and_line_values ... ok
+test validated_pending_context_still_rejects_different_buckets_invoice_date_and_fiscal_year ... ok
+test historical_sql_fixture_matches_archived_pre_gate_shapes_without_new_provenance ... ok
+test voluntary_registration_effective_by_completion_is_covered_but_not_future_registration ... ok
+test voluntary_registration_effectiveness_compares_dates_not_text ... ok
+test independently_derived_exact_cases_reach_journal_and_correct_annual_deadline ... ok
+test stale_final_review_is_not_permission_for_changed_facts_date_profile_or_lines ... ok
+test checked_arithmetic_and_stored_header_integrity_fail_closed ... ok
+test actual_relevant_rule_payloads_not_unchanged_ids_or_checksums_bind_eligibility ... ok
+test unsupported_rates_accounts_calendars_exemption_and_fractional_lines_are_rejected ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.81s
+
+     Running tests/invoice_eligibility_persistence.rs (src-tauri/target/debug/deps/invoice_eligibility_persistence-0b50a2f31a6cc154)
+
+running 2 tests
+test real_twenty_to_twenty_one_upgrade_preserves_history_without_backfilling_eligibility ... ok
+test immutable_eligibility_survives_reopen_and_encrypted_backup_restore ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+
+     Running tests/invoice_idempotency.rs (src-tauri/target/debug/deps/invoice_idempotency-3d9211a240806dd8)
+
+running 20 tests
+test create_draft_rejects_foreign_counterparty ... ok
+test cash_method_issue_rejects_invoice_timing_without_posting ... ok
+test historical_issue_preserves_fiscal_year_from_issue_date ... ok
+test historical_exempt_threshold_math_and_new_issue_rejection ... ok
+test issue_already_issued_invoice_with_new_key_returns_success ... ok
+test credit_rejects_a_selected_year_closed_after_fiscal_year_resolution_without_period_rows ... ok
+test credit_invoice_rejects_second_credit_for_same_source ... ok
+test credit_preserves_historical_vat_after_profile_becomes_exempt ... ok
+test credit_after_locked_original_period_posts_in_selected_open_year ... ok
+test credit_invoice_idempotency_replay_returns_cached ... ok
+test issue_invoice_rejects_invalid_issue_date_format ... ok
+test issue_idempotency_rejects_key_reused_for_different_invoice ... ok
+test issue_rechecks_tax_status_after_the_draft_was_created ... ok
+test issue_unknown_invoice_returns_not_found ... ok
+test issue_requires_active_rule_provenance_for_the_issue_year ... ok
+test new_invoice_requires_case_eligibility_not_just_invoice_method ... ok
+test planning_tax_profile_rejects_issue_before_persisting_anything ... ok
+test issue_invoice_idempotency_replay_returns_cached ... ok
+test issue_rejects_a_year_closed_after_fiscal_year_resolution_without_period_rows ... ok
+test update_draft_rejects_when_invoice_is_issued ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+     Running tests/invoice_pdf_jobs.rs (src-tauri/target/debug/deps/invoice_pdf_jobs-bdca39a4cda57e2c)
+
+running 9 tests
+test render_and_store_invoice_pdf_bytes ... ok
+test refresh_invoice_pdf_skips_duplicate_queued_job ... ok
+test invoice_pdf_status_ignores_orphaned_document_reference ... ok
+test legacy_issued_invoice_pdf_job_requires_explicit_snapshot_recovery ... ok
+test legacy_issued_invoice_refresh_preserves_existing_pdf_and_records_recovery_requirement ... ok
+test explicit_legacy_snapshot_recovery_uses_attested_historical_values_not_profiles ... ok
+test issued_invoice_pdf_job_archives_document ... ok
+test invoice_pdf_job_uses_issued_snapshot_after_profile_removal ... ok
+test invoice_pdf_batch_uses_issued_snapshots_after_profile_removal ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/local_jobs_idempotency.rs (src-tauri/target/debug/deps/local_jobs_idempotency-868b4ec5df291b5f)
+
+running 1 test
+test local_jobs_rejects_duplicate_idempotency_key ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/m3_milestone.rs (src-tauri/target/debug/deps/m3_milestone-241e5b045b8e3edd)
+
+running 9 tests
+test m3_document_import_rejects_large_files ... ok
+test m3_expense_requires_real_document_or_reason ... ok
+test m3_document_import_idempotency_race_returns_winner ... ok
+test m3_csv_import_is_idempotent_for_same_file ... ok
+test m3_document_import_retention_fixture ... ok
+test m3_manual_expense_input_vat_fixture ... ok
+test m3_csv_import_allows_comma_in_description ... ok
+test m3_csv_import_match_invoice_payment_fixture ... ok
+test m3_reconciliation_rejects_mismatched_or_duplicate_payments ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/m3_regression.rs (src-tauri/target/debug/deps/m3_regression-ed4bc713ec045990)
+
+running 18 tests
+test document_store_rejects_mime_mismatch ... ok
+test document_dedupe_keeps_content_addressed_id ... ok
+test csv_import_idempotent_replay_skips_audit ... ok
+test invoice_payment_record_accepts_case_insensitive_pdf_mime ... ok
+test csv_import_persists_staged_rows ... ok
+test expense_post_rejects_documents_root_symlink_outside_workspace ... ok
+test csv_import_idempotency_rejects_different_file ... ok
+test invoice_payment_record_rejects_idempotency_replay_with_changed_payment_date ... ok
+test invoice_payment_record_links_bank_statement_pdf ... ok
+test expense_post_rejects_missing_or_tampered_evidence_without_persistence ... ok
+test invoice_payment_record_rejects_non_pdf_document ... ok
+test invoice_payment_record_rejects_omitted_and_invalid_payment_dates ... ok
+test posted_voucher_immutability_triggers_reject_mutation ... ok
+test invoice_payment_record_rejects_payment_before_issued_invoice_without_persistence ... ok
+test reconciliation_rejects_already_matched_staged_row ... ok
+test reconciliation_rejects_credited_invoice ... ok
+test reconciliation_rejects_duplicate_invoice_payment ... ok
+test invoice_payment_record_rejects_missing_or_tampered_statement_without_persistence ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/m4_milestone.rs (src-tauri/target/debug/deps/m4_milestone-e024d95fcb13ce12)
+
+running 16 tests
+test m4_cashflow_overview_exempt_profile ... ok
+test m4_cashflow_tax_reserve_includes_fa_skatt_salary ... ok
+test m4_no_activity_zero_vat_return_fixture ... ok
+test m4_cashflow_tax_reserve_from_ledger_profit ... ok
+test m4_vat_approve_idempotency_rejects_different_return ... ok
+test m4_cashflow_overview_after_vat_approval ... ok
+test m4_vat_12_percent_maps_to_correct_boxes ... ok
+test m4_vat_approve_refreshes_boxes_after_late_posting ... ok
+test m4_vat_boxes_net_credit_reversal ... ok
+test m4_fiscal_period_lock_after_vat_fixture ... ok
+test m4_vat_draft_rejects_exempt_profile ... ok
+test m4_vat_draft_rejects_mismatched_reporting_period ... ok
+test m4_vat_registered_zero_period_fixture ... ok
+test m4_vat_return_export_offline ... ok
+test m4_vat_mixed_rates_split_sales_boxes ... ok
+test m4_vat_threshold_monitoring ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+     Running tests/m5_milestone.rs (src-tauri/target/debug/deps/m5_milestone-e15602b8aac8a8ea)
+
+running 19 tests
+test m5_year_end_approve_rejects_missing_vat_return ... ok
+test m5_year_end_duplicate_fiscal_year_returns_existing ... ok
+test m5_year_end_find_by_fiscal_year ... ok
+test m5_year_end_approval_rejects_stale_ledger_snapshot ... ok
+test m5_year_end_reexport_preserves_ne_fields ... ok
+test m5_year_end_recovers_truncated_draft_artifact_with_verified_publication ... ok
+test m5_year_end_blocks_tampered_legacy_approved_artifacts ... ok
+test m5_year_end_k1_ne_fixture ... ok
+test m5_year_end_adopts_semantically_verified_legacy_approved_artifacts ... ok
+test m5_year_end_regenerates_missing_artifacts ... ok
+test m5_year_end_schema_tables_exist ... ok
+test m5_year_end_rejects_missing_vat_return ... ok
+test m5_year_end_regenerates_missing_export_file ... ok
+test m5_year_end_rejects_pending_vat_return ... ok
+test m5_year_end_regeneration_rejects_approved_package ... ok
+test m5_year_end_rejects_export_of_tampered_approved_artifact ... ok
+test m5_year_end_regeneration_publishes_only_verified_artifacts ... ok
+test m5_year_end_regenerates_stale_draft_before_successful_approval ... ok
+test m5_year_end_regeneration_recovers_pre_upgrade_missing_fingerprint ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+     Running tests/m6_milestone.rs (src-tauri/target/debug/deps/m6_milestone-6c8455a2bd99935c)
+
+running 12 tests
+test m6_integrations_degrade_to_manual_fallback ... ok
+test m6_settings_rejects_invalid_locale ... ok
+test m6_settings_preserves_updater_when_omitted ... ok
+test m6_sie_idempotency_rejects_different_fiscal_year ... ok
+test m6_validate_rejects_missing_absolute_package_path ... ok
+test m6_locale_persists_after_save ... ok
+test m6_sie_export_regenerates_missing_file_on_retry ... ok
+test m6_sie_export_ledger_fixture ... ok
+test m6_accountant_package_export_and_validate ... ok
+test m6_validate_rejects_parent_directory_in_package_path ... ok
+test m6_accountant_package_export_to_external_dir_then_validate ... ok
+test m6_workspace_settings_table_exists ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/m7_read_commands.rs (src-tauri/target/debug/deps/m7_read_commands-833ad86cd2a809e7)
+
+running 12 tests
+test m7_document_list_unattached_only ... ok
+test m7_expense_post_marks_staged_transaction_matched ... ok
+test m7_account_list_returns_balances ... ok
+test m7_staged_transactions_list_filters_status ... ok
+test m7_voucher_list_and_get_after_invoice_issue ... ok
+test m7_fiscal_period_list_includes_locked_after_vat_approve ... ok
+test m7_voucher_count_filters_posted_status ... ok
+test m7_expense_post_rejects_staged_amount_mismatch ... ok
+test m7_year_end_readiness_get_is_read_only ... ok
+test m7_year_end_readiness_reports_unfiled_vat_periods ... ok
+test m7_read_commands_are_workspace_scoped ... ok
+test m7_year_end_readiness_ready_when_vat_filed_and_draft_package ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests/m8_milestone.rs (src-tauri/target/debug/deps/m8_milestone-cba9fd20f5af9b54)
+
+running 6 tests
+test document_reveal_rejects_path_traversal ... ok
+test simple_mode_save_persists ... ok
+test document_reveal_rejects_symlink_object_path ... ok
+test dashboard_tour_mark_complete_persists ... ok
+test new_workspace_defaults_locale_to_sv ... ok
+test count_open_invoices_excludes_reconciled_payments ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/profile_audit.rs (src-tauri/target/debug/deps/profile_audit-b958954acb6b21d5)
+
+running 2 tests
+test profile_saves_record_audit_events ... ok
+test vat_frequency_guard_preserves_consistent_state_and_onboarding_audits_once_per_profile ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/profile_compliance.rs (src-tauri/target/debug/deps/profile_compliance-a414c3a17472fae6)
+
+running 4 tests
+test f_skatt_scenario_does_not_approve_other_tax_postures_or_unknown_scenarios ... ok
+test fa_skatt_profile_guidance_still_requires_positive_salary ... ok
+test f_skatt_guidance_does_not_replace_exemption_checks_or_other_postures ... ok
+test registered_f_skatt_onboarding_without_salary_passes_profile_guidance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/sie_fiscal_year_dates.rs (src-tauri/target/debug/deps/sie_fiscal_year_dates-f13c93370986e0b3)
+
+running 3 tests
+test approved_short_first_year_exports_actual_bounds_and_regenerates_after_reopen ... ok
+test existing_calendar_artifact_is_preserved_but_missing_file_uses_selected_metadata ... ok
+test malformed_reversed_or_foreign_year_metadata_fails_closed ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/tax_tasks.rs (src-tauri/target/debug/deps/tax_tasks-3b6e576fd75b22fb)
+
+running 5 tests
+test tax_task_calendar_routes_missing_deadline_regime_to_undated_profile_review ... ok
+test tax_task_calendar_uses_fixture_schedule_provenance_and_deterministic_ordering ... ok
+test tax_task_calendar_keeps_exported_approved_return_external_submission_required ... ok
+test vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids ... ok
+test tax_task_calendar_marks_past_due_vat_as_overdue_and_exempt_profiles_have_none ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/vat_overlap_safety.rs (src-tauri/target/debug/deps/vat_overlap_safety-405884732e46a9d2)
+
+running 6 tests
+test historical_vat_return_requires_an_active_rule_for_its_fiscal_year ... ok
+test vat_draft_rejects_closed_year_without_creating_period_return_boxes_or_job ... ok
+test vat_return_creation_and_approval_reject_overlapping_periods ... ok
+test historical_vat_return_trace_uses_the_period_fiscal_year_rule_version ... ok
+test serial_profile_frequency_save_then_return_uses_the_committed_frequency ... ok
+test reporting_frequency_change_is_rejected_after_vat_return_work_but_allowed_before_it ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+   Doc-tests oppenbokforing_desktop_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+> oppenbokforing-desktop@0.1.0 build
+> tsc && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 97 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.40 kB │ gzip:   0.27 kB
+dist/assets/index-CG1-lAEv.css    7.84 kB │ gzip:   2.32 kB
+dist/assets/index-UkaekpUV.js   463.05 kB │ gzip: 132.92 kB
+✓ built in 378ms
+
+> oppenbokforing-desktop@0.1.0 bindings:check
+> cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --features bindgen-tool --bin export_bindings && git diff --exit-code -- src/lib/bindings.ts
+
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.32s
+     Running `src-tauri/target/debug/export_bindings`
+Wrote /Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri/../src/lib/bindings.ts

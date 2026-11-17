@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     db::connect_workspace,
     profiles::{self, BusinessProfileSaveInput, TaxProfileSaveInput, VatProfileSaveInput},
@@ -419,10 +421,12 @@ async fn m3_csv_import_match_invoice_payment_fixture() {
     .await
     .expect("draft");
 
-    let issued = oppenbokforing_desktop_lib::invoicing::issue_invoice(
+    let issued = common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &oppenbokforing_desktop_lib::invoicing::InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id,
             idempotency_key: "issue-for-csv".to_string(),
             issue_date: Some("2026-02-01".to_string()),
@@ -715,10 +719,12 @@ async fn m3_reconciliation_rejects_mismatched_or_duplicate_payments() {
     assert_eq!(err.code, "validation_error");
 
     // Issue the invoice and pay it once with matching amount.
-    let issued = oppenbokforing_desktop_lib::invoicing::issue_invoice(
+    let issued = common::seed_historical_invoice(
         &pool,
         &workspace_id,
         &oppenbokforing_desktop_lib::invoicing::InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: draft.id.clone(),
             idempotency_key: "issue-for-guards".to_string(),
             issue_date: Some("2026-02-01".to_string()),

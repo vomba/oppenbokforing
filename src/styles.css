@@ -648,3 +648,50 @@ button:disabled {
     padding: 20px;
   }
 }
+
+.eligibility-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.eligibility-choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.eligibility-choices input {
+  width: auto;
+}
+
+.eligibility-evidence {
+  overflow-wrap: anywhere;
+}
+
+.guided-tour-card.large-review {
+  max-width: 700px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.guided-tour-card.large-review > label {
+  display: block;
+  margin: 1rem 0;
+}
+
+.guided-tour-card.large-review input[type="date"] {
+  display: block;
+  margin-top: 0.4rem;
+  padding: 0.5rem;
+}
+
+.guided-tour-card.large-review fieldset {
+  margin: 1rem 0;
+  border: 1px solid #bdc7bd;
+  border-radius: 6px;
+}
+
+.guided-tour-card.large-review legend {
+  font-weight: 600;
+}

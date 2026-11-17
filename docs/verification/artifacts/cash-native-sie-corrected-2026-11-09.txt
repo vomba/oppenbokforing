@@ -1,0 +1,38 @@
+#FLAGGA 0
+#PROGRAM "ÖppenBokföring" "0.1.0"
+#FORMAT PC8
+#GEN 20261109
+#SIETYP 4
+#FNAMN "UAT Cash Firma"
+#VALUTA SEK
+#RAR 0 20260601 20261231
+#KONTO 1930 "Företagskonto / bank"
+#UB 0 1930 37375.00
+#KONTO 2611 "Utgående moms 25%"
+#UB 0 2611 -7500.00
+#KONTO 2641 "Ingående moms"
+#UB 0 2641 25.00
+#KONTO 3041 "Försäljning tjänster"
+#UB 0 3041 -30000.00
+#KONTO 5610 "Personbilskostnader"
+#UB 0 5610 100.00
+#VER "A" "1" 20260620 "reconciliation 6120d548-5b35-46a2-8564-c47cf1aebd28"
+#TRANS 1930 {} 12500.00 20260620 "reconciliation"
+#TRANS 2611 {} -2500.00 20260620 "reconciliation"
+#TRANS 3041 {} -10000.00 20260620 "reconciliation"
+#VEREND
+#VER "A" "2" 20260621 "reconciliation e8e3d2d6-6493-42c4-93db-779a189b6665"
+#TRANS 1930 {} 12500.00 20260621 "reconciliation"
+#TRANS 2611 {} -2500.00 20260621 "reconciliation"
+#TRANS 3041 {} -10000.00 20260621 "reconciliation"
+#VEREND
+#VER "A" "3" 20260622 "expense"
+#TRANS 1930 {} -125.00 20260622 "expense"
+#TRANS 2641 {} 25.00 20260622 "expense"
+#TRANS 5610 {} 100.00 20260622 "expense"
+#VEREND
+#VER "A" "4" 20260624 "reconciliation b1412d68-c797-4044-9de5-960e21fb924e"
+#TRANS 1930 {} 12500.00 20260624 "reconciliation"
+#TRANS 2611 {} -2500.00 20260624 "reconciliation"
+#TRANS 3041 {} -10000.00 20260624 "reconciliation"
+#VEREND

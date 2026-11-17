@@ -172,6 +172,7 @@ async fn assert_invoice_payable_tx(
     workspace_id: &str,
     invoice_id: &str,
 ) -> Result<(), AppError> {
+    crate::invoicing::cash::ensure_not_cash_issue(&mut **tx, workspace_id, invoice_id).await?;
     let row = sqlx::query(
         r#"
         SELECT status, invoice_kind
@@ -396,6 +397,7 @@ pub async fn reconciliation_match_create(
     }
 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
 
     let staged_row = sqlx::query(
         r#"
@@ -710,6 +712,7 @@ pub async fn invoice_payment_record(
     }
 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
 
     let document_filename =
         assert_pdf_document_in_workspace_tx(&mut tx, workspace_id, &input.document_id).await?;

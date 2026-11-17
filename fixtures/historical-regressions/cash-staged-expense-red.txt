@@ -1,0 +1,50 @@
+PUBLIC STAGED EXPENSE CONTINUATION — pre-fix behavioral RED
+Command: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_staged_expense_continuation -- --nocapture --test-threads=1
+No fake cash provenance: public CashFixture issuance, CSV import, staged expense, then public continuation.
+mise ERROR No version is set for shim: cargo
+Set a global default version with one of the following:
+mise use -g rust@1.99.1
+mise ERROR Version: 2026.10.25 macos-arm64 (2026-10-31)
+mise ERROR Run with --verbose or MISE_VERBOSE=1 for more information
+
+Retry with installed Rust toolchain on PATH.
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_staged_expense_continuation -- --nocapture --test-threads=1
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+warning: function `synthetic_bank_pdf` is never used
+   --> tests/cash_receipt_recognition/fixture.rs:231:8
+    |
+231 | pub fn synthetic_bank_pdf() -> Vec<u8> {
+    |        ^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `oppenbokforing-desktop` (test "cash_staged_expense_continuation") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.34s
+     Running tests/cash_staged_expense_continuation.rs (src-tauri/target/debug/deps/cash_staged_expense_continuation-499d400c8da3ba37)
+
+running 2 tests
+test staged_ordinary_expense_allows_first_full_pdf_cash_receipt ... SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+EXPENSE COMMITTED: public CSV 2026-01-22 -12500 ore; public staged expense 5610 debit 10000 / 2641 debit 2500 / 1930 credit 12500; expense match, no invoice link
+
+thread 'staged_ordinary_expense_allows_first_full_pdf_cash_receipt' (21062440) panicked at tests/cash_staged_expense_continuation.rs:122:10:
+genuine staged ordinary expense must permit first full PDF cash receipt: AppError { code: "validation_error", message: "Actual posted, issued or payment history contradicts the reviewed cash origin or continuation", details: Some([FieldError { field: Some("eligibility"), message: "Invalid value", code: "invalid_value" }]), unique_violation: false }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test staged_ordinary_expense_allows_next_cash_issue ... SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+EXPENSE COMMITTED: public CSV 2026-01-22 -12500 ore; public staged expense 5610 debit 10000 / 2641 debit 2500 / 1930 credit 12500; expense match, no invoice link
+
+thread 'staged_ordinary_expense_allows_next_cash_issue' (21062445) panicked at tests/cash_staged_expense_continuation.rs:103:10:
+genuine staged ordinary expense must permit next cash issue preflight: AppError { code: "validation_error", message: "Actual posted, issued or payment history contradicts the reviewed cash origin or continuation", details: Some([FieldError { field: Some("eligibility"), message: "Invalid value", code: "invalid_value" }]), unique_violation: false }
+FAILED
+
+failures:
+
+failures:
+    staged_ordinary_expense_allows_first_full_pdf_cash_receipt
+    staged_ordinary_expense_allows_next_cash_issue
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+error: test failed, to rerun pass `--test cash_staged_expense_continuation`

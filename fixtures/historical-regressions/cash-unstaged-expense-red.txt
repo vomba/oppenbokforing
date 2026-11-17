@@ -1,0 +1,38 @@
+Review rc_c993d9f2: public unstaged-expense continuation RED
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_staged_expense_continuation unstaged_ -- --nocapture
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.85s
+     Running tests/cash_staged_expense_continuation.rs (src-tauri/target/debug/deps/cash_staged_expense_continuation-08337e4e56e13664)
+
+running 3 tests
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-01-01-2026-12-31; completed 2026-01-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+ISSUED: public cash issue 2026-0001 on 2026-01-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+UNSTAGED EXPENSE COMMITTED: 2026-01-22; public 10000/2500/12500 posting, no reconciliation match
+UNSTAGED EXPENSE COMMITTED: 2026-01-22; public 10000/2500/12500 posting, no reconciliation match
+UNSTAGED EXPENSE COMMITTED: 2025-12-31; public 10000/2500/12500 posting, no reconciliation match
+
+thread 'unstaged_expense_requires_original_ordinary_posting_provenance' (21584945) panicked at tests/cash_staged_expense_continuation.rs:122:5:
+contradictory unstaged history must deny preflight/issue/receipt, got success=(true, true, true)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test unstaged_expense_requires_original_ordinary_posting_provenance ... FAILED
+test genuine_unstaged_ordinary_expense_preserves_issue_and_receipt_continuation ... ok
+
+thread 'unstaged_prior_origin_expense_blocks_cash_preflight_commit_and_receipt' (21584946) panicked at tests/cash_staged_expense_continuation.rs:122:5:
+contradictory unstaged history must deny preflight/issue/receipt, got success=(true, true, true)
+test unstaged_prior_origin_expense_blocks_cash_preflight_commit_and_receipt ... FAILED
+
+failures:
+
+failures:
+    unstaged_expense_requires_original_ordinary_posting_provenance
+    unstaged_prior_origin_expense_blocks_cash_preflight_commit_and_receipt
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.40s
+
+error: test failed, to rerun pass `--test cash_staged_expense_continuation`
+
+Cargo exit status: 101

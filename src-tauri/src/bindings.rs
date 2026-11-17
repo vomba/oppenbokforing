@@ -1,3 +1,9 @@
+use crate::invoicing::cash::{
+    BankReceiptIdentity, CashBusinessOrigin, CashBusinessOriginFacts, CashHistoryGetInput,
+    CashInvoiceHistory, CashIssueAssessment, CashIssueFacts, CashIssueInput, CashIssuePreflight,
+    CashIssuePreflightInput, CashIssueRecord, CashReceiptAssessment, CashReceiptFacts,
+    CashReceiptRecord, CashReceiptRecordInput,
+};
 use specta::Type;
 
 use crate::{
@@ -20,8 +26,10 @@ use crate::{
     imports::{CsvImportCreateInput, CsvImportSummary, StagedTransactionSummary, StagedTransactionsListInput},
     integrations::IntegrationStatusResponse,
     invoicing::{
+        sources::InvoiceValidationSourceOpenInput,
         InvoiceCreateDraftInput, InvoiceCreditInput, InvoiceIssueInput, InvoiceIssuePreflight,
         InvoiceIssuePreflightInput, InvoiceLine, InvoiceLineInput, InvoiceListInput,
+        InvoiceEligibilityFacts, InvoiceEligibilityAssessment, InvoiceIssueValidationGetInput, InvoiceIssueValidation,
         InvoicePdfStatusInput, InvoiceSummary, InvoiceUpdateDraftInput,
         LegacyIssuedInvoiceSnapshotRecoveryInput, LegacyIssuedInvoiceSnapshotRecoveryStatus,
     },
@@ -121,8 +129,29 @@ pub fn export_types() -> String {
     types.register::<InvoiceCreateDraftInput>();
     types.register::<InvoiceUpdateDraftInput>();
     types.register::<InvoiceIssueInput>();
+    types.register::<CashIssueFacts>();
+    types.register::<CashBusinessOriginFacts>();
+    types.register::<BankReceiptIdentity>();
+    types.register::<CashReceiptFacts>();
+    types.register::<CashIssuePreflightInput>();
+    types.register::<CashIssueInput>();
+    types.register::<CashReceiptRecordInput>();
+    types.register::<CashHistoryGetInput>();
+    types.register::<CashBusinessOrigin>();
+    types.register::<CashIssueAssessment>();
+    types.register::<CashIssuePreflight>();
+    types.register::<CashIssueRecord>();
+    types.register::<CashReceiptAssessment>();
+    types.register::<CashReceiptRecord>();
+    types.register::<CashInvoiceHistory>();
+
     types.register::<InvoiceIssuePreflightInput>();
     types.register::<InvoiceIssuePreflight>();
+    types.register::<InvoiceEligibilityFacts>();
+    types.register::<InvoiceEligibilityAssessment>();
+    types.register::<InvoiceIssueValidationGetInput>();
+    types.register::<InvoiceValidationSourceOpenInput>();
+    types.register::<InvoiceIssueValidation>();
     types.register::<InvoiceCreditInput>();
     types.register::<InvoiceListInput>();
     types.register::<InvoicePdfStatusInput>();

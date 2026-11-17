@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-11-09T22:01:44.029244+00:00",
+  "scope": "Copied corrected app native Settings export; header/date provenance only, not complete SIE legal/encoding/balance validation",
+  "buildSource": {
+    "baseRevision": "6c60fbe2b113c20f95bcbc515e6518644d5510cf",
+    "sieSourceSha256": "0313195f492082e34952bb32607344393bddad118ded5b42409219deff3348dd",
+    "sourceState": "base plus uncommitted reviewed SIE fiscal-date correction",
+    "capturedAt": "2026-11-09T21:59:10.561526+00:00",
+    "note": "Commit identity will be recorded after required step review; artifact/source hashes bind this build before commit."
+  },
+  "copiedApplication": "/private/tmp/oppenbokforing-cash-uat.vtg3kD/Applications/ÖppenBokföring-SIE-fixed.app",
+  "mainSha256": "78804bed44b54599dd00966ece9e9063fb76e3d17aa74af3c726c435baac06c4",
+  "helperSha256": "327ba2288959306f1999549918c60c41d00f8fa9d81be26ffe4941926054eef2",
+  "dmgSha256": "6844229af3e156352b5da7007c4482eefa98621a70c207f78d7865aa384b4a9a",
+  "expectedRar": "#RAR 0 20260601 20261231",
+  "actualRar": "#RAR 0 20260601 20261231",
+  "correctedExportSha256": "25cbe075998429608e36fff9e017295298c5fc731a2c681a91b2117158a8809c",
+  "originalFailurePreserved": true,
+  "originalFailureSha256": "1a434c53ac229a16302d285c59b8d45c2317ca6456415c12da8cd4ceb26bdeb7",
+  "voucherCount": 4,
+  "receiptCount": 3,
+  "journalLineCount": 12,
+  "allNonRarExportLinesUnchanged": true
+}

@@ -2136,6 +2136,20 @@ pub async fn year_end_readiness_get(
             .map(|status| format!("Fiscal year status is {status}")),
     }];
 
+    let cash_preparation_unvalidated: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM vat_profiles WHERE workspace_id=?1 AND accounting_method='cash_method') OR EXISTS(SELECT 1 FROM cash_invoice_issues WHERE workspace_id=?1)",
+    )
+    .bind(workspace_id)
+    .fetch_one(pool)
+    .await?;
+    if cash_preparation_unvalidated {
+        items.push(YearEndReadinessItem {
+            code: "cash_preparation_unvalidated".to_string(),
+            satisfied: false,
+            detail: Some("Cash receipt recognition does not establish VAT-return preparation or unpaid year-end closing coverage, even when all supported invoices are paid".to_string()),
+        });
+    }
+
     items.extend(
         vat_year_filing_items_pool(pool, workspace_id, input.fiscal_year).await?,
     );
@@ -2196,13 +2210,16 @@ pub async fn year_end_package_approve(
     input: &YearEndPackageApproveInput,
 ) -> Result<YearEndPackageSummary, AppError> {
     let idempotency_key = normalize_idempotency_key(&input.idempotency_key)?;
-    let summary = ensure_package_artifacts(pool, workspace_id, &input.package_id).await?;
+    let summary = load_package_summary(pool, workspace_id, &input.package_id).await?;
 
     if summary.status == "approved" {
         return ensure_package_artifacts(pool, workspace_id, &input.package_id).await;
     }
 
-    let mut tx = pool.begin().await?;
+    crate::profiles::ensure_invoice_timing_supported(pool, workspace_id).await?;
+    let summary = ensure_package_artifacts(pool, workspace_id, &input.package_id).await?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    crate::profiles::ensure_invoice_timing_supported(&mut *tx, workspace_id).await?;
     ensure_fiscal_year_open_tx(&mut *tx, &summary.fiscal_year_id).await?;
     ensure_vat_year_filed_tx(&mut tx, workspace_id, summary.fiscal_year).await?;
     ensure_draft_ledger_snapshot_current_tx(

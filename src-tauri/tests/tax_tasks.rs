@@ -1,3 +1,5 @@
+pub mod common;
+
 use oppenbokforing_desktop_lib::{
     counterparties::{self, CounterpartyCreateInput},
     db::connect_workspace,
@@ -130,7 +132,7 @@ async fn tax_task_calendar_uses_fixture_schedule_provenance_and_deterministic_or
     assert_eq!(vat_task.target, registered["target"].as_str().expect("target"));
     assert_eq!(vat_task.period_key, registered["periodKey"].as_str().expect("period key"));
     assert_eq!(vat_task.due_on.as_deref(), registered["dueOn"].as_str());
-    assert_eq!(vat_task.rule_version_id, "rv-2026-active");
+    assert_eq!(vat_task.rule_version_id, "rv-2026-method-recognition-v2");
     assert_eq!(vat_task.tax_year, 2026);
     assert!(scenario.sources.contains(&vat_task.source_url));
 
@@ -244,7 +246,7 @@ async fn tax_task_calendar_keeps_exported_approved_return_external_submission_re
 #[tokio::test]
 async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     let dir = tempdir().expect("tempdir");
-    let (pool, workspace_id) = setup_workspace(&dir, "registered", "quarterly", Some("quarterly_12")).await;
+    let (pool, workspace_id) = setup_workspace(&dir, "registered", "yearly", Some("annual_may_12")).await;
     let customer = counterparties::create_counterparty(
         &pool,
         &workspace_id,
@@ -274,10 +276,12 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     )
     .await
     .expect("invoice draft");
-    let issued = invoicing::issue_invoice(
+    let issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: invoice.id,
             idempotency_key: "trace-issue".to_string(),
             issue_date: Some("2026-03-01".to_string()),
@@ -289,7 +293,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
         &pool,
         &workspace_id,
         &VatReturnDraftCreateInput {
-            period_key: "2026-Q1".to_string(),
+            period_key: "2026".to_string(),
             idempotency_key: "trace-vat-draft".to_string(),
         },
     )
@@ -312,10 +316,12 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     )
     .await
     .expect("later invoice draft");
-    let later_issued = invoicing::issue_invoice(
+    let later_issued = common::issue_reviewed(
         &pool,
         &workspace_id,
         &InvoiceIssueInput {
+            eligibility_facts: None,
+            review_fingerprint: None,
             invoice_id: later_invoice.id,
             idempotency_key: "later-trace-issue".to_string(),
             issue_date: Some("2026-03-15".to_string()),
@@ -333,7 +339,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
     )
     .await
     .expect("trace");
-    assert_eq!(trace.rule_version_id, "rv-2026-active");
+    assert_eq!(trace.rule_version_id, "rv-2026-method-recognition-v2");
     let trace_box = trace
         .boxes
         .iter()
@@ -350,7 +356,7 @@ async fn vat_return_trace_returns_only_workspace_owned_concrete_voucher_ids() {
 
     let regenerated = vat::vat_return_draft_create(
         &pool, &workspace_id,
-        &VatReturnDraftCreateInput { period_key: "2026-Q1".into(), idempotency_key: "trace-regenerated".into() },
+        &VatReturnDraftCreateInput { period_key: "2026".into(), idempotency_key: "trace-regenerated".into() },
     ).await.expect("explicit regeneration includes later sources");
     let fresh_trace = vat::vat_return_trace(
         &pool, &workspace_id, &VatReturnTraceInput { vat_return_id: regenerated.id },

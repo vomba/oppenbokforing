@@ -1,0 +1,23 @@
+{
+  "id": "f-skatt-business",
+  "title": "F-skatt business profile guidance without a salary requirement (engineering regression, not independent legal validation)",
+  "profile": {
+    "taxStatus": "f_skatt",
+    "expectedSalaryIncomeMinor": 0,
+    "expectedBusinessProfitMinor": 18000000,
+    "vatStatus": "registered",
+    "vatReportingPeriod": "yearly",
+    "ruleYear": 2026
+  },
+  "transactions": [],
+  "expected": {
+    "businessIncomeInLedger": true,
+    "requiresFSkattGuidance": true,
+    "invoiceMustMentionFSkatt": true
+  },
+  "sources": [
+    "https://www.skatteverket.se/servicelankar/otherlanguages/englishengelska/businessesandemployers/startingandrunningaswedishbusiness/registeringabusiness/approvalforftax.4.676f4884175c97df4192308.html"
+  ],
+  "milestone": 1,
+  "rfcSection": "Profile guidance: F-skatt onboarding regression; not calculation eligibility coverage"
+}

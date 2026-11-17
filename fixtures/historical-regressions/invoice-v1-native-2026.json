@@ -1,0 +1,642 @@
+{
+  "kind": "historical-native-engineering-regression-not-independent-tax-validation",
+  "capturedAt": "2026-11-04T17:26:21.089233+00:00",
+  "sourceRevision": "47369a1586518451e70a537c70011f4159fbbee9",
+  "sourceExecutableSha256": "7717428697ce31cca20d3f41eef36be265bd48bd256414ef9d518ff1c2c7a5de",
+  "originalContextFingerprint": "f9b6933df5ff7e7f643c8e72f3eeef843918c9db80d9701dbb05ea44f773da5d",
+  "tables": {
+    "workspaces": [
+      {
+        "id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "name": "UAT Native Smoke 2026-11-0",
+        "database_path": "/tmp/oppenbokforing-native-uat-fixed.yWRchu/Library/Application Support/se.oppenbokforing.desktop/workspaces/c19464eb-b439-4e14-abec-8b6ccc93aaec/workspace.sqlite",
+        "documents_path": "/tmp/oppenbokforing-native-uat-fixed.yWRchu/Library/Application Support/se.oppenbokforing.desktop/workspaces/c19464eb-b439-4e14-abec-8b6ccc93aaec/documents",
+        "exports_path": "/tmp/oppenbokforing-native-uat-fixed.yWRchu/Library/Application Support/se.oppenbokforing.desktop/workspaces/c19464eb-b439-4e14-abec-8b6ccc93aaec/exports",
+        "schema_version": 1,
+        "active_rule_year": 2026,
+        "created_at": "2026-11-04 14:29:22",
+        "updated_at": "2026-11-04 14:29:22"
+      }
+    ],
+    "sole_trader_profiles": [
+      {
+        "id": "c9992e6a-b918-4d00-8a28-768cee683889",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "business_name": "UAT Verification Firma",
+        "owner_name": "UAT Test Owner",
+        "residency_country": "SE",
+        "sni_code": null,
+        "created_at": "2026-11-04 14:29:46",
+        "updated_at": "2026-11-04 14:29:46"
+      }
+    ],
+    "tax_profiles": [
+      {
+        "id": "c331d309-9730-4617-9662-f6e8190135bb",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "tax_status": "f_skatt",
+        "expected_business_profit_minor": 1000000,
+        "expected_salary_income_minor": 0,
+        "active_rule_year": 2026,
+        "created_at": "2026-11-04 14:29:46",
+        "updated_at": "2026-11-04 14:29:46"
+      }
+    ],
+    "vat_profiles": [
+      {
+        "id": "def2d407-6e73-44c2-9f14-8c91b9c1f717",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "vat_status": "registered",
+        "reporting_period": "yearly",
+        "accounting_method": "invoice_method",
+        "voluntary_registration_date": null,
+        "created_at": "2026-11-04 14:29:46",
+        "updated_at": "2026-11-04 14:29:46",
+        "vat_filing_deadline_regime": "annual_may_12"
+      }
+    ],
+    "fiscal_years": [
+      {
+        "id": "fy-c19464eb-b439-4e14-abec-8b6ccc93aaec-2026",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "starts_on": "2026-01-01",
+        "ends_on": "2026-12-31",
+        "status": "open",
+        "created_at": "2026-11-04 14:29:22",
+        "updated_at": "2026-11-04 14:29:22"
+      }
+    ],
+    "accounts": [
+      {
+        "id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-1510",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "number": "1510",
+        "name": "Kundfordringar",
+        "account_type": "asset",
+        "normal_balance": "debit",
+        "created_at": "2026-11-04 14:29:22"
+      },
+      {
+        "id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-1930",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "number": "1930",
+        "name": "Företagskonto / bank",
+        "account_type": "asset",
+        "normal_balance": "debit",
+        "created_at": "2026-11-04 14:29:22"
+      },
+      {
+        "id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-2641",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "number": "2641",
+        "name": "Ingående moms",
+        "account_type": "asset",
+        "normal_balance": "debit",
+        "created_at": "2026-11-04 14:29:22"
+      },
+      {
+        "id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-2611",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "number": "2611",
+        "name": "Utgående moms 25%",
+        "account_type": "liability",
+        "normal_balance": "credit",
+        "created_at": "2026-11-04 14:29:22"
+      },
+      {
+        "id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-3041",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "number": "3041",
+        "name": "Försäljning tjänster",
+        "account_type": "revenue",
+        "normal_balance": "credit",
+        "created_at": "2026-11-04 14:29:22"
+      },
+      {
+        "id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-5610",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "number": "5610",
+        "name": "Personbilskostnader",
+        "account_type": "expense",
+        "normal_balance": "debit",
+        "created_at": "2026-11-04 14:29:22"
+      }
+    ],
+    "invoice_sequences": [
+      {
+        "id": "seq-c19464eb-b439-4e14-abec-8b6ccc93aaec-2026",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "fiscal_year_id": "fy-c19464eb-b439-4e14-abec-8b6ccc93aaec-2026",
+        "prefix": "2026-",
+        "next_number": 2,
+        "created_at": "2026-11-04 14:29:22"
+      }
+    ],
+    "counterparties": [
+      {
+        "id": "1ac90a23-cb18-4826-9c48-c88ea46527e6",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "kind": "customer",
+        "name": "UAT Buyer",
+        "email": null,
+        "org_number": null,
+        "created_at": "2026-11-04 14:31:38"
+      }
+    ],
+    "invoices": [
+      {
+        "id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "counterparty_id": "1ac90a23-cb18-4826-9c48-c88ea46527e6",
+        "fiscal_year_id": "fy-c19464eb-b439-4e14-abec-8b6ccc93aaec-2026",
+        "invoice_number": "2026-0001",
+        "status": "issued",
+        "invoice_kind": "standard",
+        "source_invoice_id": null,
+        "issue_date": "2026-11-04",
+        "due_date": null,
+        "total_ex_vat_minor": 200000,
+        "total_vat_minor": 50000,
+        "total_inc_vat_minor": 250000,
+        "pdf_job_id": "1987fb07-ea12-4f58-9be0-fa8c6ce520c3",
+        "voucher_id": "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "created_at": "2026-11-04 14:31:39",
+        "updated_at": "2026-11-04 15:20:56",
+        "pdf_document_id": "a77de2e7-d764-49eb-9046-7c3caa1c2fbe"
+      }
+    ],
+    "invoice_lines": [
+      {
+        "id": "899cc5fa-c7ff-4dfb-98ab-e0a3caae4d21",
+        "invoice_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "line_order": 1,
+        "description": "UAT updated by concurrent draft caller",
+        "quantity": 1,
+        "unit_price_minor": 200000,
+        "vat_rate_bp": 2500,
+        "account_number": "3041"
+      }
+    ],
+    "vouchers": [
+      {
+        "id": "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "fiscal_year_id": "fy-c19464eb-b439-4e14-abec-8b6ccc93aaec-2026",
+        "status": "posted",
+        "source_type": "invoice",
+        "source_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "created_at": "2026-11-04 15:20:56",
+        "posted_at": "2026-11-04 15:20:56",
+        "document_id": null,
+        "no_document_reason": null,
+        "accounting_date": "2026-11-04"
+      }
+    ],
+    "journal_lines": [
+      {
+        "id": "1d0635d4-31d7-4a37-88b4-acde68942bfc",
+        "voucher_id": "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "account_id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-1510",
+        "debit_minor": 250000,
+        "credit_minor": 0,
+        "vat_code": null,
+        "created_at": "2026-11-04 15:20:56"
+      },
+      {
+        "id": "ce66d920-0863-4246-bf19-b6cddcf24917",
+        "voucher_id": "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "account_id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-3041",
+        "debit_minor": 0,
+        "credit_minor": 200000,
+        "vat_code": null,
+        "created_at": "2026-11-04 15:20:56"
+      },
+      {
+        "id": "06be69f5-4ff6-4770-b4bd-4d2dd2298260",
+        "voucher_id": "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "account_id": "acc-c19464eb-b439-4e14-abec-8b6ccc93aaec-2611",
+        "debit_minor": 0,
+        "credit_minor": 50000,
+        "vat_code": "VAT25",
+        "created_at": "2026-11-04 15:20:56"
+      }
+    ],
+    "invoice_issue_snapshots": [
+      {
+        "invoice_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "business_name": "UAT Verification Firma",
+        "owner_name": "UAT Test Owner",
+        "tax_status": "f_skatt",
+        "vat_status": "registered",
+        "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+        "tax_year": 2026,
+        "source_url": "https://www.bfn.se/wp-content/uploads/vl13-2-bokforing.pdf",
+        "created_at": "2026-11-04 15:20:56"
+      }
+    ],
+    "invoice_issue_validations": [
+      {
+        "invoice_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "facts_json": "{\"ordinaryDomesticService\":true,\"serviceCompletedOn\":\"2026-11-04\",\"priorPaymentReceived\":false,\"noEuTradeInYear\":true,\"annualVatRegistrationConfirmed\":true,\"expectedTaxableBaseWithinLimit\":true,\"ordinaryInvoiceTimingConfirmed\":true}",
+        "assessment_json": "{\"validationId\":\"invoice-recognition-se-service25-2026-exact-v1\",\"evidenceDigest\":\"cb00f554e7ee3697b8461309e7184fd88b3a0aa70300f3f27ead9f6ca98b8594\",\"reviewFingerprint\":\"f9b6933df5ff7e7f643c8e72f3eeef843918c9db80d9701dbb05ea44f773da5d\",\"accountingDate\":\"2026-11-04\",\"completedOn\":\"2026-11-04\",\"deadlineRegime\":\"annual_may_12\",\"periodKey\":\"2026\",\"dueOn\":\"2027-05-12\",\"coverageSummary\":\"2026 invoice-method recognition only: ordinary completed domestic SEK service, 25% exact VAT per line, no prior payment, annual VAT without EU trade. Not whole-book, return, credit, settlement or legal PDF validation.\",\"ruleVersionId\":\"rv-2026-domestic-service25-exact-v1\",\"accountingYear\":2026}",
+        "context_json": "{\"currentTurnoverMinor\":0,\"evidenceDigest\":\"cb00f554e7ee3697b8461309e7184fd88b3a0aa70300f3f27ead9f6ca98b8594\",\"facts\":{\"annualVatRegistrationConfirmed\":true,\"expectedTaxableBaseWithinLimit\":true,\"noEuTradeInYear\":true,\"ordinaryDomesticService\":true,\"ordinaryInvoiceTimingConfirmed\":true,\"priorPaymentReceived\":false,\"serviceCompletedOn\":\"2026-11-04\"},\"fiscalYearId\":\"fy-c19464eb-b439-4e14-abec-8b6ccc93aaec-2026\",\"invoiceId\":\"9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661\",\"issueDate\":\"2026-11-04\",\"profile\":{\"accountingMethod\":\"invoice_method\",\"deadlineRegime\":\"annual_may_12\",\"reportingPeriod\":\"yearly\",\"taxStatus\":\"f_skatt\",\"vatStatus\":\"registered\",\"voluntaryRegistrationDate\":null},\"reviewedInvoice\":{\"counterpartyId\":\"1ac90a23-cb18-4826-9c48-c88ea46527e6\",\"counterpartyName\":\"UAT Buyer\",\"dueDate\":null,\"invoiceId\":\"9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661\",\"lines\":[{\"accountNumber\":\"3041\",\"description\":\"UAT updated by concurrent draft caller\",\"id\":\"899cc5fa-c7ff-4dfb-98ab-e0a3caae4d21\",\"lineExVatMinor\":200000,\"lineOrder\":1,\"lineVatMinor\":50000,\"quantity\":1,\"unitPriceMinor\":200000,\"vatRateBp\":2500}],\"totalExVatMinor\":200000,\"totalIncVatMinor\":250000,\"totalVatMinor\":50000},\"rules\":{\"calendar\":{\"schedules\":{\"annual_feb_26\":{\"2026\":\"2026-02-26\"},\"annual_may_12\":{\"2026\":\"2027-05-12\"},\"monthly_12\":{\"2026-M01\":\"2026-03-12\",\"2026-M02\":\"2026-04-12\",\"2026-M03\":\"2026-05-12\",\"2026-M04\":\"2026-06-12\",\"2026-M05\":\"2026-07-12\",\"2026-M06\":\"2026-08-17\",\"2026-M07\":\"2026-09-12\",\"2026-M08\":\"2026-10-12\",\"2026-M09\":\"2026-11-12\",\"2026-M10\":\"2026-12-12\",\"2026-M11\":\"2027-01-17\",\"2026-M12\":\"2027-02-12\"},\"monthly_26\":{\"2026-M01\":\"2026-02-26\",\"2026-M02\":\"2026-03-26\",\"2026-M03\":\"2026-04-26\",\"2026-M04\":\"2026-05-26\",\"2026-M05\":\"2026-06-26\",\"2026-M06\":\"2026-07-26\",\"2026-M07\":\"2026-08-26\",\"2026-M08\":\"2026-09-26\",\"2026-M09\":\"2026-10-26\",\"2026-M10\":\"2026-11-26\",\"2026-M11\":\"2026-12-27\",\"2026-M12\":\"2027-01-26\"},\"quarterly_12\":{\"2026-Q1\":\"2026-05-12\",\"2026-Q2\":\"2026-08-17\",\"2026-Q3\":\"2026-11-12\",\"2026-Q4\":\"2027-02-12\"}},\"sourceUrl\":\"https://www.skatteverket.se/foretag/moms/deklareramoms/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html\"},\"effectiveFrom\":\"2026-01-01\",\"effectiveTo\":\"2026-12-31\",\"id\":\"rv-2026-domestic-service25-exact-v1\",\"policy\":{\"accountingMethod\":\"invoice_method\",\"accountingYear\":2026,\"annualTaxableBaseLimitMinor\":100000000,\"currency\":\"SEK\",\"deadlineRegime\":\"annual_may_12\",\"dueOn\":\"2027-05-12\",\"evidenceDigest\":\"cb00f554e7ee3697b8461309e7184fd88b3a0aa70300f3f27ead9f6ca98b8594\",\"outputVatAccount\":\"2611\",\"periodKey\":\"2026\",\"receivableAccount\":\"1510\",\"reportingPeriod\":\"yearly\",\"revenueAccount\":\"3041\",\"roundingCoverage\":\"exact_vat_minor_units_only\",\"validationId\":\"invoice-recognition-se-service25-2026-exact-v1\",\"vatRateBp\":2500},\"sourceUrl\":\"https://www.bfn.se/wp-content/uploads/vl13-2-bokforing.pdf\"},\"validationId\":\"invoice-recognition-se-service25-2026-exact-v1\",\"workspaceId\":\"c19464eb-b439-4e14-abec-8b6ccc93aaec\"}",
+        "recorded_at": "2026-11-04 15:20:56"
+      }
+    ],
+    "documents": [
+      {
+        "id": "a77de2e7-d764-49eb-9046-7c3caa1c2fbe",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "object_path": "objects/46ead1a55e6d3081faace1f6f12259aefc4de79207832361cd183129ecd8c292",
+        "content_sha256": "46ead1a55e6d3081faace1f6f12259aefc4de79207832361cd183129ecd8c292",
+        "mime_type": "application/pdf",
+        "original_filename": "invoice-2026-0001.pdf",
+        "retention_years": 7,
+        "created_at": "2026-11-04 15:20:56"
+      }
+    ],
+    "local_jobs": [
+      {
+        "id": "1987fb07-ea12-4f58-9be0-fa8c6ce520c3",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "job_type": "invoice_pdf_generate",
+        "status": "succeeded",
+        "attempts": 1,
+        "payload_json": "{\"documentId\":\"a77de2e7-d764-49eb-9046-7c3caa1c2fbe\",\"contentSha256\":\"46ead1a55e6d3081faace1f6f12259aefc4de79207832361cd183129ecd8c292\"}",
+        "last_error": null,
+        "created_at": "2026-11-04 15:20:56",
+        "updated_at": "2026-11-04 15:20:56",
+        "idempotency_key": null
+      },
+      {
+        "id": "2542ed5b-b8b7-41c6-8653-b7cd6354e6f4",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "job_type": "invoice_issue",
+        "status": "succeeded",
+        "attempts": 0,
+        "payload_json": "{\"idempotencyKey\":\"608272b5-f85d-4679-97af-41158f74306e\",\"invoice\":{\"id\":\"9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661\",\"counterpartyId\":\"1ac90a23-cb18-4826-9c48-c88ea46527e6\",\"counterpartyName\":\"UAT Buyer\",\"status\":\"issued\",\"invoiceKind\":\"standard\",\"invoiceNumber\":\"2026-0001\",\"sourceInvoiceId\":null,\"issueDate\":\"2026-11-04\",\"dueDate\":null,\"totalExVatMinor\":200000,\"totalVatMinor\":50000,\"totalIncVatMinor\":250000,\"pdfJobId\":\"1987fb07-ea12-4f58-9be0-fa8c6ce520c3\",\"pdfDocumentId\":null,\"voucherId\":\"f13d081c-9dab-41ab-9580-5f7232f557ef\",\"paymentVoucherId\":null,\"lines\":[{\"id\":\"899cc5fa-c7ff-4dfb-98ab-e0a3caae4d21\",\"lineOrder\":1,\"description\":\"UAT updated by concurrent draft caller\",\"quantity\":1,\"unitPriceMinor\":200000,\"vatRateBp\":2500,\"accountNumber\":\"3041\",\"lineExVatMinor\":200000,\"lineVatMinor\":50000}]},\"creditRequest\":null}",
+        "last_error": null,
+        "created_at": "2026-11-04 15:20:56",
+        "updated_at": "2026-11-04 15:20:56",
+        "idempotency_key": "608272b5-f85d-4679-97af-41158f74306e"
+      }
+    ],
+    "audit_events": [
+      {
+        "id": "22e9c97e-9d61-4988-889a-40e23ebf2ed5",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "workspace_create",
+        "resource_type": "workspace",
+        "resource_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "metadata_json": "{\"name\":\"UAT Native Smoke 2026-11-0\"}",
+        "created_at": "2026-11-04 14:29:22"
+      },
+      {
+        "id": "e736c87d-f3bf-4f8d-8858-8bed639d3830",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "compliance_profile_check",
+        "resource_type": "scenario",
+        "resource_id": null,
+        "metadata_json": "{\"scenarioIds\":[\"f-skatt-business\"],\"passed\":true,\"outcomes\":{\"f-skatt-business\":{\"businessIncomeInLedger\":true,\"invoiceMustMentionFSkatt\":true,\"requiresFSkattGuidance\":true}},\"ruleYear\":2026}",
+        "created_at": "2026-11-04 14:29:46"
+      },
+      {
+        "id": "7af2b4dc-62fa-4a4a-84b1-51941b5ae43f",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "business_profile_save_current",
+        "resource_type": "sole_trader_profile",
+        "resource_id": "c9992e6a-b918-4d00-8a28-768cee683889",
+        "metadata_json": "{\"id\":\"c9992e6a-b918-4d00-8a28-768cee683889\",\"businessName\":\"UAT Verification Firma\",\"ownerName\":\"UAT Test Owner\",\"residencyCountry\":\"SE\",\"sniCode\":null}",
+        "created_at": "2026-11-04 14:29:46"
+      },
+      {
+        "id": "d4f61a56-64f5-4016-bd9d-0599ccd548ad",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "tax_profile_save_current",
+        "resource_type": "tax_profile",
+        "resource_id": "c331d309-9730-4617-9662-f6e8190135bb",
+        "metadata_json": "{\"id\":\"c331d309-9730-4617-9662-f6e8190135bb\",\"taxStatus\":\"f_skatt\",\"expectedBusinessProfitMinor\":1000000,\"expectedSalaryIncomeMinor\":0,\"activeRuleYear\":2026}",
+        "created_at": "2026-11-04 14:29:46"
+      },
+      {
+        "id": "0a62ba01-59eb-473f-bb5b-ffce091f61b7",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "vat_profile_save_current",
+        "resource_type": "vat_profile",
+        "resource_id": "def2d407-6e73-44c2-9f14-8c91b9c1f717",
+        "metadata_json": "{\"id\":\"def2d407-6e73-44c2-9f14-8c91b9c1f717\",\"vatStatus\":\"registered\",\"reportingPeriod\":\"yearly\",\"accountingMethod\":\"invoice_method\",\"voluntaryRegistrationDate\":null,\"vatFilingDeadlineRegime\":\"annual_may_12\"}",
+        "created_at": "2026-11-04 14:29:46"
+      },
+      {
+        "id": "0b95cc8a-28c8-41b8-b8be-eecfa0cc9dcb",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "compliance_profile_check",
+        "resource_type": "scenario",
+        "resource_id": null,
+        "metadata_json": "{\"scenarioIds\":[\"f-skatt-business\"],\"passed\":true,\"outcomes\":{\"f-skatt-business\":{\"businessIncomeInLedger\":true,\"invoiceMustMentionFSkatt\":true,\"requiresFSkattGuidance\":true}},\"ruleYear\":2026}",
+        "created_at": "2026-11-04 14:29:46"
+      },
+      {
+        "id": "4e994377-ccb2-4c64-929c-06f962a45395",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "dashboard_tour_complete",
+        "resource_type": "workspace_settings",
+        "resource_id": null,
+        "metadata_json": "{}",
+        "created_at": "2026-11-04 14:30:24"
+      },
+      {
+        "id": "224eb0a0-db59-452a-b4fd-bed38bb1014e",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "counterparty_create",
+        "resource_type": "counterparty",
+        "resource_id": "1ac90a23-cb18-4826-9c48-c88ea46527e6",
+        "metadata_json": "{\"id\":\"1ac90a23-cb18-4826-9c48-c88ea46527e6\",\"kind\":\"customer\",\"name\":\"UAT Buyer\",\"email\":null,\"orgNumber\":null}",
+        "created_at": "2026-11-04 14:31:38"
+      },
+      {
+        "id": "d52a1f7a-153f-4007-bf04-39b59f0b661b",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "invoice_create_draft",
+        "resource_type": "invoice",
+        "resource_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "metadata_json": "{\"id\":\"9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661\",\"counterpartyId\":\"1ac90a23-cb18-4826-9c48-c88ea46527e6\",\"counterpartyName\":\"UAT Buyer\",\"status\":\"draft\",\"invoiceKind\":\"standard\",\"invoiceNumber\":null,\"sourceInvoiceId\":null,\"issueDate\":null,\"dueDate\":null,\"totalExVatMinor\":100000,\"totalVatMinor\":25000,\"totalIncVatMinor\":125000,\"pdfJobId\":null,\"pdfDocumentId\":null,\"voucherId\":null,\"paymentVoucherId\":null,\"lines\":[{\"id\":\"2d68a032-c9b8-4257-9395-a49011d0aa81\",\"lineOrder\":1,\"description\":\"UAT ordinary domestic service\",\"quantity\":1,\"unitPriceMinor\":100000,\"vatRateBp\":2500,\"accountNumber\":\"3041\",\"lineExVatMinor\":100000,\"lineVatMinor\":25000}]}",
+        "created_at": "2026-11-04 14:31:39"
+      },
+      {
+        "id": "f2c5303c-67a8-47c9-af6a-aaceeb41778f",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "invoice_update_draft",
+        "resource_type": "invoice",
+        "resource_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "metadata_json": "{\"id\":\"9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661\",\"counterpartyId\":\"1ac90a23-cb18-4826-9c48-c88ea46527e6\",\"counterpartyName\":\"UAT Buyer\",\"status\":\"draft\",\"invoiceKind\":\"standard\",\"invoiceNumber\":null,\"sourceInvoiceId\":null,\"issueDate\":null,\"dueDate\":null,\"totalExVatMinor\":200000,\"totalVatMinor\":50000,\"totalIncVatMinor\":250000,\"pdfJobId\":null,\"pdfDocumentId\":null,\"voucherId\":null,\"paymentVoucherId\":null,\"lines\":[{\"id\":\"899cc5fa-c7ff-4dfb-98ab-e0a3caae4d21\",\"lineOrder\":1,\"description\":\"UAT updated by concurrent draft caller\",\"quantity\":1,\"unitPriceMinor\":200000,\"vatRateBp\":2500,\"accountNumber\":\"3041\",\"lineExVatMinor\":200000,\"lineVatMinor\":50000}]}",
+        "created_at": "2026-11-04 14:55:16"
+      },
+      {
+        "id": "df714650-fd0e-4189-b07e-b12611e0975e",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "compliance_profile_check",
+        "resource_type": "scenario",
+        "resource_id": null,
+        "metadata_json": "{\"scenarioIds\":[\"f-skatt-business\"],\"passed\":true,\"outcomes\":{\"f-skatt-business\":{\"businessIncomeInLedger\":true,\"invoiceMustMentionFSkatt\":true,\"requiresFSkattGuidance\":true}},\"ruleYear\":2026}",
+        "created_at": "2026-11-04 15:04:42"
+      },
+      {
+        "id": "ea819246-f3cc-49d9-ae93-e062b8c1e15a",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "invoice_issue",
+        "resource_type": "invoice",
+        "resource_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "metadata_json": "{\"businessName\":\"UAT Verification Firma\",\"idempotencyKey\":\"608272b5-f85d-4679-97af-41158f74306e\",\"invoiceNumber\":\"2026-0001\",\"ownerName\":\"UAT Test Owner\",\"pdfJobId\":\"1987fb07-ea12-4f58-9be0-fa8c6ce520c3\",\"ruleVersionId\":\"rv-2026-domestic-service25-exact-v1\",\"sourceUrl\":\"https://www.bfn.se/wp-content/uploads/vl13-2-bokforing.pdf\",\"taxStatus\":\"f_skatt\",\"taxYear\":2026,\"vatStatus\":\"registered\",\"voucherId\":\"f13d081c-9dab-41ab-9580-5f7232f557ef\"}",
+        "created_at": "2026-11-04 15:20:56"
+      },
+      {
+        "id": "0d50e872-7a7b-4815-9bb5-23357ae133d3",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "voucher_post",
+        "resource_type": "voucher",
+        "resource_id": "f13d081c-9dab-41ab-9580-5f7232f557ef",
+        "metadata_json": "{\"sourceId\":\"9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661\",\"sourceType\":\"invoice\"}",
+        "created_at": "2026-11-04 15:20:56"
+      },
+      {
+        "id": "a6b60e8c-e056-4815-8173-cc1f2309bf3a",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "invoice_pdf_generated",
+        "resource_type": "invoice",
+        "resource_id": "9c4cbe9f-ffea-428a-93ef-fe5fa6f5c661",
+        "metadata_json": "{\"documentId\":\"a77de2e7-d764-49eb-9046-7c3caa1c2fbe\",\"invoiceNumber\":\"2026-0001\",\"jobId\":\"1987fb07-ea12-4f58-9be0-fa8c6ce520c3\"}",
+        "created_at": "2026-11-04 15:20:56"
+      },
+      {
+        "id": "a8ef3c09-2939-4772-b3c4-9fa3a9302ef3",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "compliance_profile_check",
+        "resource_type": "scenario",
+        "resource_id": null,
+        "metadata_json": "{\"scenarioIds\":[\"f-skatt-business\"],\"passed\":true,\"outcomes\":{\"f-skatt-business\":{\"businessIncomeInLedger\":true,\"invoiceMustMentionFSkatt\":true,\"requiresFSkattGuidance\":true}},\"ruleYear\":2026}",
+        "created_at": "2026-11-04 15:22:26"
+      },
+      {
+        "id": "02390286-bcaa-44d2-b9de-436ba8732bb3",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "workspace_close",
+        "resource_type": "workspace",
+        "resource_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "metadata_json": "{}",
+        "created_at": "2026-11-04 15:22:27"
+      },
+      {
+        "id": "bc98218a-bd44-4606-941c-c1aacd79fca1",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "workspace_open",
+        "resource_type": "workspace",
+        "resource_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "metadata_json": "{}",
+        "created_at": "2026-11-04 15:27:35"
+      },
+      {
+        "id": "478e1f45-eab3-4e07-91d0-f09ceb40bdb5",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "command_id": null,
+        "action": "compliance_profile_check",
+        "resource_type": "scenario",
+        "resource_id": null,
+        "metadata_json": "{\"scenarioIds\":[\"f-skatt-business\"],\"passed\":true,\"outcomes\":{\"f-skatt-business\":{\"businessIncomeInLedger\":true,\"invoiceMustMentionFSkatt\":true,\"requiresFSkattGuidance\":true}},\"ruleYear\":2026}",
+        "created_at": "2026-11-04 15:27:35"
+      }
+    ],
+    "workspace_settings": [
+      {
+        "id": "ws-settings-c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "workspace_id": "c19464eb-b439-4e14-abec-8b6ccc93aaec",
+        "locale": "sv",
+        "updater_enabled": 0,
+        "created_at": "2026-11-04 14:29:22",
+        "updated_at": "2026-11-04 14:30:24",
+        "default_export_directory": null,
+        "default_backup_directory": null,
+        "dashboard_tour_completed": 1,
+        "simple_mode": 1
+      }
+    ],
+    "csv_imports": [],
+    "staged_transactions": [],
+    "reconciliation_matches": [],
+    "credit_notes": []
+  },
+  "originalRulePayloads": [
+    {
+      "rule_version_id": "rv-2025-year-end",
+      "family": "year_end",
+      "key": "accounting_regime",
+      "value_json": "\"k1_simplified_annual_accounts\""
+    },
+    {
+      "rule_version_id": "rv-2025-year-end",
+      "family": "year_end",
+      "key": "ne_draft_required",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "bookkeeping",
+      "key": "retention_years",
+      "value_json": "7"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "tax",
+      "key": "invoice_must_mention_f_skatt",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "tax",
+      "key": "salary_income_in_business_ledger",
+      "value_json": "false"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "vat",
+      "key": "annual_turnover_threshold_minor",
+      "value_json": "12000000"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "vat",
+      "key": "exemption_invoice_text_required",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "vat",
+      "key": "filing_deadline_schedules",
+      "value_json": "{\"sourceUrl\":\"https://www.skatteverket.se/foretag/moms/deklareramoms/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html\",\"schedules\":{\"annual_may_12\":{\"2026\":\"2026-05-12\"},\"annual_feb_26\":{\"2026\":\"2026-02-26\"},\"quarterly_12\":{\"2026-Q1\":\"2026-05-12\",\"2026-Q2\":\"2026-08-17\",\"2026-Q3\":\"2026-11-12\",\"2026-Q4\":\"2027-02-12\"},\"monthly_12\":{\"2026-M01\":\"2026-03-12\",\"2026-M02\":\"2026-04-12\",\"2026-M03\":\"2026-05-12\",\"2026-M04\":\"2026-06-12\",\"2026-M05\":\"2026-07-12\",\"2026-M06\":\"2026-08-17\",\"2026-M07\":\"2026-09-12\",\"2026-M08\":\"2026-10-12\",\"2026-M09\":\"2026-11-12\",\"2026-M10\":\"2026-12-12\",\"2026-M11\":\"2027-01-17\",\"2026-M12\":\"2027-02-12\"},\"monthly_26\":{\"2026-M01\":\"2026-02-26\",\"2026-M02\":\"2026-03-26\",\"2026-M03\":\"2026-04-26\",\"2026-M04\":\"2026-05-26\",\"2026-M05\":\"2026-06-26\",\"2026-M06\":\"2026-07-26\",\"2026-M07\":\"2026-08-26\",\"2026-M08\":\"2026-09-26\",\"2026-M09\":\"2026-10-26\",\"2026-M10\":\"2026-11-26\",\"2026-M11\":\"2026-12-27\",\"2026-M12\":\"2027-01-26\"}}}"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "vat",
+      "key": "registered_must_file_zero_return",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "vat",
+      "key": "threshold_warning_ratio",
+      "value_json": "75"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "year_end",
+      "key": "accounting_regime",
+      "value_json": "\"k1_simplified_annual_accounts\""
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "year_end",
+      "key": "income_declaration_deadline",
+      "value_json": "{\"sourceUrl\":\"https://www.skatteverket.se/privat/deklaration/datumfordeklarationen2026.4.1997e70d1848dabbac95d72.html\",\"dueOn\":\"2026-05-04\"}"
+    },
+    {
+      "rule_version_id": "rv-2026-active",
+      "family": "year_end",
+      "key": "ne_draft_required",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "bookkeeping",
+      "key": "retention_years",
+      "value_json": "7"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "invoice_recognition",
+      "key": "domestic_service25_exact",
+      "value_json": "{\"validationId\":\"invoice-recognition-se-service25-2026-exact-v1\",\"evidenceDigest\":\"cb00f554e7ee3697b8461309e7184fd88b3a0aa70300f3f27ead9f6ca98b8594\",\"accountingYear\":2026,\"accountingMethod\":\"invoice_method\",\"currency\":\"SEK\",\"vatRateBp\":2500,\"revenueAccount\":\"3041\",\"receivableAccount\":\"1510\",\"outputVatAccount\":\"2611\",\"annualTaxableBaseLimitMinor\":100000000,\"roundingCoverage\":\"exact_vat_minor_units_only\",\"reportingPeriod\":\"yearly\",\"deadlineRegime\":\"annual_may_12\",\"periodKey\":\"2026\",\"dueOn\":\"2027-05-12\"}"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "tax",
+      "key": "invoice_must_mention_f_skatt",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "tax",
+      "key": "salary_income_in_business_ledger",
+      "value_json": "false"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "vat",
+      "key": "annual_turnover_threshold_minor",
+      "value_json": "12000000"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "vat",
+      "key": "exemption_invoice_text_required",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "vat",
+      "key": "filing_deadline_schedules",
+      "value_json": "{\"sourceUrl\":\"https://www.skatteverket.se/foretag/moms/deklareramoms/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html\",\"schedules\":{\"annual_may_12\":{\"2026\":\"2027-05-12\"},\"annual_feb_26\":{\"2026\":\"2026-02-26\"},\"quarterly_12\":{\"2026-Q1\":\"2026-05-12\",\"2026-Q2\":\"2026-08-17\",\"2026-Q3\":\"2026-11-12\",\"2026-Q4\":\"2027-02-12\"},\"monthly_12\":{\"2026-M01\":\"2026-03-12\",\"2026-M02\":\"2026-04-12\",\"2026-M03\":\"2026-05-12\",\"2026-M04\":\"2026-06-12\",\"2026-M05\":\"2026-07-12\",\"2026-M06\":\"2026-08-17\",\"2026-M07\":\"2026-09-12\",\"2026-M08\":\"2026-10-12\",\"2026-M09\":\"2026-11-12\",\"2026-M10\":\"2026-12-12\",\"2026-M11\":\"2027-01-17\",\"2026-M12\":\"2027-02-12\"},\"monthly_26\":{\"2026-M01\":\"2026-02-26\",\"2026-M02\":\"2026-03-26\",\"2026-M03\":\"2026-04-26\",\"2026-M04\":\"2026-05-26\",\"2026-M05\":\"2026-06-26\",\"2026-M06\":\"2026-07-26\",\"2026-M07\":\"2026-08-26\",\"2026-M08\":\"2026-09-26\",\"2026-M09\":\"2026-10-26\",\"2026-M10\":\"2026-11-26\",\"2026-M11\":\"2026-12-27\",\"2026-M12\":\"2027-01-26\"}}}"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "vat",
+      "key": "registered_must_file_zero_return",
+      "value_json": "true"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "vat",
+      "key": "threshold_warning_ratio",
+      "value_json": "75"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "year_end",
+      "key": "accounting_regime",
+      "value_json": "\"k1_simplified_annual_accounts\""
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "year_end",
+      "key": "income_declaration_deadline",
+      "value_json": "{\"sourceUrl\":\"https://www.skatteverket.se/privat/deklaration/datumfordeklarationen2026.4.1997e70d1848dabbac95d72.html\",\"dueOn\":\"2026-05-04\"}"
+    },
+    {
+      "rule_version_id": "rv-2026-domestic-service25-exact-v1",
+      "family": "year_end",
+      "key": "ne_draft_required",
+      "value_json": "true"
+    }
+  ],
+  "documentBytesBase64": {
+    "a77de2e7-d764-49eb-9046-7c3caa1c2fbe": "JVBERi0xLjMKMSAwIG9iago8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2EvRW5jb2RpbmcvV2luQW5zaUVuY29kaW5nPj4KZW5kb2JqCjIgMCBvYmoKPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhLUJvbGQvRW5jb2RpbmcvV2luQW5zaUVuY29kaW5nPj4KZW5kb2JqCjMgMCBvYmoKPDwvVHlwZS9QYWdlcy9Db3VudCAxL0tpZHNbMTIgMCBSXT4+CmVuZG9iago0IDAgb2JqCjw8L1R5cGUvT3V0bGluZXMvQ291bnQgMD4+CmVuZG9iago1IDAgb2JqCjw8L1RyYXBwZWQvRmFsc2UvQ3JlYXRpb25EYXRlKEQ6MjAyNjExMDQxNTIwNTYrMDAnMDAnKS9Nb2REYXRlKEQ6MjAyNjExMDQxNTIwNTYrMDAnMDAnKS9HVFNfUERGWFZlcnNpb24oKS9UaXRsZShGQUtUVVJBIDIwMjYtMDAwMSkvQXV0aG9yKCkvQ3JlYXRvcigpL1Byb2R1Y2VyKCkvU3ViamVjdCgpL0lkZW50aWZpZXIoKS9LZXl3b3JkcygpPj4KZW5kb2JqCjYgMCBvYmoKPDwvVHlwZS9PQ0cvQ3JlYXRvckluZm88PC9DcmVhdG9yKEFkb2JlIElsbHVzdHJhdG9yIDE0LjApL1N1YnR5cGUvQXJ0d29yaz4+Pj4KZW5kb2JqCjcgMCBvYmoKWy9WaWV3L0Rlc2lnbl0KZW5kb2JqCjggMCBvYmoKPDwvVHlwZS9PQ0cvTmFtZShMYXllciAxKS9JbnRlbnQgNyAwIFIvVXNhZ2UgNiAwIFI+PgplbmRvYmoKOSAwIG9iago8PC9IZWx2ZXRpY2EgMSAwIFIvSGVsdmV0aWNhLUJvbGQgMiAwIFI+PgplbmRvYmoKMTAgMCBvYmoKPDwvUHJvcGVydGllczw8L01DMCA4IDAgUj4+L0ZvbnQgOSAwIFI+PgplbmRvYmoKMTEgMCBvYmoKPDwvRmlsdGVyL0ZsYXRlRGVjb2RlL0xlbmd0aCA3OTI+PnN0cmVhbQp42p1W627TTBD976fwC3zb3bnuSp+QSOLCH4RQ8wIICgIVISiC1+esndjrtDQBWb6N5+YzO2f26vW2v3q1jf1mt+2+dbH/OJ6bfXf18vbu5+2PT+/e/rf5eve+T9LvP3RCQVOx0nvWUB+s37/v/leVpEJRzdQJUsPJllxwv7aBokCCLztLz/r9527YP4zTp7gOYTmkXNI6giACO57k2t2GGu+PHleZMwdXPc1cTJJsVFSVJFFk4noa7XCvx/l8mQ6O1UJW/OnBsSXbuHgFJJlUMKCx4+erIInTGEqOYVCEUASxZhyspGDK1muKAVbck+JT8tx/v+0+dG9gwdq/wE36X4/Yfenwc8jRFtHdLPLkIZkKRAvyi+y+S5RCzgXRGoeLsNG9+WMFJqBqOXOBSYzBSXTCaYMsBpNzMCfyAJSjr82P60IIQJd2NYxA0gpI9uBFgdUJklnOIJkoUMaXBsmjaEHSjANHpxbJRnbfEV6MCL/QOGyEi+5Nx9FCkuTa6jbClW6ZFh6vdBdhqyvKQdELqxwa4Ur3IXANALPs8sKjC0I2o6nwVDsZLQK+cMMSKDj9XC+PDskpcE6FTzwmG8A4ybYXeeEENHNKaycDSMDjmBRTRIrZNrYlUJjtsl7kGGsxZJeoJ+ntQIU758t8GIUI04eY2daukWA8Te6M8we1QAeziqy6CD0UJ6pCHLwbecGVK4ej4OgurxkMlX9NRmKz8Zkr6jieYuNj8fJcvDaF80TLPNWLTgxpYmrajtdYV9T5GTNX6MSVUiQ9a16m4sjlmcy0jk+1wxKDhDigjqUnKUEkZ32ajh6xXNpxFi18pLkEQ5kgakwX4T1GVwnsEYg2HhvhonvTujAJsQgovwk/y050OQfN5O0QWmSPMsex2jEH8IL0IIlpwIwLlesMrduIf1z+c+VWbv9lDS0Jik9j8aImP1hrnBNpzVkvTmNFZXMuRHVC5AMfYssxdjGgGnnxid3XinwWlFp/tT3+vtMOM0S8hKh6TM0Bk9hmkDr74QqvTnWbSLs6FMbd0rwneNMNr7a/ATTOW3UKZW5kc3RyZWFtIAplbmRvYmoKMTIgMCBvYmoKPDwvVHlwZS9QYWdlL1JvdGF0ZSAwL01lZGlhQm94WzAgMCA1OTUuMjc1NjMgODQxLjg4OTgzXS9UcmltQm94WzAgMCA1OTUuMjc1NjMgODQxLjg4OTgzXS9Dcm9wQm94WzAgMCA1OTUuMjc1NjMgODQxLjg4OTgzXS9Bbm5vdHNbXS9QYXJlbnQgMyAwIFIvUmVzb3VyY2VzIDEwIDAgUi9Db250ZW50cyAxMSAwIFI+PgplbmRvYmoKMTMgMCBvYmoKPDwvVHlwZS9DYXRhbG9nL1BhZ2VMYXlvdXQvT25lQ29sdW1uL1BhZ2VNb2RlL1VzZU5vbmUvT3V0bGluZXMgNCAwIFIvUGFnZXMgMyAwIFIvT0NQcm9wZXJ0aWVzPDwvT0NHc1s4IDAgUl0vRDw8L09yZGVyWzggMCBSXS9SQkdyb3Vwc1tdL09OWzggMCBSXT4+Pj4+PgplbmRvYmoKMTQgMCBvYmoKPDwvUm9vdCAxMyAwIFIvSW5mbyA1IDAgUi9JRFsoSEVJR0lER0NCQUFIRkdCSEFFRkhDQkhHQUpIQ0pESEYpKEhBR0RHREFIREVHSEJDRkFISERCSEZIQkVHQ0ZJRkdDKV0vVHlwZS9YUmVmL1NpemUgMTUvV1sxIDQgMl0vSW5kZXhbMSAxNF0vTGVuZ3RoIDk4Pj5zdHJlYW0KAQAAAAkAAAEAAABhAAABAAAAvgAAAQAAAPIAAAEAAAEcAAABAAAB8AAAAQAAAk0AAAEAAAJrAAABAAACrwAAAQAAAugAAAEAAAMhAAABAAAGfgAAAQAAB0EAAAEAAAfpAAAKZW5kc3RyZWFtIAplbmRvYmoKCnN0YXJ0eHJlZgoyMDI1CiUlRU9G"
+  }
+}

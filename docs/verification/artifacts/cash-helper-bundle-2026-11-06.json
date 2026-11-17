@@ -1,0 +1,50 @@
+{
+  "recordedAt": "2026-11-06T11:54:07.978241+00:00",
+  "scope": "Native arm64 build-bundle helper execution; not installed GUI UAT, signing or bank authenticity",
+  "application": "/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri/target/release/bundle/macos/ÖppenBokföring.app",
+  "mainSha256": "d57f93bf32ac4c95f7f0c1d2f250bdb30ae84502e357fb39aa320eda9be6cbf7",
+  "helperSha256": "327ba2288959306f1999549918c60c41d00f8fa9d81be26ffe4941926054eef2",
+  "dmgSha256": "9ab1596756f98f22653ff5f6667c9f71231f5fb3f4ced9e11d4d79f28a8257f2",
+  "probes": [
+    {
+      "fixture": "compressed-small.pdf",
+      "inputSha256": "81424bbdaa3aa5e66fbeb80f26ee3a950d581ecaf1b2f5d8cf513274768fb0ec",
+      "inputBytes": 590,
+      "elapsedSeconds": 0.3079,
+      "exitCode": 0,
+      "deadlineKilled": false,
+      "reaped": true,
+      "stdoutBytes": 124,
+      "stderrBytes": 0,
+      "reply": {
+        "objects": 6,
+        "pages": 1,
+        "sha256": "81424bbdaa3aa5e66fbeb80f26ee3a950d581ecaf1b2f5d8cf513274768fb0ec",
+        "valid": true,
+        "version": 1
+      }
+    },
+    {
+      "fixture": "prev-cycle.pdf",
+      "inputSha256": "682ab1ba03aa4c3b80393d43ca60412d42ce4f6c2de78b318cf9844e49108777",
+      "inputBytes": 466,
+      "elapsedSeconds": 2.0109,
+      "exitCode": -24,
+      "deadlineKilled": false,
+      "reaped": true,
+      "stdoutBytes": 0,
+      "stderrBytes": 0
+    },
+    {
+      "fixture": "compressed-512mib.pdf",
+      "inputSha256": "82a975fa8e5d4335cd6e574467b224197e0da09677ed04a69c7eff32ea961851",
+      "inputBytes": 522424,
+      "elapsedSeconds": 0.0613,
+      "exitCode": -6,
+      "deadlineKilled": false,
+      "reaped": true,
+      "stdoutBytes": 0,
+      "stderrBytes": 121
+    }
+  ]
+}

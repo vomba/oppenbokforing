@@ -1,0 +1,179 @@
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+error: digits grouped inconsistently by underscores
+   --> src/invoicing/pdf.rs:606:33
+    |
+606 |             total_ex_vat_minor: 10_001_00,
+    |                                 ^^^^^^^^^ help: consider: `1_000_100`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#inconsistent_digit_grouping
+    = note: `-D clippy::inconsistent-digit-grouping` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::inconsistent_digit_grouping)]`
+
+error: digits grouped inconsistently by underscores
+   --> src/invoicing/pdf.rs:608:34
+    |
+608 |             total_inc_vat_minor: 10_001_00,
+    |                                  ^^^^^^^^^ help: consider: `1_000_100`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#inconsistent_digit_grouping
+
+error: digits grouped inconsistently by underscores
+   --> src/invoicing/pdf.rs:618:35
+    |
+618 |                 unit_price_minor: 10_001_00,
+    |                                   ^^^^^^^^^ help: consider: `1_000_100`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#inconsistent_digit_grouping
+
+error: digits grouped inconsistently by underscores
+   --> src/invoicing/pdf.rs:621:36
+    |
+621 |                 line_ex_vat_minor: 10_001_00,
+    |                                    ^^^^^^^^^ help: consider: `1_000_100`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#inconsistent_digit_grouping
+
+error: digits grouped inconsistently by underscores
+   --> src/invoicing/pdf.rs:629:37
+    |
+629 |         assert_eq!(format_sek_minor(10_001_00), "10\u{00a0}001,00 kr");
+    |                                     ^^^^^^^^^ help: consider: `1_000_100`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#inconsistent_digit_grouping
+
+error: digits grouped inconsistently by underscores
+   --> src/sie/mod.rs:629:38
+    |
+629 |         assert_eq!(format_sie_amount(1_234_567_890_12), "1234567890.12");
+    |                                      ^^^^^^^^^^^^^^^^ help: consider: `123_456_789_012`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#inconsistent_digit_grouping
+
+error: digits grouped inconsistently by underscores
+   --> src/sie/mod.rs:630:39
+    |
+630 |         assert_eq!(format_sie_amount(-1_234_567_890_12), "-1234567890.12");
+    |                                       ^^^^^^^^^^^^^^^^ help: consider: `123_456_789_012`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#inconsistent_digit_grouping
+
+error: consider using `sort_by_key`
+   --> src/backup/crypto.rs:134:5
+    |
+134 |     children.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unnecessary_sort_by
+    = note: `-D clippy::unnecessary-sort-by` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnecessary_sort_by)]`
+help: try
+    |
+134 -     children.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+134 +     children.sort_by_key(|left| left.file_name());
+    |
+
+error: consider using `sort_by_key`
+   --> src/backup/mod.rs:145:5
+    |
+145 |     entries.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unnecessary_sort_by
+help: try
+    |
+145 -     entries.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+145 +     entries.sort_by_key(|left| left.file_name());
+    |
+
+error: consider using `sort_by_key`
+   --> src/backup/mod.rs:168:5
+    |
+168 |     entries.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unnecessary_sort_by
+help: try
+    |
+168 -     entries.sort_by(|left, right| left.file_name().cmp(&right.file_name()));
+168 +     entries.sort_by_key(|left| left.file_name());
+    |
+
+error: this function has too many arguments (8/7)
+   --> src/backup/mod.rs:553:1
+    |
+553 | / async fn stage_backup_package_at_path(
+554 | |     pool: &SqlitePool,
+555 | |     workspace_id: &str,
+556 | |     data_dir: &Path,
+...   |
+561 | |     staging_path: PathBuf,
+562 | | ) -> Result<StagedBackupPackage, AppError> {
+    | |__________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_arguments
+    = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+
+error: this function has too many arguments (9/7)
+   --> src/backup/mod.rs:721:1
+    |
+721 | / pub async fn stage_backup_package_with_claim(
+722 | |     pool: &SqlitePool,
+723 | |     workspace_id: &str,
+724 | |     idempotency_key: &str,
+...   |
+730 | |     lease: &BackupCreateLease,
+731 | | ) -> Result<StagedBackupPackage, AppError> {
+    | |__________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_arguments
+
+error: the borrowed expression implements the required traits
+   --> src/documents/mod.rs:253:11
+    |
+253 |     .bind(&key)
+    |           ^^^^ help: change this to: `key`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_borrows_for_generic_args
+    = note: `-D clippy::needless-borrows-for-generic-args` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_borrows_for_generic_args)]`
+
+error: the borrowed expression implements the required traits
+   --> src/documents/mod.rs:304:11
+    |
+304 |     .bind(&key)
+    |           ^^^^ help: change this to: `key`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_borrows_for_generic_args
+
+error: usage of `bool::then` in `filter_map`
+    --> src/vat/mod.rs:1130:18
+     |
+1130 |                   .filter_map(|(voucher_id, amounts)| {
+     |  __________________^
+1131 | |                     (amounts.get(&box_number).copied().unwrap_or_default() != 0)
+1132 | |                         .then(|| voucher_id.clone())
+1133 | |                 })
+     | |__________________^ help: use `filter` then `map` instead: `filter(|&(voucher_id, amounts)| (amounts.get(&box_number).copied().unwrap_or_default() != 0)).map(|(voucher_id, amounts)| voucher_id.clone())`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#filter_map_bool_then
+     = note: `-D clippy::filter-map-bool-then` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::filter_map_bool_then)]`
+
+error: this function has too many arguments (8/7)
+    --> src/year_end/mod.rs:1100:1
+     |
+1100 | / async fn adopt_legacy_approved_package_artifacts(
+1101 | |     pool: &SqlitePool,
+1102 | |     workspace_id: &str,
+1103 | |     summary: &YearEndPackageSummary,
+...    |
+1108 | |     export_path: &Option<String>,
+1109 | | ) -> Result<(), AppError> {
+     | |_________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_arguments
+
+error: could not compile `oppenbokforing-desktop` (lib) due to 9 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `oppenbokforing-desktop` (lib test) due to 16 previous errors

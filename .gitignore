@@ -21,3 +21,5 @@ src-tauri/target/
 evals/runs/*
 !evals/runs/.gitkeep
 
+# Generated Tauri parser sidecar (npm run pdf:build)
+src-tauri/binaries/oppenbokforing-pdf-helper-*

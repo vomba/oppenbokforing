@@ -1,0 +1,18 @@
+{
+  "dataRoot": "/tmp/oppenbokforing-native-uat.kv06Kn",
+  "workspaceId": "dcd2d6e8-63b8-4ce7-9302-ea48a94d9554",
+  "taxProfile": [
+    "f_skatt",
+    0,
+    2026
+  ],
+  "vatProfile": [
+    "registered",
+    "yearly",
+    "invoice_method",
+    "annual_may_12"
+  ],
+  "invoices": 0,
+  "postedVouchers": 0,
+  "validationRecords": 0
+}

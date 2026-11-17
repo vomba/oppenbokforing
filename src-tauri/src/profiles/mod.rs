@@ -1,3 +1,6 @@
+mod accounting_method;
+pub(crate) use accounting_method::ensure_invoice_timing_supported;
+
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -201,6 +204,8 @@ pub async fn save_onboarding_profiles(
     .await?;
 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    accounting_method::ensure_method_selection_allowed(&mut tx, workspace_id, accounting_method)
+        .await?;
     let existing_business_id: Option<String> = sqlx::query_scalar(
         "SELECT id FROM sole_trader_profiles WHERE workspace_id = ?1 ORDER BY updated_at DESC LIMIT 1",
     )
@@ -674,6 +679,8 @@ pub async fn save_vat_profile(
     }
 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    accounting_method::ensure_method_selection_allowed(&mut tx, workspace_id, accounting_method)
+        .await?;
     let existing = sqlx::query(
         r#"
         SELECT id, reporting_period FROM vat_profiles WHERE workspace_id = ?1 LIMIT 1

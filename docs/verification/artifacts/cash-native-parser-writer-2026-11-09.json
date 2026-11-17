@@ -1,0 +1,7 @@
+{
+  "observedAt": "2026-11-09T14:18:42.153752+00:00",
+  "independentWriterAcquired": true,
+  "elapsedSeconds": 7.524999091401696e-05,
+  "mutation": "BEGIN IMMEDIATE then ROLLBACK only",
+  "scope": "During native receipt attempt with cyclic synthetic PDF"
+}

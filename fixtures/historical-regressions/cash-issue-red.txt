@@ -1,0 +1,25 @@
+FIRST cash identity-only issuance behavioral RED — rejecting API scaffolding, no activation.
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_full_receipt qualifying_cash_issue_preserves_identity_without_recognition -- --exact --nocapture
+
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.67s
+     Running tests/cash_full_receipt.rs (src-tauri/target/debug/deps/cash_full_receipt-11fb01a0ef69507b)
+
+running 1 test
+Setup complete: clean annual cash/F-skatt workspace, explicit origin/facts, exact 1000000/250000/1250000 draft; calling public cash preflight
+
+thread 'qualifying_cash_issue_preserves_identity_without_recognition' (19868689) panicked at tests/cash_full_receipt.rs:206:6:
+qualifying cash issue must reach a review without invoice-date recognition: AppError { code: "validation_error", message: "Cash-method recognition is not yet implemented", details: Some([FieldError { field: Some("eligibility"), message: "Invalid value", code: "invalid_value" }]), unique_violation: false }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test qualifying_cash_issue_preserves_identity_without_recognition ... FAILED
+
+failures:
+
+failures:
+    qualifying_cash_issue_preserves_identity_without_recognition
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `--test cash_full_receipt`
+
+Cargo exit status: 101

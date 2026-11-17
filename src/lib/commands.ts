@@ -1,3 +1,5 @@
+import type { CashIssuePreflightInput, CashIssuePreflight, CashIssueInput, CashHistoryGetInput, CashInvoiceHistory, CashReceiptRecordInput, CashBusinessOrigin } from "./bindings"
+export type { CashIssueFacts, CashBusinessOriginFacts, BankReceiptIdentity, CashReceiptFacts, CashIssuePreflightInput, CashIssueInput, CashReceiptRecordInput, CashHistoryGetInput, CashBusinessOrigin, CashIssueAssessment, CashIssuePreflight, CashIssueRecord, CashReceiptAssessment, CashReceiptRecord, CashInvoiceHistory } from "./bindings"
 import { invoke } from "@tauri-apps/api/core"
 import type {
   BackupCreateInput,
@@ -24,6 +26,9 @@ import type {
   FiscalPeriodSummary,
   InvoiceCreateDraftInput,
   InvoiceCreditInput,
+  InvoiceIssueValidation,
+  InvoiceIssueValidationGetInput,
+  InvoiceValidationSourceOpenInput,
   InvoiceIssueInput,
   InvoiceIssuePreflight,
   InvoiceIssuePreflightInput,
@@ -301,6 +306,17 @@ export async function invoiceIssuePreflight(input: InvoiceIssuePreflightInput) {
   return response.data
 }
 
+export async function invoiceIssueValidationGet(input: InvoiceIssueValidationGetInput) {
+  const response = await invoke<CommandResponse<InvoiceIssueValidation | null>>(
+    "invoice_issue_validation_get", { input },
+  )
+  return response.data
+}
+
+export async function invoiceValidationSourceOpen(input: InvoiceValidationSourceOpenInput) {
+  await invoke<CommandResponse<null>>("invoice_validation_source_open", { input })
+}
+
 export async function invoiceCredit(input: InvoiceCreditInput) {
   const response = await invoke<CommandResponse<InvoiceSummary>>("invoice_credit", { input })
   return response.data
@@ -548,3 +564,28 @@ export async function documentReveal(input: DocumentGetInput) {
 }
 
 export { presentAppError as appErrorMessage } from "./errorPresentation"
+
+export async function invoiceCashIssuePreflight(input: CashIssuePreflightInput) {
+  const response = await invoke<CommandResponse<CashIssuePreflight>>("invoice_cash_issue_preflight", { input })
+  return response.data
+}
+
+export async function invoiceCashIssue(input: CashIssueInput) {
+  const response = await invoke<CommandResponse<InvoiceSummary>>("invoice_cash_issue", { input })
+  return response.data
+}
+
+export async function invoiceCashHistoryGet(input: CashHistoryGetInput) {
+  const response = await invoke<CommandResponse<CashInvoiceHistory | null>>("invoice_cash_history_get", { input })
+  return response.data
+}
+
+export async function invoiceCashReceiptRecord(input: CashReceiptRecordInput) {
+  const response = await invoke<CommandResponse<ReconciliationMatchResult>>("invoice_cash_receipt_record", { input })
+  return response.data
+}
+
+export async function cashBusinessOriginGet() {
+  const response = await invoke<CommandResponse<CashBusinessOrigin | null>>("cash_business_origin_get")
+  return response.data
+}

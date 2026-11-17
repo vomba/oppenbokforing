@@ -9,7 +9,7 @@ references: [local-sqlite, retained-evidence, product-goal]
 
 # SQLite Storage Contract
 
-The current schema uses the 21 forward-only SQLx migrations in this document.
+The current schema uses the 23 forward-only SQLx migrations in this document.
 This inventory does not establish implementation of every product requirement.
 
 `product-goal` and the owning module specs define required behavior.
@@ -44,6 +44,8 @@ This schema supports v1 local desktop workflows: workspace setup, profiles, comp
 | `202609180002_invoice_issue_snapshots.sql` | Immutable issue-time invoice provenance |
 | `202609180003_invoice_snapshot_recovery.sql` | Explicit historical snapshot recovery audit |
 | `202609180004_vat_review_snapshots.sql` | Nullable VAT review revision, canonical snapshot JSON and SHA-256 digest; no historical backfill |
+| `202611040001_invoice_case_eligibility.sql` | Versioned exact-VAT recognition policy/calendar and immutable issuance-validation records |
+| `202611040002_cash_pdf_full_receipt.sql` | Additive method-recognition rules, immutable cash origin/issue/receipt proofs and scoped source reservations |
 
 ## Tables
 
@@ -77,6 +79,9 @@ This schema supports v1 local desktop workflows: workspace setup, profiles, comp
 **Additional contracts:**
 
 - `invoice_issue_snapshots` retains immutable issue-time provenance; `invoice_snapshot_recovery_requirements` records legacy evidence requirements. Historical recovery attestation is recorded in audit metadata.
+- `invoice_issue_validations` retains confirmed transaction/year facts, recognition assessment and canonical review context. It is inserted atomically with new eligible issuance, with UPDATE/DELETE rejected. Its workspace-scoped read does not fabricate records for legacy invoices.
+- `cash_business_origins` anchors the reviewed new-business first year; `cash_invoice_issues` preserves numbered issuance without a voucher; `cash_receipt_recognitions` preserves actual full-receipt facts, case context, source/hash, staged/match/voucher links and replay. All three reject UPDATE/DELETE. They are not backfilled for historical books. `invoice-lifecycle` owns their eligibility and transition semantics.
+- Receipt PDF hashes and bank identities are unique per workspace; invoices, vouchers, matches and staging cannot acquire another cash recognition. Composite foreign keys enforce workspace/source association. Planned voucher/staging/match links are deferred until transaction commit so immutable receipt proof/reservations can precede journal writes without partial publication.
 - `vat_profiles.vat_filing_deadline_regime` selects a rule-backed schedule; tax tasks are derived, not stored as task rows.
 - `vat_returns` carries nullable `review_revision`, `review_snapshot_json` and `review_snapshot_hash`; `vat-returns` owns versioning, stale rejection and legacy compatibility.
 - Year-end packages carry artifact hashes; their ledger fingerprints are retained in audit metadata.
@@ -115,5 +120,5 @@ Ledger read indexes (M7) plus domain indexes from M2–M6 migrations cover:
 - Migrations are forward-only.
 - Never rewrite historical accounting rows in migrations.
 - Data backfills must record an `audit_events` row.
-- Rule changes create new `rule_versions`; they do not mutate old rule versions.
+- Rule changes create new `rule_versions`; historical rule payloads and artifact references are not rewritten. An old version may be marked retired when its successor becomes active. The method-case migrations copy unrelated engineering values without claiming their validation; no accounting-history or eligibility backfill is performed. Cash migration `202611040002_cash_pdf_full_receipt.sql` keeps invoice-v1 rule payloads and raw provenance intact while selecting the successor active version.
 - Migration tests must run against an empty database and a seeded prior-version database. This is a verification requirement, not a claim that this documentation import ran them.

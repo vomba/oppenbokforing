@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "validationId": "invoice-recognition-se-service25-2026-exact-v1",
+  "ruleVersionId": "rv-2026-domestic-service25-exact-v1",
+  "operation": "new_standard_invoice_recognition",
+  "scope": {
+    "accountingYear": 2026,
+    "accountingMethod": "invoice_method",
+    "currency": "SEK",
+    "transactionCase": "ordinary_completed_domestic_service",
+    "vatRateBp": 2500,
+    "priorPaymentReceived": false,
+    "completionAndIssueInSameAccountingYear": true,
+    "reportingPeriod": "yearly",
+    "deadlineRegime": "annual_may_12",
+    "euTradeInAccountingYear": false,
+    "annualTaxableBaseLimitMinor": 100000000,
+    "roundingCoverage": "exact_vat_minor_units_only"
+  },
+  "calendar": {
+    "accountingPeriod": "2026",
+    "filingYear": 2027,
+    "dueOn": "2027-05-12"
+  },
+  "sourceReferences": [
+    {"id":"bfn-timing", "url":"https://www.bfn.se/wp-content/uploads/vl13-2-bokforing.pdf", "pinpoint":"BFNAR 2013:2, updated 2024-09-16, paragraph 3.4 and commentary page 34; effective provisions page 98", "retrievedOn":"2026-11-04", "retainedExtract":"Bokföring av fordringar och skulder får anstå till dess faktura eller motsvarande handling har utfärdats eller mottagits eller sådan handling enligt god affärssed borde ha utfärdats eller mottagits."},
+    {"id":"skv-2026-method", "url":"https://www.skatteverket.se/download/18.9567cda19bf6c0027216f6/1770379535285/bokforing-bokslut-och-deklaration-skv282utgava09.pdf", "pinpoint":"SKV 282 edition 9, February 2026; pages 20, 54 and 56", "retrievedOn":"2026-11-04", "retainedExtract":"Om du väljer att använda faktureringsmetoden ska du redovisa moms i din momsdeklaration i den period du har fått eller har upprättat en faktura."},
+    {"id":"skv-2026-rate", "url":"https://www.skatteverket.se/download/18.1522bf3f19aea8075ba3285/1767885159120/belopp-och-procentsatser-for-inkomstaaret-2026.pdf", "pinpoint":"2026-01-07 publication, page 2, Mervärdesskatt (moms)", "retrievedOn":"2026-11-04", "retainedExtract":"25 procent (20 procent av priset), generella skattesatsen för moms."},
+    {"id":"skv-annual-no-eu", "url":"https://www.skatteverket.se/foretag/moms/deklareramoms/narskajagdeklareramoms.4.6d02084411db6e252fe80008988.html", "pinpoint":"Enskilda näringsidkare och dödsbon utan EU-handel", "retrievedOn":"2026-11-04", "retainedExtract":"En enskild näringsidkare eller ett dödsbo som ska lämna inkomstdeklaration och inte har handel med andra EU-länder ska redovisa och betala moms för beskattningsåret senast den 12 maj året efter beskattningsårets utgång."}
+  ],
+  "expected": [
+    {"id":"ordinary", "lines":[{"quantity":1,"unitPriceMinor":1000000}], "netMinor":1000000,"vatMinor":250000,"grossMinor":1250000},
+    {"id":"minimum-exact", "lines":[{"quantity":1,"unitPriceMinor":4}], "netMinor":4,"vatMinor":1,"grossMinor":5},
+    {"id":"quantity-makes-exact", "lines":[{"quantity":2,"unitPriceMinor":2}], "netMinor":4,"vatMinor":1,"grossMinor":5},
+    {"id":"four-units", "lines":[{"quantity":4,"unitPriceMinor":1}], "netMinor":4,"vatMinor":1,"grossMinor":5},
+    {"id":"multiple-exact-lines", "lines":[{"quantity":1,"unitPriceMinor":8},{"quantity":1,"unitPriceMinor":12}], "netMinor":20,"vatMinor":5,"grossMinor":25},
+    {"id":"fraction-quarter-ore", "lines":[{"quantity":1,"unitPriceMinor":1}], "blocked":"rounding_not_covered"},
+    {"id":"fraction-half-ore", "lines":[{"quantity":1,"unitPriceMinor":2}], "blocked":"rounding_not_covered"},
+    {"id":"fraction-three-quarter-ore", "lines":[{"quantity":1,"unitPriceMinor":3}], "blocked":"rounding_not_covered"},
+    {"id":"fractions-cancel-only-in-total", "lines":[{"quantity":1,"unitPriceMinor":1},{"quantity":1,"unitPriceMinor":3}], "blocked":"rounding_not_covered"},
+    {"id":"net-overflow", "lines":[{"quantity":2,"unitPriceMinor":9223372036854775807}], "blocked":"amount_out_of_range"},
+    {"id":"gross-overflow", "lines":[{"quantity":1,"unitPriceMinor":9223372036854775804}], "blocked":"amount_out_of_range"}
+  ],
+  "recognition": {
+    "issueDate":"2026-12-31",
+    "completedOn":"2026-12-31",
+    "accountingDate":"2026-12-31",
+    "debitAccount":"1510",
+    "debitMinor":1250000,
+    "creditRevenueAccount":"3041",
+    "creditRevenueMinor":1000000,
+    "creditVatAccount":"2611",
+    "creditVatMinor":250000,
+    "bankMovementMinor":0
+  },
+  "excluded": ["cash_method","2025","2027","cross_year_completion","advance_or_previous_payment","unknown_transaction_facts","goods","special_vat_treatment","foreign_supply_or_currency","exempt_vat","6_percent","12_percent","mixed_rates","quarterly_or_monthly_calendar","eu_trade","fractional_ore_rounding","late_invoice_requiring_earlier_recognition","whole_book_or_return_validation","legal_completeness_of_pdf"]
+}

@@ -13,6 +13,7 @@ export type ActionReviewDialogProps = {
   onConfirm: () => void
   onCancel: () => void
   children?: ReactNode
+  layout?: "standard" | "large"
 }
 
 export function ActionReviewDialog({
@@ -27,6 +28,7 @@ export function ActionReviewDialog({
   onConfirm,
   onCancel,
   children,
+  layout = "standard",
 }: ActionReviewDialogProps) {
   const titleId = useId()
   const summaryId = useId()
@@ -90,7 +92,7 @@ export function ActionReviewDialog({
   return createPortal(
     <div ref={overlayRef} className="guided-tour-overlay" role="presentation">
       <section
-        className="guided-tour-card"
+        className={`guided-tour-card${layout === "large" ? " large-review" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

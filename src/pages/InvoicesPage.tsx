@@ -2,6 +2,9 @@ import { Link } from "react-router-dom"
 import { useEffect, useRef, useState } from "react"
 import { AppSidebar } from "../components/AppSidebar"
 import { HelpTip } from "../components/HelpTip"
+import { CashIssueDialog } from "../components/CashIssueDialog"
+import { InvoiceEligibilityDialog } from "../components/InvoiceEligibilityDialog"
+import { InvoiceRecognitionHistoryDialog } from "../components/InvoiceRecognitionHistoryDialog"
 import { ActionReviewDialog } from "../components/ActionReviewDialog"
 import { VoucherTraceLink } from "../components/VoucherTraceLink"
 import { useWorkspace } from "../context/WorkspaceContext"
@@ -15,10 +18,9 @@ import {
   documentReveal,
   invoiceCreateDraft,
   invoiceCredit,
-  invoiceIssue,
-  invoiceIssuePreflight,
   invoiceList,
   taxProfileGetCurrent,
+  vatProfileGetCurrent,
   invoiceLegacySnapshotRecover,
   invoiceLegacySnapshotRecoveryStatus,
   invoicePdfRefresh,
@@ -26,17 +28,13 @@ import {
   type Counterparty,
   type InvoiceSummary,
 } from "../lib/commands"
-import type { InvoiceIssuePreflight } from "../lib/bindings"
 import { formatSekMinor, parseSekToMinorUnits } from "../lib/money"
 import { invoiceDisplayStatus, invoiceStatusLabel, localTodayIsoDate } from "../lib/invoiceStatus"
 
 type StatusFilter = "all" | "draft" | "issued"
 
-type InvoiceReview = {
-  kind: "issue" | "credit"
-  invoice: InvoiceSummary
-  preflight: InvoiceIssuePreflight | null
-}
+type InvoiceReview = { invoice: InvoiceSummary }
+type IssueReview = { invoice: InvoiceSummary; workspaceId: string; idempotencyKey: string }
 
 type LegacySnapshotRecoveryReview = {
   invoice: InvoiceSummary
@@ -62,25 +60,6 @@ const emptyLegacySnapshotRecoveryForm: LegacySnapshotRecoveryForm = {
   ruleVersionId: "",
 }
 
-function isTaxStatusValidationError(error: unknown): boolean {
-  if (
-    !error ||
-    typeof error !== "object" ||
-    !("details" in error) ||
-    !Array.isArray(error.details)
-  ) {
-    return false
-  }
-  return error.details.some(
-    (detail) =>
-      typeof detail === "object" &&
-      detail !== null &&
-      "field" in detail &&
-      detail.field === "taxStatus",
-  )
-}
-
-
 export function InvoicesPage() {
   const { workspace } = useWorkspace()
   const { locale } = useLocale()
@@ -93,6 +72,7 @@ export function InvoicesPage() {
   const [amountSek, setAmountSek] = useState("10000")
   const [vatRate, setVatRate] = useState("0.25")
   const [status, setStatus] = useState("")
+  const [accountingMethod, setAccountingMethod] = useState<string | null>(null)
   const [taxStatus, setTaxStatus] = useState<string | null>(null)
   const [creditIssueDate, setCreditIssueDate] = useState(localTodayIsoDate)
   const [busy, setBusy] = useState(false)
@@ -110,8 +90,23 @@ export function InvoicesPage() {
   >({})
   const [legacyRecoveryError, setLegacyRecoveryError] = useState("")
   const [review, setReview] = useState<InvoiceReview | null>(null)
+  const [issueReview, setIssueReview] = useState<IssueReview | null>(null)
+  const [historyReview, setHistoryReview] = useState<{ invoice: InvoiceSummary; workspaceId: string } | null>(null)
   const issueKeysRef = useRef<Record<string, string>>({})
   const creditKeysRef = useRef<Record<string, string>>({})
+  const workspaceIdRef = useRef(workspace?.id)
+  workspaceIdRef.current = workspace?.id
+  useEffect(() => {
+    setIssueReview(null)
+    setHistoryReview(null)
+    setReview(null)
+    setBusy(false)
+    setInvoices([])
+    setCustomers([])
+    setTaxStatus(null)
+    setAccountingMethod(null)
+    issueKeysRef.current = {}
+  }, [workspace?.id])
 
   useEffect(() => {
     setStatus(t(locale, "invoices.status"))
@@ -119,14 +114,18 @@ export function InvoicesPage() {
 
   async function refresh(filter: StatusFilter = statusFilter) {
     if (!workspace) return
-    const [customerRows, invoiceRows, taxProfile] = await Promise.all([
+    const requestedWorkspaceId = workspace.id
+    const [customerRows, invoiceRows, taxProfile, vatProfile] = await Promise.all([
       counterpartyList(),
       invoiceList({
         status: filter === "all" ? null : filter,
       }),
       taxProfileGetCurrent().catch(() => null),
+      vatProfileGetCurrent().catch(() => null),
     ])
+    if (workspaceIdRef.current !== requestedWorkspaceId) return
     setTaxStatus(taxProfile?.taxStatus ?? null)
+    setAccountingMethod(vatProfile?.accountingMethod ?? null)
     const customerOnly = customerRows.filter((row) => row.kind === "customer")
     setCustomers(customerOnly)
     setInvoices(invoiceRows)
@@ -135,6 +134,7 @@ export function InvoicesPage() {
         .filter((invoice) => invoice.status === "issued" || invoice.status === "credited")
         .map((invoice) => invoiceLegacySnapshotRecoveryStatus({ invoiceId: invoice.id })),
     )
+    if (workspaceIdRef.current !== requestedWorkspaceId) return
     setLegacyRecoveryStatuses(
       Object.fromEntries(
         legacyRecoveryStatusRows.flatMap((result) =>
@@ -148,11 +148,22 @@ export function InvoicesPage() {
   }
 
   useEffect(() => {
+    const requestedWorkspaceId = workspace?.id
     refresh().catch(() => {
+      if (workspaceIdRef.current !== requestedWorkspaceId) return
       setCustomers([])
       setInvoices([])
     })
   }, [workspace, statusFilter])
+
+  useEffect(() => {
+    if (!issueReview || issueReview.workspaceId !== workspace?.id) return
+    const current = invoices.find((invoice) => invoice.id === issueReview.invoice.id)
+    if (!current || JSON.stringify(current) !== JSON.stringify(issueReview.invoice)) {
+      setIssueReview(null)
+      setBusy(false)
+    }
+  }, [invoices, issueReview, workspace?.id])
 
   async function handleCreateCustomer() {
     if (busy || !customerName.trim()) return
@@ -207,32 +218,6 @@ export function InvoicesPage() {
       setStatus(t(locale, "invoices.draftCreated"))
     } catch (error) {
       setStatus(appErrorMessage(error, t(locale, "invoices.draftFailed")))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleIssue(invoiceId: string) {
-    if (busy) return
-    const idempotencyKey = issueKeysRef.current[invoiceId] ??= crypto.randomUUID()
-    setBusy(true)
-    try {
-      const issued = await invoiceIssue({
-        invoiceId,
-        idempotencyKey,
-        issueDate: null,
-      })
-      delete issueKeysRef.current[invoiceId]
-      await refresh()
-      setStatus(
-        tVars(locale, "invoices.issued", { number: issued.invoiceNumber ?? issued.id }),
-      )
-    } catch (error) {
-      setStatus(
-        isTaxStatusValidationError(error)
-          ? t(locale, "invoices.taxStatusRequired")
-          : appErrorMessage(error, t(locale, "invoices.issueFailed")),
-      )
     } finally {
       setBusy(false)
     }
@@ -354,50 +339,28 @@ export function InvoicesPage() {
       setBusy(false)
     }
   }
-  async function openReview(kind: "issue" | "credit", invoice: InvoiceSummary) {
-    if (busy) return
+  function openReview(kind: "issue" | "credit", invoice: InvoiceSummary) {
+    if (busy || !workspace) return
     if (kind === "credit") {
-      setReview({ kind, invoice, preflight: null })
+      setReview({ invoice })
       return
     }
     if (taxStatus !== "f_skatt" && taxStatus !== "fa_skatt") {
       setStatus(t(locale, "invoices.taxStatusRequired"))
       return
     }
-
-
-    setBusy(true)
-    try {
-      const preflight = await invoiceIssuePreflight({
-        invoiceId: invoice.id,
-        issueDate: null,
-      })
-      setReview({ kind, invoice, preflight })
-    } catch (error) {
-      setStatus(
-        isTaxStatusValidationError(error)
-          ? t(locale, "invoices.taxStatusRequired")
-          : appErrorMessage(error, t(locale, "invoices.issueFailed")),
-      )
-    } finally {
-      setBusy(false)
-    }
+    const idempotencyKey = issueKeysRef.current[invoice.id] ??= crypto.randomUUID()
+    setIssueReview({ invoice, workspaceId: workspace.id, idempotencyKey })
   }
 
   function confirmReview() {
     if (!review) return
-    const { kind, invoice, preflight } = review
+    const { invoice } = review
     setReview(null)
-    if (kind === "issue") {
-      if (preflight?.requiresVatTreatmentReview) {
-        setStatus(t(locale, "invoices.thresholdReviewAction"))
-        return
-      }
-      void handleIssue(invoice.id)
-      return
-    }
     void handleCredit(invoice.id)
   }
+
+  const IssueDialog = accountingMethod === "cash_method" ? CashIssueDialog : InvoiceEligibilityDialog
 
   return (
     <main className="app-shell">
@@ -531,13 +494,14 @@ export function InvoicesPage() {
                           <button
                             type="button"
                             onClick={() => openReview("issue", invoice)}
-                            disabled={busy}
+                            disabled={busy || (accountingMethod !== "cash_method" && accountingMethod !== "invoice_method")}
                           >
                             {t(locale, "invoices.issue")}
                           </button>
                         ) : null}
                         {invoice.status === "issued" &&
                         invoice.invoiceKind === "standard" &&
+                        invoice.voucherId !== null &&
                         !invoice.paymentVoucherId ? (
                           <button
                             type="button"
@@ -588,6 +552,12 @@ export function InvoicesPage() {
                             {t(locale, "invoices.previewPdf")}
                           </button>
                         ) : null}
+                        {invoice.status === "issued" || invoice.status === "credited" ? (
+                          <button type="button" className="secondary" disabled={busy}
+                            onClick={() => workspace && setHistoryReview({ invoice, workspaceId: workspace.id })}>
+                            {t(locale, "eligibility.history")}
+                          </button>
+                        ) : null}
                         {canMarkPaid ? (
                           <Link
                             className="text-link"
@@ -616,73 +586,41 @@ export function InvoicesPage() {
             </table>
           )}
         </section>
+        {issueReview && issueReview.workspaceId === workspace?.id && (accountingMethod === "cash_method" || accountingMethod === "invoice_method") ? (
+          <IssueDialog
+            key={`${issueReview.workspaceId}:${issueReview.invoice.id}`}
+            invoice={issueReview.invoice}
+            idempotencyKey={issueReview.idempotencyKey}
+            onBusyChange={setBusy}
+            onCancel={() => setIssueReview(null)}
+            onIssued={(issued) => {
+              if (workspaceIdRef.current !== issueReview.workspaceId) return
+              delete issueKeysRef.current[issued.id]
+              setIssueReview(null)
+              setBusy(false)
+              void refresh().catch(() => undefined)
+              setStatus(tVars(locale, "invoices.issued", { number: issued.invoiceNumber ?? issued.id }))
+            }}
+          />
+        ) : null}
+        {historyReview && historyReview.workspaceId === workspace?.id ? (
+          <InvoiceRecognitionHistoryDialog
+            key={`${historyReview.workspaceId}:${historyReview.invoice.id}`}
+            invoiceId={historyReview.invoice.id}
+            onClose={() => setHistoryReview(null)}
+          />
+        ) : null}
         {review ? (
           <ActionReviewDialog
             open
-            title={t(
-              locale,
-              review.kind === "issue" ? "actionReview.issue.title" : "actionReview.credit.title",
-            )}
-            summary={
-              review.kind === "issue"
-                ? tVars(locale, "actionReview.issue.summary", {
-                    customer: review.invoice.counterpartyName,
-                    total: formatSekMinor(review.invoice.totalIncVatMinor),
-                    vat: formatSekMinor(review.invoice.totalVatMinor),
-                    rate:
-                      review.invoice.totalExVatMinor > 0
-                        ? Math.round((review.invoice.totalVatMinor / review.invoice.totalExVatMinor) * 100)
-                        : 0,
-                  })
-                : `${tVars(locale, "actionReview.credit.summary", {
-                    customer: review.invoice.counterpartyName,
-                    total: formatSekMinor(review.invoice.totalIncVatMinor),
-                  })} ${tVars(locale, "invoices.creditAccountingDate", {
-                    date: creditIssueDate,
-                  })}`
-            }
-            consequences={
-              review.kind === "issue" && review.preflight?.requiresVatTreatmentReview
-                ? [
-                    t(locale, "invoices.thresholdReviewAction"),
-                    tVars(locale, "invoices.thresholdProjectedTurnover", {
-                      projected: formatSekMinor(review.preflight.projectedTurnoverMinor),
-                      threshold: formatSekMinor(review.preflight.thresholdMinor ?? 0),
-                    }),
-                    tVars(locale, "invoices.thresholdRule", {
-                      year: review.preflight.taxYear,
-                      sourceUrl: review.preflight.sourceUrl ?? "",
-                    }),
-                  ]
-                : [
-                    t(
-                      locale,
-                      review.kind === "issue"
-                        ? "actionReview.issue.consequence"
-                        : "actionReview.credit.consequence",
-                    ),
-                  ]
-            }
-            correction={
-              review.kind === "issue" && review.preflight?.requiresVatTreatmentReview
-                ? t(locale, "invoices.thresholdReviewAction")
-                : t(
-                    locale,
-                    review.kind === "issue"
-                      ? "actionReview.issue.correction"
-                      : "actionReview.credit.correction",
-                  )
-            }
-            confirmLabel={
-              review.kind === "issue" && review.preflight?.requiresVatTreatmentReview
-                ? t(locale, "invoices.closeReview")
-                : t(
-                    locale,
-                    review.kind === "issue"
-                      ? "actionReview.issue.confirm"
-                      : "actionReview.credit.confirm",
-                  )
-            }
+            title={t(locale, "actionReview.credit.title")}
+            summary={`${tVars(locale, "actionReview.credit.summary", {
+              customer: review.invoice.counterpartyName,
+              total: formatSekMinor(review.invoice.totalIncVatMinor),
+            })} ${tVars(locale, "invoices.creditAccountingDate", { date: creditIssueDate })}`}
+            consequences={[t(locale, "actionReview.credit.consequence")]}
+            correction={t(locale, "actionReview.credit.correction")}
+            confirmLabel={t(locale, "actionReview.credit.confirm")}
             cancelLabel={t(locale, "actionReview.cancel")}
             busy={busy}
             onConfirm={confirmReview}

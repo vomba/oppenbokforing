@@ -1,0 +1,51 @@
+SIE approved short first-year bounds — public pre-fix behavioral RED
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test sie_fiscal_year_dates approved_short_first_year -- --nocapture --test-threads=1
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.67s
+     Running tests/sie_fiscal_year_dates.rs (src-tauri/target/debug/deps/sie_fiscal_year_dates-f13c93370986e0b3)
+
+running 1 test
+test approved_short_first_year_exports_actual_bounds_and_regenerates_after_reopen ... SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-06-01-2026-12-31; completed 2026-06-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-06-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+
+thread 'approved_short_first_year_exports_actual_bounds_and_regenerates_after_reopen' (29969651) panicked at tests/sie_fiscal_year_dates.rs:54:10:
+called `Result::unwrap()` on an `Err` value: Database(SqliteError { code: 1, message: "JSON cannot hold BLOB values" })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    approved_short_first_year_exports_actual_bounds_and_regenerates_after_reopen
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.28s
+
+error: test failed, to rerun pass `--test sie_fiscal_year_dates`
+
+Setup observation fix: encode BLOBs as typed hex in read-only state comparison; no production change.
+
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test sie_fiscal_year_dates approved_short_first_year -- --nocapture --test-threads=1
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.83s
+     Running tests/sie_fiscal_year_dates.rs (src-tauri/target/debug/deps/sie_fiscal_year_dates-f13c93370986e0b3)
+
+running 1 test
+test approved_short_first_year_exports_actual_bounds_and_regenerates_after_reopen ... SETUP: fresh workspace; public annual registered cash/F-skatt SE onboarding; explicit zero-opening/no-unpaid/no-prior/outside-history origin 2026-06-01-2026-12-31; completed 2026-06-10; draft 1000000/250000/1250000 ore; zero journal
+ISSUED: public cash issue 2026-0001 on 2026-06-15; immutable identity/PDF job; zero vouchers and zero journal lines; receipt not recorded
+PUBLIC SIE: reviewed/stored June 1 to December 31; actual file header: #RAR 0 20260101 20261231
+
+thread 'approved_short_first_year_exports_actual_bounds_and_regenerates_after_reopen' (29971158) panicked at tests/sie_fiscal_year_dates.rs:153:5:
+assertion `left == right` failed
+  left: "#RAR 0 20260101 20261231"
+ right: "#RAR 0 20260601 20261231"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    approved_short_first_year_exports_actual_bounds_and_regenerates_after_reopen
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.28s
+
+error: test failed, to rerun pass `--test sie_fiscal_year_dates`

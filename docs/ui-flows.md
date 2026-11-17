@@ -75,7 +75,7 @@ Task navigation is ordered as **Översikt** / Overview, **Fakturor** / Invoices,
 
 ### Material-action review
 
-Issue invoice, credit invoice, payment/reconciliation, expense posting, VAT approval, and year-end approval require a localized review panel before their existing command. The panel explains user-visible facts, permanent consequence, a correction path where one exists, Cancel, and one confirm action. Cancel makes no mutation invoke. A backend validation or lock failure closes the panel and leaves its existing localized error visible.
+Issue invoice, credit invoice, payment/reconciliation, expense posting, VAT approval, and year-end approval require a localized review panel before their existing command. The panel explains user-visible facts, permanent consequence, a correction path where one exists, Cancel, and one confirm action. Cancel makes no mutation invoke. Most backend validation or lock failures close the panel and leave the existing localized error visible. The bounded new-invoice eligibility flow instead retains the facts step and answers after a blocked preflight or freshness failure; the draft remains available.
 
 ## Workspace Picker
 
@@ -156,11 +156,23 @@ Required states:
 Controls:
 
 - Create draft.
-- Issue invoice after backend preflight; a VAT-treatment review blocks issue and directs setup correction.
+- For new standard invoices, collect explicit transaction/year eligibility facts before backend preflight, then review the same facts and sending date before issuance. Unknown/contradictory or uncovered cases stop without posting; a stale review returns to the retained facts step.
+- Final review displays the backend's fingerprint-bound customer, due date, line data and totals rather than cached list values. Missing or unrelated reviewed snapshots stop confirmation.
+- Show the backend recognition identity, evidence digest, accounting/completion dates and applicable deadline, with inspectable source citations for that specific bundled validation. Source clicks use a constrained native ID-only opener, not a webview new tab; opening failures stay visible. The owner sends the invoice on the chosen date; the app does not email it.
+- Read immutable recognition provenance for issued history. Missing historical provenance is explicit, not inferred from current profiles.
 - Preview/refresh PDF from historical issue data. Legacy invoices without snapshots require preserved evidence and explicit historical-value attestation before recovery.
-- Mark paid.
-- Credit invoice.
+- For supported cash drafts, review explicit new-business/first-year facts separately. Issue review states no journal or recognition date; the actual short-year dates and required turnover adjustment are not defaulted from a calendar bucket.
+- For proven cash-issued invoices, record an explicit actual full PDF receipt with initially unknown amount/date/currency/identity and confirmations. Review receipt-date bank/revenue/VAT effect, not 1510 settlement. Keep retained evidence and inputs when blocked; one PDF hash supports one cash receipt even if its statement has other entries.
+- Long fact/history/final reviews select a bounded scrollable dialog; primary labels and uncertainty are Swedish/English. Show cash CSV blocking separately from an unproven-treatment error when the dedicated receipt action is available.
+- Mark paid through the route authorized by retained treatment. Cash proof takes precedence over current profile. A historical invoice with no current case record is labelled legacy, not newly validated; only explicit invoice-method selection exposes its pre-existing backend settlement route. Read failures or mismatched proof remain blocked.
+- Credit invoice through existing guards; bounded cash credits remain unavailable.
 - Open ledger trace.
+
+`tax-rules` owns the bounded method/year cases. Drafts and historical reads remain
+available for uncovered cases, but their availability is not new-issuance eligibility,
+legal PDF completeness, or whole-book/return validation. `invoice-lifecycle` owns
+retained facts and authoritative transaction checks; the renderer submits no support
+boolean and cannot waive the gate.
 
 ## Ledger
 

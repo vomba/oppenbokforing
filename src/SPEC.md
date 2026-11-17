@@ -4,7 +4,7 @@ type: module-design
 status: active
 title: Desktop renderer boundary
 parent: system-architecture
-references: [rust-command-boundary, ui-workflows, prepare-only-tax]
+references: [rust-command-boundary, ui-workflows, prepare-only-tax, invoice-lifecycle, tax-rules]
 depends-on: [rust-backend]
 ---
 
@@ -42,6 +42,56 @@ The UI boundary uses convention and command exposure, not a runtime DTO validato
 
 Not every asynchronous read guards against stale workspace/selection responses.
 This remains a gap against `ui-workflows`, not a guarantee established by context providers.
+
+## Bounded new-invoice review
+
+The bounded `invoice-lifecycle` recognition gate uses a local composed dialog,
+not a change to the credit workflow. Long eligibility/history reviews explicitly
+select the shared material-review dialog's bounded, scrollable large layout. New
+standard issuance collects explicit, initially unanswered transaction and
+2026-wide annual/no-EU/registration/expected-taxable-base/timely-invoicing facts,
+completion date, and an explicit invoice/sending date before backend preflight.
+Unknown or contradictory answers cannot reach final issuance. The supported
+case is only 2026 invoice-method ordinary completed domestic SEK services at
+25%, no previous payments, annual VAT/no-EU under `annual_may_12`, with exact
+whole-öre VAT on every line. Rust remains the eligibility authority.
+
+Final review uses the fingerprint-bound invoice snapshot returned by Rust, not
+cached list amounts: customer, due date, lines and totals are shown alongside the
+same facts, completion date, narrow coverage, backend validation/digest/rule identity
+and returned deadline. A missing or unrelated snapshot cannot reach confirmation.
+Confirmation
+submits exactly those facts, date and review fingerprint. The owner sends the
+invoice on that date; the app does not email it. Editing facts/date discards the
+preflight, and workspace/invoice changes discard the review. Failed preflight
+and freshness rejection keep the draft and answers available in the facts
+step, rather than closing this slice's dialog. No support boolean is submitted.
+Existing credit/PDF/recovery safeguards remain. Cash drafts use separate commands,
+unknown-first facts and an explicit origin/first-year review; their final issue
+review states no recognition and a null accounting date. Required case limits live
+in `invoice-lifecycle`, not renderer authority. The full-PDF receipt dialog starts
+actual amount/date/currency/identity unknown and requires owner review rather than
+copying invoice total as evidence. Known cash history controls the dedicated route
+regardless of current profile and keeps cash CSV matching blocked. Read failures or
+unknown/mismatched proofs do not fall back to another method.
+
+Historical invoices with neither validation record have a distinct legacy label,
+not new invoice-case eligibility. Only explicit current invoice-method selection
+can expose their old settlement route, whose backend guards remain authoritative.
+Known facts and uncertainty are reviewed in Swedish/English; canonical identifiers
+and retained source wording can appear in optional technical details. A supported
+cash receipt action does not display the unproven-treatment error merely because
+cash CSV matching is unavailable.
+
+Issued history can read immutable recognition provenance through
+`invoice_issue_validation_get`; absence is displayed without guessing current
+facts or invoking any mutation. This is not approval of historical invoices,
+full legal PDF compliance, books, VAT returns or year-end accounts. Bundled source
+citations are inspectable only for their matching validation identity; unknown
+retained identities do not inherit another case's references. Source clicks prevent
+webview navigation and invoke the native ID-only opener; failures remain visible
+without accounting mutation. `tax-rules` owns the
+evidence and verification record; UI checks alone do not establish eligibility.
 
 ## Verification surface
 

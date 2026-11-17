@@ -1,0 +1,220 @@
+{
+  "checkedAt": "2026-11-09T22:19:59.918323+00:00",
+  "source": "cash-native-state-2026-11-09.json",
+  "recordCount": 22,
+  "checks": [
+    {
+      "check": "unknown-issue-stopped",
+      "passed": true
+    },
+    {
+      "check": "stale-issue-stopped",
+      "passed": true
+    },
+    {
+      "check": "identity-only real short year",
+      "passed": true
+    },
+    {
+      "check": "partial-receipt-stopped no recognition",
+      "passed": true
+    },
+    {
+      "check": "generated-pdf-receipt-stopped no recognition",
+      "passed": true
+    },
+    {
+      "check": "missing-installed-helper-stopped no recognition",
+      "passed": true
+    },
+    {
+      "check": "cyclic-installed-helper-stopped no recognition",
+      "passed": true
+    },
+    {
+      "check": "literal first receipt-date journal",
+      "passed": true
+    },
+    {
+      "check": "second-entry-same-pdf-stopped no duplicate",
+      "passed": true
+    },
+    {
+      "check": "repeated-bank-identity-stopped no duplicate",
+      "passed": true
+    },
+    {
+      "check": "two distinct receipts",
+      "passed": true
+    },
+    {
+      "check": "cold-reopen-retained financial rows preserved",
+      "passed": true
+    },
+    {
+      "check": "cold-reopen-retained cash_business_originsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "cold-reopen-retained cash_invoice_issuesRawDigest",
+      "passed": true
+    },
+    {
+      "check": "cold-reopen-retained cash_receipt_recognitionsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "cold-reopen-retained retained bytes",
+      "passed": true
+    },
+    {
+      "check": "native-encrypted-restore financial rows preserved",
+      "passed": true
+    },
+    {
+      "check": "native-encrypted-restore cash_business_originsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "native-encrypted-restore cash_invoice_issuesRawDigest",
+      "passed": true
+    },
+    {
+      "check": "native-encrypted-restore cash_receipt_recognitionsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "native-encrypted-restore retained bytes",
+      "passed": true
+    },
+    {
+      "check": "original-after-restore financial rows preserved",
+      "passed": true
+    },
+    {
+      "check": "original-after-restore cash_business_originsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "original-after-restore cash_invoice_issuesRawDigest",
+      "passed": true
+    },
+    {
+      "check": "original-after-restore cash_receipt_recognitionsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "original-after-restore retained bytes",
+      "passed": true
+    },
+    {
+      "check": "deployed normalized expense continuation",
+      "passed": true
+    },
+    {
+      "check": "corrected export no financial mutation",
+      "passed": true
+    },
+    {
+      "check": "corrected export cash_business_originsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "corrected export cash_invoice_issuesRawDigest",
+      "passed": true
+    },
+    {
+      "check": "corrected export cash_receipt_recognitionsRawDigest",
+      "passed": true
+    },
+    {
+      "check": "onboarding no1510",
+      "passed": true
+    },
+    {
+      "check": "draft no1510",
+      "passed": true
+    },
+    {
+      "check": "unknown-issue-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "stale-issue-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "issued-identity-only no1510",
+      "passed": true
+    },
+    {
+      "check": "partial-receipt-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "generated-pdf-receipt-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "missing-installed-helper-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "cyclic-installed-helper-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "full-native-receipt-posted no1510",
+      "passed": true
+    },
+    {
+      "check": "second-native-issue no1510",
+      "passed": true
+    },
+    {
+      "check": "second-entry-same-pdf-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "repeated-bank-identity-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "second-distinct-native-receipt no1510",
+      "passed": true
+    },
+    {
+      "check": "paid-cash-vat-approval-stopped no1510",
+      "passed": true
+    },
+    {
+      "check": "native-backup-created no1510",
+      "passed": true
+    },
+    {
+      "check": "cold-reopen-retained no1510",
+      "passed": true
+    },
+    {
+      "check": "native-encrypted-restore no1510",
+      "passed": true
+    },
+    {
+      "check": "original-after-restore no1510",
+      "passed": true
+    },
+    {
+      "check": "native-padded-expense-continuation no1510",
+      "passed": true
+    },
+    {
+      "check": "native-receipt-after-padded-expense no1510",
+      "passed": true
+    },
+    {
+      "check": "corrected-native-sie-export no1510",
+      "passed": true
+    }
+  ],
+  "scope": "Assertions over recorded native states; not independent bank authenticity or legal PDF/SIE/return validation"
+}

@@ -4,7 +4,7 @@ type: submodule-design
 status: active
 title: Invoice payment settlement
 parent: rust-backend
-depends-on: [evidence-archive, vat-returns, workspace-defaults]
+depends-on: [evidence-archive, vat-returns, workspace-defaults, business-profiles]
 references: [storage-contract, product-goal, tax-rules, accounting-ledger]
 ---
 
@@ -40,6 +40,19 @@ The direct payment route requires verified retained PDF evidence and an explicit
 payment date, creates a synthetic staged transaction, and converges on the same
 settlement rules. It does not initiate a bank payment or accept arbitrary files
 as proof solely because their metadata says PDF.
+
+Both existing routes are invoice-timed 1930/1510 settlement, not cash revenue
+recognition. They enforce `business-profiles`' restrictive timing policy and reject
+immutable cash-issued sources inside their immediate transaction, even after an
+external current-profile edit. Checks precede voucher/synthetic-row creation or
+imported-receipt consumption. Completed replays retain preservation exceptions.
+
+The separate bounded full-PDF cash transition is owned by `invoice-lifecycle`.
+It uses this module's staging/match schema but recognizes original revenue/VAT on
+receipt date, without a receivable. Cash CSV matching remains blocked; import,
+staging, evidence retention and inspection remain available. Historical invoices
+without a current validation record are not retroactively validated: under an
+explicit invoice-method profile they retain the existing backend settlement checks.
 
 Payment voucher/lines, match, staging transition, replay result, and audit are
 committed together, with balance and accounting-date fiscal/period guards. This

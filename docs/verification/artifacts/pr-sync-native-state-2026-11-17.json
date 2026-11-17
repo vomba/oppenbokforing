@@ -1,0 +1,233 @@
+[
+  {
+    "phase": "issued-zero-journal",
+    "observedAt": "2026-11-17T10:57:41.089900+00:00",
+    "database": "/private/tmp/oppenbokforing-pr-uat.zQ29s7/Library/Application Support/se.oppenbokforing.desktop/workspaces/48f218cc-10ea-4a2e-9f4f-df7c9d9be25f/workspace.sqlite",
+    "migrationCount": 23,
+    "years": [
+      {
+        "starts_on": "2026-06-01",
+        "ends_on": "2026-12-31",
+        "status": "open"
+      }
+    ],
+    "journal": [],
+    "counts": {
+      "vouchers": 0,
+      "journal_lines": 0,
+      "cash_business_origins": 1,
+      "cash_invoice_issues": 1,
+      "cash_receipt_recognitions": 0,
+      "vat_returns": 0,
+      "local_jobs": 2,
+      "audit_events": 12
+    },
+    "vat": [],
+    "cash_business_originsRawDigest": "4138e79f3c5a3d95bc21bb6a06d62046fc411de2af86d82b0d59f41364c6e155",
+    "cash_invoice_issuesRawDigest": "44199ce15650a3d0ce1b53ba0fe491cf2521ccb95c31a13f1a2dbfce86737ca9",
+    "cash_receipt_recognitionsRawDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "documents": [
+      {
+        "id": "561f71a4-9765-46b7-b2dd-8bdc71ecb209",
+        "object_path": "objects/69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1",
+        "content_sha256": "69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1"
+      }
+    ]
+  },
+  {
+    "phase": "synced-base-full-receipt",
+    "observedAt": "2026-11-17T10:58:25.529708+00:00",
+    "database": "/private/tmp/oppenbokforing-pr-uat.zQ29s7/Library/Application Support/se.oppenbokforing.desktop/workspaces/48f218cc-10ea-4a2e-9f4f-df7c9d9be25f/workspace.sqlite",
+    "migrationCount": 23,
+    "years": [
+      {
+        "starts_on": "2026-06-01",
+        "ends_on": "2026-12-31",
+        "status": "open"
+      }
+    ],
+    "journal": [
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "1930",
+        "debit_minor": 1250000,
+        "credit_minor": 0
+      },
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "2611",
+        "debit_minor": 0,
+        "credit_minor": 250000
+      },
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "3041",
+        "debit_minor": 0,
+        "credit_minor": 1000000
+      }
+    ],
+    "counts": {
+      "vouchers": 1,
+      "journal_lines": 3,
+      "cash_business_origins": 1,
+      "cash_invoice_issues": 1,
+      "cash_receipt_recognitions": 1,
+      "vat_returns": 0,
+      "local_jobs": 4,
+      "audit_events": 14
+    },
+    "vat": [],
+    "cash_business_originsRawDigest": "4138e79f3c5a3d95bc21bb6a06d62046fc411de2af86d82b0d59f41364c6e155",
+    "cash_invoice_issuesRawDigest": "44199ce15650a3d0ce1b53ba0fe491cf2521ccb95c31a13f1a2dbfce86737ca9",
+    "cash_receipt_recognitionsRawDigest": "17d83707471435ebfa21500b0f21f1fc33a39adf04d27a87be281363bb00b852",
+    "documents": [
+      {
+        "id": "561f71a4-9765-46b7-b2dd-8bdc71ecb209",
+        "object_path": "objects/69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1",
+        "content_sha256": "69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1"
+      },
+      {
+        "id": "9bed9ce6-0249-4314-854e-1ef16e3c70cc",
+        "object_path": "objects/16faf900e1dd7f3286c8f5a13127860b9fde355dcc50135626e7a8acf01e0c4b",
+        "content_sha256": "16faf900e1dd7f3286c8f5a13127860b9fde355dcc50135626e7a8acf01e0c4b"
+      }
+    ]
+  },
+  {
+    "phase": "current-reviewed-vat-cash-blocked",
+    "observedAt": "2026-11-17T10:59:13.447649+00:00",
+    "database": "/private/tmp/oppenbokforing-pr-uat.zQ29s7/Library/Application Support/se.oppenbokforing.desktop/workspaces/48f218cc-10ea-4a2e-9f4f-df7c9d9be25f/workspace.sqlite",
+    "migrationCount": 23,
+    "years": [
+      {
+        "starts_on": "2026-06-01",
+        "ends_on": "2026-12-31",
+        "status": "open"
+      }
+    ],
+    "journal": [
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "1930",
+        "debit_minor": 1250000,
+        "credit_minor": 0
+      },
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "2611",
+        "debit_minor": 0,
+        "credit_minor": 250000
+      },
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "3041",
+        "debit_minor": 0,
+        "credit_minor": 1000000
+      }
+    ],
+    "counts": {
+      "vouchers": 1,
+      "journal_lines": 3,
+      "cash_business_origins": 1,
+      "cash_invoice_issues": 1,
+      "cash_receipt_recognitions": 1,
+      "vat_returns": 1,
+      "local_jobs": 5,
+      "audit_events": 15
+    },
+    "vat": [
+      {
+        "status": "draft",
+        "review_revision": "cb266020-8a81-45ec-a847-0ca902bf87c2"
+      }
+    ],
+    "cash_business_originsRawDigest": "4138e79f3c5a3d95bc21bb6a06d62046fc411de2af86d82b0d59f41364c6e155",
+    "cash_invoice_issuesRawDigest": "44199ce15650a3d0ce1b53ba0fe491cf2521ccb95c31a13f1a2dbfce86737ca9",
+    "cash_receipt_recognitionsRawDigest": "17d83707471435ebfa21500b0f21f1fc33a39adf04d27a87be281363bb00b852",
+    "documents": [
+      {
+        "id": "561f71a4-9765-46b7-b2dd-8bdc71ecb209",
+        "object_path": "objects/69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1",
+        "content_sha256": "69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1"
+      },
+      {
+        "id": "9bed9ce6-0249-4314-854e-1ef16e3c70cc",
+        "object_path": "objects/16faf900e1dd7f3286c8f5a13127860b9fde355dcc50135626e7a8acf01e0c4b",
+        "content_sha256": "16faf900e1dd7f3286c8f5a13127860b9fde355dcc50135626e7a8acf01e0c4b"
+      }
+    ]
+  },
+  {
+    "phase": "strict-backup-restored",
+    "observedAt": "2026-11-17T11:00:39.839205+00:00",
+    "database": "/private/tmp/oppenbokforing-pr-uat.zQ29s7/Library/Application Support/se.oppenbokforing.desktop/workspaces/429487f5-a6c8-48cf-a8a5-6b1250d2cd3e/workspace.sqlite",
+    "migrationCount": 23,
+    "years": [
+      {
+        "starts_on": "2026-06-01",
+        "ends_on": "2026-12-31",
+        "status": "open"
+      }
+    ],
+    "journal": [
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "1930",
+        "debit_minor": 1250000,
+        "credit_minor": 0
+      },
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "2611",
+        "debit_minor": 0,
+        "credit_minor": 250000
+      },
+      {
+        "id": "cde4ce7e-b0b6-408e-8dd9-9fd9d60e6d80",
+        "accounting_date": "2026-06-20",
+        "number": "3041",
+        "debit_minor": 0,
+        "credit_minor": 1000000
+      }
+    ],
+    "counts": {
+      "vouchers": 1,
+      "journal_lines": 3,
+      "cash_business_origins": 1,
+      "cash_invoice_issues": 1,
+      "cash_receipt_recognitions": 1,
+      "vat_returns": 1,
+      "local_jobs": 6,
+      "audit_events": 19
+    },
+    "vat": [
+      {
+        "status": "draft",
+        "review_revision": "cb266020-8a81-45ec-a847-0ca902bf87c2"
+      }
+    ],
+    "cash_business_originsRawDigest": "4138e79f3c5a3d95bc21bb6a06d62046fc411de2af86d82b0d59f41364c6e155",
+    "cash_invoice_issuesRawDigest": "44199ce15650a3d0ce1b53ba0fe491cf2521ccb95c31a13f1a2dbfce86737ca9",
+    "cash_receipt_recognitionsRawDigest": "17d83707471435ebfa21500b0f21f1fc33a39adf04d27a87be281363bb00b852",
+    "documents": [
+      {
+        "id": "561f71a4-9765-46b7-b2dd-8bdc71ecb209",
+        "object_path": "objects/69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1",
+        "content_sha256": "69ad33e51a88289c6a6d3a647452e66618e02b4224095c78bf568d9be40a9da1"
+      },
+      {
+        "id": "9bed9ce6-0249-4314-854e-1ef16e3c70cc",
+        "object_path": "objects/16faf900e1dd7f3286c8f5a13127860b9fde355dcc50135626e7a8acf01e0c4b",
+        "content_sha256": "16faf900e1dd7f3286c8f5a13127860b9fde355dcc50135626e7a8acf01e0c4b"
+      }
+    ]
+  }
+]

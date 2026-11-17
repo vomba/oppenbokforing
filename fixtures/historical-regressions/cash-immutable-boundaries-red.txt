@@ -1,0 +1,28 @@
+Cash immutable year/method boundaries: behavioral regression
+Command: PATH="$HOME/.cargo/bin:$PATH" cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test cash_method_safety cash_immutable_boundary -- --nocapture
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.06s
+     Running tests/cash_method_safety.rs (src-tauri/target/debug/deps/cash_method_safety-d9a32fb5e3a7dac4)
+
+running 2 tests
+
+thread 'cash_immutable_boundary_blocks_vat_approval_after_external_profile_drift' (20783867) panicked at tests/cash_method_safety.rs:1678:5:
+an externally edited profile cannot promote cash books to validated VAT approval
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test cash_immutable_boundary_blocks_vat_approval_after_external_profile_drift ... FAILED
+
+thread 'cash_immutable_boundary_rejects_expense_before_real_first_year_start' (20783868) panicked at tests/cash_method_safety.rs:1702:5:
+a January calendar bucket must not permit posting before the actual January 5 business/fiscal-year start
+test cash_immutable_boundary_rejects_expense_before_real_first_year_start ... FAILED
+
+failures:
+
+failures:
+    cash_immutable_boundary_blocks_vat_approval_after_external_profile_drift
+    cash_immutable_boundary_rejects_expense_before_real_first_year_start
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 44 filtered out; finished in 0.09s
+
+error: test failed, to rerun pass `--test cash_method_safety`
+
+Cargo exit status: 101

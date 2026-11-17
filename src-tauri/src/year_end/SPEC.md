@@ -4,8 +4,8 @@ type: submodule-design
 status: active
 title: Year-end preparation and artifact integrity
 parent: rust-backend
-depends-on: [tax-rules, workspace-defaults, vat-returns]
-references: [prepare-only-tax, product-goal, accounting-ledger, expense-posting, business-profiles, tax-task-calendar]
+depends-on: [tax-rules, workspace-defaults, vat-returns, business-profiles]
+references: [prepare-only-tax, product-goal, accounting-ledger, expense-posting, tax-task-calendar]
 ---
 
 # Year-end preparation and artifact integrity
@@ -36,6 +36,11 @@ Professional assistance is not a completion prerequisite.
 
 ## Current boundary and gaps
 
+New approval enforces `business-profiles`' interim timing policy before draft
+artifact repair and rechecks it inside the immediate approval transaction.
+Already-approved artifact retrieval retains its integrity safeguards and the
+policy's preservation exceptions; it does not reapprove or rewrite posted books.
+
 Creation/regeneration captures ledger state and rule provenance. Approval requires
 all configured VAT periods approved and an unchanged ledger fingerprint, then
 atomically records approval, locks periods, and closes the year. A package missing
@@ -53,6 +58,11 @@ Current NE fields are only R1 from revenue and B14 from the computed business re
 This is incomplete, unvalidated mapping, not an accepted selected-field product.
 
 Guided missing-fact inputs and complete supported-case treatment are absent.
+
+Cash-profile or immutable cash-issued books have an explicit unsatisfied preparation
+readiness item, even with zero balances or all supported invoices paid. The bounded
+receipt path does not implement unpaid closing or validate cash VAT/year-end
+approval. Current-profile edits cannot remove that cash preparation boundary.
 
 Current readiness labels referring to VAT filing mean local approval.
 They must not imply external submission. `tax-task-calendar` owns the required

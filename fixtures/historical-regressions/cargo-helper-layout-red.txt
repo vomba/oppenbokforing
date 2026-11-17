@@ -1,0 +1,30 @@
+Behavioral RED captured before the Cargo-layout fix.
+Command: cargo test --locked --manifest-path src-tauri/Cargo.toml --no-default-features --lib invoicing::cash::pdf_process::tests::fixed_cargo_layouts_select_only_the_profile_sibling
+Local Cargo 1.99.1; no toolchain override or package installation.
+Remote Cargo 1.100 failure: https://github.com/vomba/oppenbokforing/actions/runs/44072966860
+Both runners built the real helper, but debug/build/package/hash/out did not map to the fixed profile sibling.
+
+   Compiling oppenbokforing-desktop v0.1.0 (/Users/vomba/.thinkrail/worktrees/oppenbokforing-export/workspace-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.51s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/oppenbokforing_desktop_lib-fdd1f32b122e1adb)
+
+running 1 test
+test invoicing::cash::pdf_process::tests::fixed_cargo_layouts_select_only_the_profile_sibling ... FAILED
+
+failures:
+
+---- invoicing::cash::pdf_process::tests::fixed_cargo_layouts_select_only_the_profile_sibling stdout ----
+
+thread 'invoicing::cash::pdf_process::tests::fixed_cargo_layouts_select_only_the_profile_sibling' (7163562) panicked at src/invoicing/cash/pdf_process.rs:213:13:
+assertion `left == right` failed
+  left: "/owned/target/debug/build/oppenbokforing-desktop/0123456789abcdef/out/oppenbokforing-pdf-helper"
+ right: "/owned/target/debug/oppenbokforing-pdf-helper"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    invoicing::cash::pdf_process::tests::fixed_cargo_layouts_select_only_the_profile_sibling
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 72 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

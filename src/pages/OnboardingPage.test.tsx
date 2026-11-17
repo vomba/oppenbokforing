@@ -2,12 +2,13 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import fSkattFixture from "../../fixtures/golden-scenarios/f-skatt-business.json"
 import { LocaleProvider } from "../context/LocaleContext"
 import { WorkspaceProvider } from "../context/WorkspaceContext"
 import type { AppError } from "../lib/bindings"
 import { OnboardingPage } from "./OnboardingPage"
 
-const { workspaceSettingsFixture, profileNotFoundError } = vi.hoisted(() => {
+const { workspaceSettingsFixture, profileNotFoundError, navigate } = vi.hoisted(() => {
   const workspaceSettingsFixture = {
     id: "settings-1",
     locale: "sv",
@@ -26,7 +27,7 @@ const { workspaceSettingsFixture, profileNotFoundError } = vi.hoisted(() => {
     }
   }
 
-  return { workspaceSettingsFixture, profileNotFoundError }
+  return { workspaceSettingsFixture, profileNotFoundError, navigate: vi.fn() }
 })
 
 const workspace = {
@@ -53,7 +54,7 @@ vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
   return {
     ...actual,
-    useNavigate: () => vi.fn(),
+    useNavigate: () => navigate,
   }
 })
 
@@ -98,6 +99,7 @@ afterEach(() => {
 })
 
 beforeEach(async () => {
+  navigate.mockClear()
   const commands = await import("../lib/commands")
   vi.mocked(commands.businessProfileGetCurrent).mockClear()
   vi.mocked(commands.taxProfileGetCurrent).mockClear()
@@ -114,6 +116,85 @@ beforeEach(async () => {
 })
 
 describe("OnboardingPage", () => {
+  it.each([true, false])(
+    "registered F-skatt with zero salary navigates only when saved compliance passes (%s)",
+    async (passed) => {
+      const user = userEvent.setup()
+      const commands = await import("../lib/commands")
+      const business = {
+        id: "bp-1",
+        businessName: "Synthetic F-skatt",
+        ownerName: "Synthetic Owner",
+        residencyCountry: "SE",
+        sniCode: null,
+      }
+      const tax = {
+        id: "tp-1",
+        taxStatus: "f_skatt",
+        expectedBusinessProfitMinor: 18_000_000,
+        expectedSalaryIncomeMinor: 0,
+        activeRuleYear: 2026,
+      }
+      const vat = {
+        id: "vp-1",
+        vatStatus: "registered",
+        reportingPeriod: "yearly",
+        accountingMethod: "invoice_method",
+        voluntaryRegistrationDate: null,
+        vatFilingDeadlineRegime: "annual_may_12",
+      }
+      const compliance = {
+        scenarioIds: ["f-skatt-business"],
+        passed: true,
+        outcomes: { "f-skatt-business": fSkattFixture.expected },
+        ruleYear: 2026,
+      }
+      vi.mocked(commands.businessProfileGetCurrent).mockResolvedValue(business)
+      vi.mocked(commands.taxProfileGetCurrent).mockResolvedValue(tax)
+      vi.mocked(commands.vatProfileGetCurrent).mockResolvedValue(vat)
+      vi.mocked(commands.complianceProfileCheck).mockResolvedValueOnce(compliance)
+      vi.mocked(commands.onboardingProfilesSave).mockResolvedValueOnce({
+        business,
+        tax,
+        vat,
+        compliance: { ...compliance, passed },
+      })
+
+      renderOnboarding()
+      await waitFor(() => expect(screen.getByRole("button", { name: "Granska" })).toBeEnabled())
+      await user.click(screen.getByRole("button", { name: "Granska" }))
+      await waitFor(() => expect(screen.getByRole("button", { name: "Spara ändringar" })).toBeEnabled())
+      await user.click(screen.getByRole("button", { name: "Spara ändringar" }))
+      await waitFor(() => {
+        expect(screen.getByText(passed
+          ? "Profiler sparade. Kontroller godkända."
+          : "Profiler sparade — granska kontroller innan fakturering.",
+        )).toBeInTheDocument()
+      })
+      expect(commands.onboardingProfilesSave).toHaveBeenLastCalledWith(expect.objectContaining({
+        tax: expect.objectContaining({ taxStatus: "f_skatt", expectedSalaryIncomeMinor: 0 }),
+        vat: expect.objectContaining({
+          vatStatus: "registered",
+          reportingPeriod: "yearly",
+          accountingMethod: "invoice_method",
+          vatFilingDeadlineRegime: "annual_may_12",
+        }),
+      }))
+      if (passed) {
+        expect(navigate).toHaveBeenCalledWith("/dashboard")
+      } else {
+        // Even a passing preview/outcomes must not override a false backend result.
+        expect(navigate).not.toHaveBeenCalled()
+      }
+      expect(screen.queryByText(
+        "FA-skatt kräver separat planering för lön och firma.",
+      )).not.toBeInTheDocument()
+      expect(screen.queryByText(
+        "Skatteplanering behöver din förväntade lön.",
+      )).not.toBeInTheDocument()
+    },
+  )
+
   it("disables later wizard steps until business details are complete", async () => {
     renderOnboarding()
     await waitFor(() => {

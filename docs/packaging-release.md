@@ -26,6 +26,12 @@ npm run pdf:build
 cargo check --manifest-path src-tauri/Cargo.toml --features desktop
 ```
 
+`npm run test:rust` also stages this real native helper before testing.
+Direct `cargo test` callers must run `npm run pdf:build` first. Cargo's integration
+binary artifacts do not replace the required fixed-name runtime artifact.
+Debug lookup supports both legacy `deps` and the Cargo 1.100 package/hash/out layout.
+There is no environment-selected parser or missing-helper fallback.
+
 The build script uses the hook's target/profile, builds the existing Rust helper
 binary, and stages the target-suffixed file under `src-tauri/binaries/` (generated,
 not committed). The bundler strips the target suffix. On macOS, the required runtime

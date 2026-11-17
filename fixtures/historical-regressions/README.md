@@ -104,5 +104,14 @@ retains its explicit old test rule and fiscal-year/number assertions.
   Direct tests additionally cover missing/retired 2026 rules and changed actual
   payloads despite unchanged version IDs/checksums.
 
+## Cargo artifact lookup regression
+
+`cargo-helper-layout-red.txt` retains a compiling behavioral failure for the
+Cargo 1.100 debug artifact layout, plus the original failed cross-platform CI link.
+The fix maps only fixed Cargo layouts and stages the real helper before Rust tests.
+Real copied-process probes verify successful recognition and missing-profile-helper
+rejection even when a real parser is available at the wrong adjacent location.
+All earlier malicious-file, writer-availability, deadline and missing-helper probes remain.
+
 No fixture in this directory claims legal completeness of PDFs, books, credits,
 settlements, VAT returns or year-end preparation.

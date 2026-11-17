@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:fixtures": "vitest run src/lib/fixtures.test.ts",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --no-default-features",
+    "test:rust": "npm run pdf:build && cargo test --manifest-path src-tauri/Cargo.toml --no-default-features",
     "test:golden": "cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test golden_scenarios",
     "test:m8": "vitest run src/test/m8_simple_ux.test.ts && cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --test m8_milestone",
     "test:all": "npm test && npm run test:rust",

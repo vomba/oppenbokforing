@@ -50,20 +50,35 @@ fn helper_beside(exe: PathBuf) -> Result<PathBuf, AppError> {
     let dir = exe
         .parent()
         .ok_or_else(|| blocked("PDF helper unavailable"))?;
-    // Cargo integration/unit executables live in debug/deps. This is only a
-    // layout adjustment, never a different parser, policy or authorization path.
+    // Debug Cargo artifacts can live in deps or build/package/hash/out.
+    // Map only those fixed layouts, never search or select another parser.
     #[cfg(debug_assertions)]
-    let dir = if dir.file_name().is_some_and(|n| n == "deps") {
-        dir.parent()
-            .ok_or_else(|| blocked("PDF helper unavailable"))?
-    } else {
-        dir
-    };
+    let dir = cargo_debug_profile(dir).unwrap_or(dir);
     let path = dir.join(HELPER);
     if !path.is_absolute() {
         return Err(blocked("PDF helper path must be absolute"));
     }
     Ok(path)
+}
+#[cfg(debug_assertions)]
+fn cargo_debug_profile(dir: &std::path::Path) -> Option<&std::path::Path> {
+    if dir.file_name().is_some_and(|n| n == "deps") {
+        return dir.parent();
+    }
+    let hash_dir = dir.parent()?;
+    let package = hash_dir.parent()?;
+    let build = package.parent()?;
+    let profile = build.parent()?;
+    let hash = hash_dir.file_name()?.to_str()?;
+    (dir.file_name().is_some_and(|n| n == "out")
+        && package
+            .file_name()
+            .is_some_and(|n| n == "oppenbokforing-desktop")
+        && build.file_name().is_some_and(|n| n == "build")
+        && profile.file_name().is_some_and(|n| n == "debug")
+        && hash.len() == 16
+        && hash.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    .then_some(profile)
 }
 struct OwnedChild {
     child: Child,
@@ -203,6 +218,38 @@ async fn checked_process(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(debug_assertions)]
+    #[test]
+    fn fixed_cargo_layouts_select_only_the_profile_sibling() {
+        let root = std::env::temp_dir().join("owned-pdf-layout");
+        for executable in [
+            "target/debug/deps/probe-0123456789abcdef",
+            "target/debug/build/oppenbokforing-desktop/0123456789abcdef/out/probe-0123456789abcdef",
+        ] {
+            assert_eq!(
+                helper_beside(root.join(executable)).unwrap(),
+                root.join("target/debug").join(HELPER)
+            );
+        }
+    }
+    #[cfg(debug_assertions)]
+    #[test]
+    fn cargo_lookalikes_and_normal_apps_keep_adjacent_discovery() {
+        let root = std::env::temp_dir().join("owned-pdf-layout");
+        for executable in [
+            "app/oppenbokforing-desktop",
+            "target/debug/build/other-package/0123456789abcdef/out/probe",
+            "target/debug/build/oppenbokforing-desktop/not-a-cargo-hash/out/probe",
+            "target/debug/other/oppenbokforing-desktop/0123456789abcdef/out/probe",
+            "arbitrary/oppenbokforing-desktop/0123456789abcdef/out/probe",
+        ] {
+            let executable = root.join(executable);
+            assert_eq!(
+                helper_beside(executable.clone()).unwrap(),
+                executable.parent().unwrap().join(HELPER)
+            );
+        }
+    }
     #[test]
     fn wrong_hash_version_or_malformed_output_cannot_grant_capability() {
         for raw in [

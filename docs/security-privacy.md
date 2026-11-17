@@ -76,9 +76,12 @@ rechecks the same document/hash, source exclusion and all case predicates inside
 the writer. A private prepared result cannot substitute for those checks.
 
 The packaged helper is a sibling of the main executable, not a renderer path or
-PATH lookup. Cargo development/test layout uses that same binary and policy. No
-shell permission, GUI runtime, database, network or source path is exposed to the
-helper. Input uses a private file descriptor; replies are bounded and bind the
+PATH lookup. Cargo development/test layout uses that same binary and policy.
+Debug-only mapping recognizes legacy `deps` and Cargo's
+`debug/build/oppenbokforing-desktop/<16-hex-hash>/out` layout. It selects the fixed
+profile sibling without ancestor search, environment overrides or missing-file
+fallback. Ordinary and release applications retain adjacent discovery. No shell
+permission, GUI runtime, database, network or source path is exposed to the helper. Input uses a private file descriptor; replies are bounded and bind the
 protocol version, validity and exact input digest. Failure cannot become proof.
 
 The helper enforces a 128 MiB requested-Rust-allocation budget from startup,

@@ -27,6 +27,9 @@ fn run_probe(mode: &str) {
         std::fs::copy(&executable, &relocated).unwrap();
         executable = relocated;
     }
+    run_executable_probe(&executable, mode);
+}
+fn run_executable_probe(executable: &std::path::Path, mode: &str) {
     let mut child = Command::new(executable)
         .args([
             "--ignored",
@@ -90,19 +93,9 @@ fn missing_fixed_path_helper_denies_new_receipt_without_writes() {
 }
 
 #[test]
-fn cargo_builds_real_helper_at_runtime_sibling() {
+fn cargo_builds_real_helper() {
     let built = std::path::Path::new(env!("CARGO_BIN_EXE_oppenbokforing-pdf-helper"));
-    let runtime = std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join(built.file_name().unwrap());
-    assert_eq!(
-        std::fs::canonicalize(built).unwrap(),
-        std::fs::canonicalize(runtime).unwrap()
-    );
+    assert!(std::fs::canonicalize(built).unwrap().is_file());
     let input = tempfile::tempfile().unwrap();
     use std::io::{Seek, Write};
     let mut input = input;
@@ -115,6 +108,32 @@ fn cargo_builds_real_helper_at_runtime_sibling() {
     assert_eq!(reply["valid"], true);
     assert_eq!(reply["pages"], 1);
     assert!(output.stdout.len() <= 4096);
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn modern_cargo_layout_uses_real_profile_helper_without_adjacent_fallback() {
+    let isolated = tempfile::tempdir().unwrap();
+    let profile = isolated.path().join("debug");
+    let out = profile.join("build/oppenbokforing-desktop/0123456789abcdef/out");
+    std::fs::create_dir_all(&out).unwrap();
+    let executable = out.join(std::env::current_exe().unwrap().file_name().unwrap());
+    std::fs::copy(std::env::current_exe().unwrap(), &executable).unwrap();
+    let built = std::path::Path::new(env!("CARGO_BIN_EXE_oppenbokforing-pdf-helper"));
+    let name = if cfg!(windows) {
+        "oppenbokforing-pdf-helper.exe"
+    } else {
+        "oppenbokforing-pdf-helper"
+    };
+    let helper = profile.join(name);
+    std::fs::copy(built, &helper).unwrap();
+    run_executable_probe(&executable, "normal");
+
+    // A missing fixed profile helper must not fall back to another location,
+    // even when the real parser is present beside the Cargo test executable.
+    std::fs::copy(&helper, out.join(name)).unwrap();
+    std::fs::remove_file(helper).unwrap();
+    run_executable_probe(&executable, "missing");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -216,6 +235,12 @@ async fn public_service_probe() {
     if mode == "compressed" || mode == "normal" {
         result.expect("ordinary PDFs including compressed ObjStm remain supported");
     } else {
+        if mode == "missing" {
+            assert_eq!(
+                result.as_ref().unwrap_err().message,
+                "Packaged PDF helper missing or unavailable"
+            );
+        }
         assert!(result.is_err(), "malicious PDF granted receipt proof");
         assert_no_recognition(&f.pool, &f.workspace).await;
         for table in [
